@@ -1,0 +1,93 @@
+{% extends 'client/base.html'%}
+{% block 'client_content' %}
+{% load static %}
+
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.4/jquery.min.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+<link href='https://cdn.jsdelivr.net/npm/fullcalendar@5.10.1/main.min.css' rel='stylesheet' />
+    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.10.1/main.min.js'></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css">
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            var calendarEl = document.getElementById('calendar');
+            var calendar = new FullCalendar.Calendar(calendarEl, {
+                initialView: 'dayGridMonth',
+                events: [
+                    // Add your events here
+                ],
+                dateClick: function(info) {
+                    $('#addEventModal').modal('show');
+                    $('#id_start_time').val(info.dateStr);
+                    $('#id_end_time').val(info.dateStr);
+                }
+            });
+            calendar.render();
+        });
+    </script>
+<style>
+  .error {
+    color: red;
+    font-family: Comic Sans MS;
+    font-weight: bold;
+    font-size: 12px;
+  }
+  
+</style>
+
+<div class="row" style="background-color:white;padding:10px;border-radius:10px;">
+  <div class="container">
+    <h3 style="color:darkred;font-family:'Dancing Script', cursive;margin-left:370px;margin-top:10px;">Calendar</h3>
+    <button class="btn btn-primary" data-toggle="modal" data-target="#addEventModal">
+        <i class="fas fa-calendar-plus"></i> Add Schedule
+    </button>
+    <div id='calendar'></div>
+</div>
+
+<!-- Modal -->
+<div class="modal fade" id="addEventModal" tabindex="-1" role="dialog" aria-labelledby="addEventModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addEventModalLabel">Add Event</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="eventForm">
+                    <div class="form-group">
+                        <label for="event-title">Event Title</label>
+                        <input type="text" class="form-control" id="event-title" name="title" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="start-time">Start Time</label>
+                        <input type="datetime-local" class="form-control" id="start-time" name="start_time" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="end-time">End Time</label>
+                        <input type="datetime-local" class="form-control" id="end-time" name="end_time" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Save</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+</div>
+
+
+
+<script>
+  $('#eventForm').on('submit', function(event){
+      event.preventDefault();
+      // Handle the form submission
+      $('#addEventModal').modal('hide');
+  });
+</script>
+
+
+{% endblock %}

@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <h2>Welcome, </h2>
+    <br><br><br>
+    {% if user.is_authenticated %}
+    {{ user.username}}
+    
+    <p>id: {{ user.id }}</p>
+    <br><br>
+    <a href="{% url 'logout' %}">logout</a>
+{% else %}
+<a href="{% url 'login' %}">login</a><br>
+<a href="{% url 'register' %}">register</a><br>
+    <p>User not logged in.</p>
+{% endif %}
+</body>
+</html>

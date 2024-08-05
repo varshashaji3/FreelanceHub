@@ -1,0 +1,48 @@
+{% extends 'Admin/base.html'%}
+{% block 'client_content' %}
+         
+
+
+                <div class="row">
+                    <div class="col-md-12 grid-margin stretch-card">
+                      <div class="card">
+                        <div class="card-body">
+                          
+
+                            <form method="post" action="{% url 'administrator:add_work' %}" enctype="multipart/form-data" id="profile_form">
+                                {% csrf_token %}
+                                <div class="row gy-3">
+                                    <div class="col-12 col-md-12">
+                                        <div class="form-floating mb-3">
+                                            <input type="text" class="form-control" id="work" name="work" placeholder="First Name" required>
+                                            <label for="work" class="form-label">Work Title</label>
+                                            <span id="error_work" class="error"></span>
+                                        </div>
+                                    </div>
+                                    
+                                    </div>
+
+
+                                    
+
+                                    <div class="col-12">
+                                        <div class="d-grid">
+                                            <button type="submit" class="btn btn-dark btn-lg">Save</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <span id="profile_err" class="error"></span>
+                            </form>
+                    
+
+                        </div>
+                      </div>
+                    </div>
+
+
+                
+
+                
+                
+
+{% endblock %}

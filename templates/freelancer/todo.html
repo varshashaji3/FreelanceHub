@@ -1,0 +1,130 @@
+{% extends 'freelancer/base.html'%}
+{% block 'freelancer_content' %}
+{% load static %}
+
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.4/jquery.min.js"></script>
+
+<style>
+    .error {
+        color: red;
+        font-family: Comic Sans MS;
+        font-weight: bold;
+        font-size: 12px;
+    }
+
+
+    .card {
+        border-radius: 10px;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    }
+
+    .todo-list {
+        list-style-type: none;
+        padding: 0;
+        margin: 0;
+    }
+
+    .todo-list li {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px;
+        border-bottom: 1px solid #eee;
+    }
+
+    .todo-list li:last-child {
+        border-bottom: none;
+    }
+
+    .todo-list li .form-check-label {
+        display: flex;
+        align-items: center;
+    }
+
+    .todo-list li .form-check-label input {
+        margin-right: 10px;
+    }
+
+    .todo-list li.completed .form-check-label {
+        text-decoration: line-through;
+    }
+
+    .remove {
+        cursor: pointer;
+    }
+
+    .todo-form input {
+        margin-right: 10px;
+    }
+</style>
+<div class="row">
+
+    <div class="col-md-8 grid-margin stretch-card" style="height: auto;">
+        <div class="card">
+            <div class="card-body">
+                <h4 class="card-title">To Do Lists</h4>
+                <ul class="todo-list todo-list-custom">
+                    
+                    {% for todo in todos %}
+                    <li>
+                        <div class="form-check form-check-flat">
+                            <label class="form-check-label">
+                                <input class="checkbox" type="checkbox">
+                                {{todo.title}}
+                            </label>
+                        </div>
+                        <a href="" style="text-decoration: none;color:black;margin-left:470px;">
+                            <i class="ti-pencil"></i> 
+                        </a>
+                        <form action="{% url 'freelancer:delete_todo' todo.id %}" method="post" style="display: inline;">
+                            {% csrf_token %}
+                            <input type="hidden" name="next" value="{{ request.path }}">
+                            <button type="submit" style=" border:none;outline:none;background-color: #fff;padding:20px">
+                                <i class="remove ti-trash"></i>
+                            </button>
+                        </form>
+                    </li>
+                    {% endfor %}
+                </ul>
+
+            </div>
+        </div>
+
+    </div>
+
+    <div class="col-md-4">
+        <div class="row">
+
+
+            <div class="col-12 grid-margin stretch-card" style="height: 300px;">
+                <div class="card">
+                    <div class="card-body">
+                        <h4 class="card-title" style="margin-left:80px;margin-top:20px;margin-bottom:20px;">Add To Do
+                        </h4>
+
+                        <div class="add-items d-flex mb-0 mt-2">
+                            <form method="post" action="{% url 'freelancer:add_todo' profile1.id %}"
+                                id="todo_form" style="margin-top:10px;margin-bottom:30px;">
+                                {% csrf_token %}
+                                <input type="hidden" name="next" value="{{ request.path }}">
+                                <div class="col-12 col-md-12">
+                                    <div class="form-floating mb-3">
+                                        <input type="text" class="form-control" id="title" name="title"
+                                            placeholder="Add Task">
+                                        <span id="error_title" class="error"></span>
+                                    </div>
+                                </div>
+                                <button type="submit" class="btn btn-primary" style="border-radius:7px;">save</button>
+                                <br><span id="pass_err" class="error"></span>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+{% endblock %}
