@@ -1,0 +1,141 @@
+
+{% extends 'Admin/base.html'%}
+{% block 'admin_content' %}
+
+<style>
+    @import url("https://fonts.googleapis.com/css?family=Raleway:300,400,400i,700");
+
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+    }
+
+    body {
+        font-family: Raleway, sans-serif;
+    }
+
+    .custom-checkbox {
+        display: block;
+        position: relative;
+        cursor: pointer;
+        text-align: center;
+    }
+
+    .custom-checkbox input {
+        display: none;
+    }
+
+    .checkbox-btn {
+        margin: 10px;
+        width: 220px;
+        height: 240px;
+        border: 3px solid transparent;
+        display: inline-block;
+        border-radius: 10px;
+        position: relative;
+        box-shadow: 0 0 20px #c3c3c367;
+        transition: background-color 0.3s;
+    }
+
+    .checkbox-btn>i {
+        color: #ffffff;
+        background-color: #FFDAE9;
+        font-size: 20px;
+        position: absolute;
+        top: -15px;
+        left: 50%;
+        transform: translateX(-50%) scale(2);
+        border-radius: 50px;
+        padding: 3px;
+        transition: 0.5s;
+        pointer-events: none;
+        opacity: 0;
+    }
+
+    .hobbies-icon {
+        width: 150px;
+        height: 150px;
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+    }
+
+    .hobbies-icon img {
+        width: 100%;
+        display: block;
+        margin-bottom: 10px;
+    }
+
+    .hobbies-icon h3 {
+        color: #555;
+        font-size: 18px;
+        font-weight: 300;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+
+    .custom-checkbox input:checked+.checkbox-btn {
+        border: 2px solid #FFDAE9;
+        background-color: #e0e0e0;
+    }
+
+    .custom-checkbox input:checked+.checkbox-btn>i {
+        opacity: 1;
+        transform: translateX(-50%) scale(1);
+    }
+</style>
+<div class="row">
+    <div class="col-md-12 grid-margin stretch-card">
+        <div class="card">
+            <div class="card-body">
+
+
+                <form method="post" action="{% url 'administrator:add_skill' %}" enctype="multipart/form-data"
+                    id="profile_form">
+                    {% csrf_token %}
+                    <div class="row gy-3">
+                        <div class="col-12 col-md-12">
+                            <div class="form-floating mb-3">
+                                <input type="text" class="form-control" id="work" name="skill" placeholder="First Name"
+                                    required>
+                                <label for="work" class="form-label">Work Title</label>
+                                <span id="error_work" class="error"></span>
+                            </div>
+                        </div>
+                        {% for prof in profs %}
+                        <div class="col-12 col-md-4 col-lg-3">
+                            <div class="tile">
+                                <input type="checkbox" id="profession_{{ prof.id }}" name="profession"
+                                    value="{{ prof.id }}">
+                                <label for="profession_{{ prof.id }}">{{ prof.name }}</label>
+                            </div>
+                        </div>
+                        {% endfor %}
+
+                    </div>
+
+
+
+                    <br>
+                    <div class="col-12">
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-dark btn-lg">Save</button>
+                        </div>
+                    </div>
+            </div>
+            <span id="profile_err" class="error"></span>
+            </form>
+
+
+        </div>
+    </div>
+</div>
+
+
+
+
+
+
+{% endblock %}

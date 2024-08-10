@@ -1,0 +1,84 @@
+
+{% extends 'client/base.html' %}
+{% block 'client_content' %}
+{% load static %}
+
+<div class="row" style="background-color:white;padding:10px;border-radius:10px;">
+    <h3 align="center" style="margin:1% auto;color:#ff0057">Projects</h3>
+</div><br>
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
+<!-- DataTables CSS -->
+<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.11.3/css/jquery.dataTables.css">
+
+<style>
+   
+    table.dataTable {
+        width: 100%;
+        height:250px;
+    }
+    .status-active {
+        background-color: #28a745;
+        color: white;
+    }
+    .status-inactive {
+        background-color: #dc3545;
+        color: white;
+    }
+</style>
+
+
+<div class="row" style="background-color:white;padding:10px;border-radius:10px;">
+    <table id="projectTable" class="display">
+        <thead>
+            <tr>
+                <th>Title</th>
+                <th>Description</th>
+                <th>Budget</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for project in projects %}
+            <tr>
+                <td>{{ project.title|default:'' }}</td>
+                <td>{{ project.description|truncatechars:100|default:'' }}</td>
+                <td>{{ project.budget|default:'' }}</td>
+                <td>
+                    <form action="{% url 'client:toggle_project_status' project.id %}" method="post">
+                        {% csrf_token %}
+                        <button type="submit" class="btn {% if project.status == 'open' %}status-active{% else %}status-inactive{% endif %}">
+                            {% if project.status == 'open' %}Open{% else %}Closed{% endif %}
+                        </button>
+                    </form>
+                </td>
+                <td>
+                    
+                    <a href="{% url 'client:single_project_view' project.id %}" style="color:black;padding-left:10px;"><i class="fa-solid fa-eye"></i></a>
+                    <a href="{% url 'client:edit_project' project.id %}" style="color:#007bff;padding-left:10px;"><i class="fa-solid fa-edit"></i></a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+<script type="text/javascript" charset="utf8" src="https://cdn.datatables.net/1.11.3/js/jquery.dataTables.js"></script>
+
+<script>
+$(document).ready( function () {
+    $('#projectTable').DataTable({
+        "paging": true,
+        "searching": true,
+        "info": true
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,197 @@
+
+{% extends 'client/base.html' %}
+{% block 'client_content' %}
+{% load static %}
+
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.4/jquery.min.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+<link href="https://cdn.jsdelivr.net/npm/fullcalendar@5.10.1/main.min.css" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.10.1/main.min.js"></script>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/6.1.7/core/main.min.css" rel="stylesheet" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var calendarEl = document.getElementById('calendar');
+        var eventsData = {{ events_data|safe }};
+
+        var calendar = new FullCalendar.Calendar(calendarEl, {
+            initialView: 'dayGridMonth',
+            events: eventsData,
+            eventDisplay: 'block',
+            dateClick: function(info) {
+                $('#addEventModal').modal('show');
+                $('#start-time').val(info.dateStr);
+                $('#end-time').val(info.dateStr);
+            },
+            eventClick: function(info) {
+                $('#eventDetailModal').modal('show');
+                $('#eventDetailTitle').text(info.event.title);
+                $('#eventDetailDescription').text(info.event.extendedProps.description || 'No description');
+                $('#eventDetailStart').text(info.event.start.toISOString().slice(0, 10));
+                $('#eventDetailEnd').text(info.event.end ? info.event.end.toISOString().slice(0, 10) : info.event.start.toISOString().slice(0, 10));
+                $('#eventDetailColor').css('background-color', info.event.backgroundColor);
+            },
+            eventContent: function(arg) {
+                let eventTitle = document.createElement('div');
+                eventTitle.innerHTML = arg.event.title;
+                return { domNodes: [eventTitle] };
+            }
+        });
+
+        calendar.render();
+    });
+</script>
+
+<style>
+    body {
+        background-color: #f8f9fa;
+    }
+
+    h3 {
+        color: darkred;
+        font-family: 'Dancing Script', cursive;
+        text-align: center;
+        margin-top: 10px;
+    }
+
+    .btn-primary {
+        margin-bottom: 20px;
+    }
+
+    .fc-toolbar-title {
+        font-size: 1.5em;
+        color: #343a40;
+    }
+
+    .modal-header {
+        background-color: #343a40;
+        color: white;
+    }
+
+    .modal-content {
+        border-radius: 10px;
+    }
+
+    .form-control {
+        margin-bottom: 10px;
+    }
+
+    .fc-event {
+        font-size: 1em;
+        padding: 5px;
+        background-color: #007bff;
+        color: white;
+        border: none;
+        border-radius: 4px;
+    }
+
+    .fc-event:hover {
+        background-color: #0056b3;
+    }
+
+    #editEventButton, #deleteEventButton {
+        flex: 1;
+        display: inline-block;
+        text-align: center;
+        white-space: nowrap;
+        margin: 10px;
+        padding:10px;
+        border-radius: 10px;
+        border: none;
+        outline: none;
+    }
+
+    #editEventButton, #deleteEventButton {
+        background-color: blue;
+    }
+
+    #deleteEventButton {
+        background-color: red;
+    }
+    
+</style>
+<div class="container">
+   
+<div class="container mt-5 p-3 bg-white rounded shadow-sm">
+    <h3 style="color:darkred;font-family:'Dancing Script', cursive;margin-left:370px;margin-top:10px;">Calendar</h3>
+    <button class="btn btn-primary" data-toggle="modal" data-target="#addEventModal">
+        <i class="fas fa-calendar-plus"></i> Add Schedule
+    </button>
+    <div id='calendar'></div>
+
+    <!-- Modal -->
+    <div class="modal fade" id="addEventModal" tabindex="-1" role="dialog" aria-labelledby="addEventModalLabel" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="addEventModalLabel">Add Event</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <form id="eventForm" method="post" action="{% url 'client:add_event' %}">
+                        {% csrf_token %}
+                        <div class="form-group">
+                            <label for="event-title">Event Title</label>
+                            <input type="text" class="form-control" id="event-title" name="title" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="event-description">Description</label>
+                            <textarea class="form-control" id="event-description" name="description" rows="3"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="start-time">Start Date</label>
+                            <input type="date" class="form-control" id="start-time" name="start_time" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="end-time">End Date</label>
+                            <input type="date" class="form-control" id="end-time" name="end_time" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="event-color">Event Color</label>
+                            <input type="color" class="form-control" id="event-color" name="color">
+                        </div>
+                        <button type="submit" class="btn btn-primary">Save</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+
+
+    <div class="modal fade" id="eventDetailModal" tabindex="-1" role="dialog" aria-labelledby="eventDetailModalLabel" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="eventDetailModalLabel">Event Details</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <h5 id="eventDetailTitle"></h5>
+                    <p id="eventDetailDescription"></p>
+                    <p><strong>Start:</strong> <span id="eventDetailStart"></span></p>
+                    <p><strong>End:</strong> <span id="eventDetailEnd"></span></p>
+                    <div><strong>Color:</strong> <span id="eventDetailColor" style="display: inline-block; width: 20px; height: 20px; border-radius: 50%;"></span></div>
+                <br>
+                <div class="mt-3 d-flex">
+                    <button type="button"  id="editEventButton"><a href="#">Edit</a></button>
+                    <button type="button"  id="deleteEventButton"><a href="#">Delete</a></button>
+                </div>
+                
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

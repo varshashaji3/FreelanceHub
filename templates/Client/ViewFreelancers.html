@@ -1,0 +1,175 @@
+
+{% extends 'client/base.html' %}
+{% block 'client_content' %}
+{% load static %}
+
+<div class="row" style="background-color:white;padding:10px;border-radius:10px;">
+    <h3 align="center" style="margin:1% auto;color:#ff0057">Freelancers</h3>
+</div><br>
+
+<div class="row justify-content-center">
+    <div class="col-md-12">
+        <form method="GET" id="filterForm" class="form-inline">
+            <input type="text" name="search" id="searchInput" placeholder="Search by name or profession..." class="form-control search-input mr-2" value="{{ request.GET.search }}">
+            <select name="profession" id="profession" class="form-control filter-select mr-2">
+                <option value="">Filter by profession</option>
+                {% for profession in profession_choices %}
+                    <option value="{{ profession }}" {% if request.GET.profession == profession %}selected{% endif %}>{{ profession }}</option>
+                {% endfor %}
+            </select>
+            <select name="skill" id="skill" class="form-control filter-select mr-2">
+                <option value="">Filter by skill</option>
+                {% for skill in skill_choices %}
+                    <option value="{{ skill }}" {% if request.GET.skill == skill %}selected{% endif %}>{{ skill }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="btn btn-primary mr-2">Apply Filters</button>
+            <a href="{% url 'client:freelancer_list' %}" class="btn btn-secondary">Clear Filters</a>
+        </form>
+    </div>
+</div>
+
+<br><br>
+<style>
+    .card-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 20px;
+        justify-content: center;
+    }
+    
+    .card {
+        background-color: #fff;
+        width: 300px;
+        border-radius: 15px;
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        /* Add a slight initial scale */
+        transform: scale(0.98);
+    }
+    
+    .card:hover {
+        transform: scale(1.02);
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    }
+
+    
+    .profile-img {
+        width: 100px;
+        height: 100px;
+        margin:10px;
+        border-radius: 50%;
+        object-fit: cover;
+    }
+    
+    .card-body {
+        padding: 20px;
+        text-align: center;
+        flex-grow: 1;
+    }
+    
+    .name {
+        font-size: 22px;
+        margin: 10px 0 5px;
+    }
+    
+    .profession {
+        font-size: 14px;
+        color: #888;
+        margin-bottom: 10px;
+    }
+    
+    .bio {
+        font-size: 14px;
+        color: #666;
+        margin-bottom: 20px;
+    }
+    
+    .hire-btn {
+        background-color: #ff0057;
+        color: #fff;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 16px;
+        transition: background-color 0.3s;
+    }
+    
+    .hire-btn:hover {
+        background-color: #e6004e;
+    }
+    
+    .card-footer {
+        display: flex;
+        justify-content: center;
+        padding: 10px;
+        background-color: #f7f7f7;
+        width: 100%;
+    }
+    
+    .social-media {
+        display: flex;
+        gap: 10px; /* Spacing between icons */
+    }
+    
+    .social-icon {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-decoration: none;
+        color: #000;
+    }
+    
+    .social-icon img {
+        width: 30px;
+        height: 30px;
+    }
+</style>
+<div class="card-container">
+    {% for user_data in users %}
+    {% if user_data.registers %}
+    {% for register in user_data.registers %}
+    <div class="card">
+        {% if register.profile_picture %}
+            <img src="{{ register.profile_picture.url }}" alt="User Image" class="profile-img">
+        {% else %}
+            <img src="{% static 'img/default-profile.jpg' %}" alt="Default User Image" class="profile-img">
+        {% endif %}
+        <div class="card-body">
+            <h2 class="name">{{ register.first_name|default:'' }} {{ register.last_name|default:'' }}</h2>
+            <p class="profession"> {% for profession in user_data.professions %}
+                <span class="profession">{{ profession }},</span>
+            {% empty %}
+                No professions listed
+            {% endfor %}</p>
+            <p class="bio">{{ register.bio_description|default:'' }}</p>
+            <a href="{% url 'client:freelancer_detail' user_data.user.id %}" class="hire-btn">View Details</a>
+        </div>
+        <div class="card-footer">
+            <div class="social-media">
+                <a href="{{ register.linkedin }}" class="social-icon">
+                    <img src="{% static 'img/linkedin.png' %}" alt="Linkedin">
+                </a>
+                <a href="{{ register.instagram }}" class="social-icon">
+                    <img src="{% static 'img/instagram.png' %}" alt="Instagram">
+                </a>
+                <a href="{{ register.twitter }}" class="social-icon">
+                    <img src="{% static 'img/twitter.png' %}" alt="Twitter">
+                </a>
+                <a href="{{ user_data.freelancer_profile.portfolio_link }}" class="social-icon">
+                    <img src="{% static 'img/web.png' %}" alt="Website">
+                </a>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+    {% endif %}
+    {% endfor %}
+</div>
+
+{% endblock %}
