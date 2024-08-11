@@ -109,3 +109,9 @@ class Event(models.Model):
     color = models.CharField(max_length=7, default='#ffffff')  # Hex color code
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='events')
 
+
+class Notification(models.Model):
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='notifications')
+    message = models.CharField(max_length=255)
+    is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)

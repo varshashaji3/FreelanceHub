@@ -46,10 +46,14 @@
         <p><strong>Proposal End Date:</strong> {{ project.end_date }}</p>
 
         <br>    <br>    
-        {% if proposal_exists %}
-            <p><strong style="color:green;">You have already submitted a proposal for this project.</strong></p>
+        {% if project.status == "closed" %}
+            <p><strong style="color:red;">This project is closed.</strong></p>
         {% else %}
-            <a class="btn btn-primary" href="{% url 'freelancer:generate_proposal' project.id %}">Add Proposal</a>
+            {% if proposal_exists %}
+                <p><strong style="color:green;">You have already submitted a proposal for this project.</strong></p>
+            {% else %}
+                <a class="btn btn-primary" href="{% url 'freelancer:generate_proposal' project.id %}">Submit Proposal</a>
+            {% endif %}
         {% endif %}
     </div>
     <div style="margin-left:auto;">

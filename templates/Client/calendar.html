@@ -1,4 +1,3 @@
-
 {% extends 'client/base.html' %}
 {% block 'client_content' %}
 {% load static %}
@@ -9,8 +8,6 @@
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.10.1/main.min.js"></script>
 <link href="https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/6.1.7/core/main.min.css" rel="stylesheet" />
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
-
-
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
@@ -18,34 +15,76 @@
     document.addEventListener('DOMContentLoaded', function() {
         var calendarEl = document.getElementById('calendar');
         var eventsData = {{ events_data|safe }};
-
+    
         var calendar = new FullCalendar.Calendar(calendarEl, {
             initialView: 'dayGridMonth',
             events: eventsData,
-            eventDisplay: 'block',
-            dateClick: function(info) {
-                $('#addEventModal').modal('show');
-                $('#start-time').val(info.dateStr);
-                $('#end-time').val(info.dateStr);
-            },
             eventClick: function(info) {
-                $('#eventDetailModal').modal('show');
-                $('#eventDetailTitle').text(info.event.title);
-                $('#eventDetailDescription').text(info.event.extendedProps.description || 'No description');
-                $('#eventDetailStart').text(info.event.start.toISOString().slice(0, 10));
-                $('#eventDetailEnd').text(info.event.end ? info.event.end.toISOString().slice(0, 10) : info.event.start.toISOString().slice(0, 10));
-                $('#eventDetailColor').css('background-color', info.event.backgroundColor);
+                document.getElementById('event-details-title').textContent = info.event.title;
+                document.getElementById('event-details-description').textContent = info.event.extendedProps.description || 'No description';
+                document.getElementById('event-details-start').textContent = info.event.start.toISOString().slice(0, 10);
+                document.getElementById('event-details-end').textContent = info.event.end ? info.event.end.toISOString().slice(0, 10) : info.event.start.toISOString().slice(0, 10);
+                document.getElementById('event-details-color').style.backgroundColor = info.event.backgroundColor || '#ffffff';
+                document.getElementById('event-details-id').textContent = info.event.id;
+    
+                document.getElementById('event-details').style.display = 'block';
+                document.getElementById('update-event-form-container').style.display = 'none';
+            },
+            dateClick: function(info) {
+                document.getElementById('start-time').value = info.dateStr;
+                document.getElementById('end-time').value = info.dateStr; 
+    
+                $('#addEventModal').modal('show');
             },
             eventContent: function(arg) {
                 let eventTitle = document.createElement('div');
                 eventTitle.innerHTML = arg.event.title;
-                return { domNodes: [eventTitle] };
+                let eventElement = document.createElement('div');
+                eventElement.style.backgroundColor = arg.event.backgroundColor || '#007bff';
+                eventElement.style.color = '#ffffff';
+                eventElement.style.padding = '5px';
+                eventElement.style.borderRadius = '4px';
+                eventElement.appendChild(eventTitle);
+                return { domNodes: [eventElement] };
             }
         });
-
+    
         calendar.render();
+    
+        document.getElementById('editEventButton').addEventListener('click', function() {
+            var eventId = document.getElementById('event-details-id').textContent;
+            if (eventId) {
+                document.getElementById('update-event-title').value = document.getElementById('event-details-title').textContent;
+                document.getElementById('update-event-description').value = document.getElementById('event-details-description').textContent;
+                document.getElementById('update-start-time').value = document.getElementById('event-details-start').textContent;
+                document.getElementById('update-end-time').value = document.getElementById('event-details-end').textContent;
+                document.getElementById('update-event-color').value = getComputedStyle(document.getElementById('event-details-color')).backgroundColor;
+    
+                document.getElementById('update-event-id').value = eventId;
+    
+                document.getElementById('event-details').style.display = 'none';
+                document.getElementById('update-event-form-container').style.display = 'block';
+            }
+        });
+    
+        document.getElementById('cancelUpdateButton').addEventListener('click', function() {
+            document.getElementById('update-event-form-container').style.display = 'none';
+            document.getElementById('event-details').style.display = 'block';
+        });
+    
+        document.getElementById('deleteEventButton').addEventListener('click', function() {
+            var form = document.getElementById('deleteEventForm');
+            var eventId = document.getElementById('event-details-id').textContent;
+            if (eventId) {
+                document.getElementById('delete-event-id').value = eventId; 
+                form.submit(); 
+            }
+        });
     });
+    
 </script>
+
+
 
 <style>
     body {
@@ -84,15 +123,12 @@
     .fc-event {
         font-size: 1em;
         padding: 5px;
-        background-color: #007bff;
         color: white;
         border: none;
         border-radius: 4px;
     }
 
-    .fc-event:hover {
-        background-color: #0056b3;
-    }
+    
 
     #editEventButton, #deleteEventButton {
         flex: 1;
@@ -100,31 +136,80 @@
         text-align: center;
         white-space: nowrap;
         margin: 10px;
-        padding:10px;
+        padding: 10px;
         border-radius: 10px;
         border: none;
         outline: none;
     }
 
-    #editEventButton, #deleteEventButton {
+    #editEventButton {
         background-color: blue;
     }
 
     #deleteEventButton {
         background-color: red;
     }
-    
 </style>
-<div class="container">
-   
 <div class="container mt-5 p-3 bg-white rounded shadow-sm">
-    <h3 style="color:darkred;font-family:'Dancing Script', cursive;margin-left:370px;margin-top:10px;">Calendar</h3>
+    <h3 style="color:darkred;font-family:'Dancing Script', cursive;margin-left:70px;margin-top:10px;">Calendar</h3>
     <button class="btn btn-primary" data-toggle="modal" data-target="#addEventModal">
         <i class="fas fa-calendar-plus"></i> Add Schedule
     </button>
-    <div id='calendar'></div>
+    <div class="row">
+        <div class="col-md-9">
+            <div id='calendar'></div>
+        </div>
+        <div class="col-md-3">
+            <!-- Event Details Section -->
+            <div id="event-details" style="border: 1px solid #ddd; padding: 15px; border-radius: 5px; background-color: #f8f9fa;">
+                <h5 id="event-details-title">Select an event</h5>
+                <p id="event-details-description"></p>
+                <p><strong>Start:</strong> <span id="event-details-start"></span></p>
+                <p><strong>End:</strong> <span id="event-details-end"></span></p>
+                <p><strong>Color:</strong> <span id="event-details-color" style="display: inline-block; width: 20px; height: 20px; border-radius: 50%;"></span></p>
+                <button id="editEventButton" class="btn btn-primary">Edit</button>
+                
+                <form id="deleteEventForm" method="post" action="{% url 'client:delete_event' %}">
+                    {% csrf_token %}
+                    <input type="hidden" id="delete-event-id" name="event_id">
+                    <button id="deleteEventButton" class="btn btn-danger">Delete</button>
+                </form>
+                
+            </div>
 
-    <!-- Modal -->
+            <!-- Update Event Form -->
+            <div id="update-event-form-container" style="display: none; border: 1px solid #ddd; padding: 15px; border-radius: 5px; background-color: #f8f9fa;">
+                <h5>Update Event</h5>
+                <form id="updateEventForm" method="post" action="{% url 'client:update_event' %}">
+                    {% csrf_token %}
+                    <div class="form-group">
+                        <label for="update-event-title">Event Title</label>
+                        <input type="text" class="form-control" id="update-event-title" name="title" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="update-event-description">Description</label>
+                        <textarea class="form-control" id="update-event-description" name="description" rows="3"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="update-start-time">Start Date</label>
+                        <input type="date" class="form-control" id="update-start-time" name="start_time" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="update-end-time">End Date</label>
+                        <input type="date" class="form-control" id="update-end-time" name="end_time" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="update-event-color">Event Color</label>
+                        <input type="color" class="form-control" id="update-event-color" name="color">
+                    </div>
+                    <input type="hidden" id="update-event-id" name="event_id"> <!-- Hidden field for event ID -->
+                    <button type="submit" class="btn btn-primary">Update</button>
+                    <button type="button" id="cancelUpdateButton" class="btn btn-secondary">Cancel</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    <!-- Modal for Adding Event -->
     <div class="modal fade" id="addEventModal" tabindex="-1" role="dialog" aria-labelledby="addEventModalLabel" aria-hidden="true">
         <div class="modal-dialog" role="document">
             <div class="modal-content">
@@ -163,35 +248,7 @@
             </div>
         </div>
     </div>
-
-
-
-
-    <div class="modal fade" id="eventDetailModal" tabindex="-1" role="dialog" aria-labelledby="eventDetailModalLabel" aria-hidden="true">
-        <div class="modal-dialog" role="document">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="eventDetailModalLabel">Event Details</h5>
-                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                        <span aria-hidden="true">&times;</span>
-                    </button>
-                </div>
-                <div class="modal-body">
-                    <h5 id="eventDetailTitle"></h5>
-                    <p id="eventDetailDescription"></p>
-                    <p><strong>Start:</strong> <span id="eventDetailStart"></span></p>
-                    <p><strong>End:</strong> <span id="eventDetailEnd"></span></p>
-                    <div><strong>Color:</strong> <span id="eventDetailColor" style="display: inline-block; width: 20px; height: 20px; border-radius: 50%;"></span></div>
-                <br>
-                <div class="mt-3 d-flex">
-                    <button type="button"  id="editEventButton"><a href="#">Edit</a></button>
-                    <button type="button"  id="deleteEventButton"><a href="#">Delete</a></button>
-                </div>
-                
-                </div>
-            </div>
-        </div>
-    </div>
 </div>
+
 
 {% endblock %}

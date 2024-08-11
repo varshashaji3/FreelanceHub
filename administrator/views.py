@@ -9,7 +9,7 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import redirect, get_object_or_404
 from client.models import ClientProfile
 from core.decorators import nocache
-from core.models import CustomUser, Register
+from core.models import CustomUser, Notification, Register
 from freelancer.models import FreelancerProfile
 
 from django.contrib import messages
@@ -95,9 +95,17 @@ def toggle_permission(request, uid):
     if user.permission is False:
         user.permission = True
         send_permission_email(uid)
+        Notification.objects.create(
+            user=user,
+            message="Your permission has been granted."
+        )
     elif user.permission is True:
         user.permission = False
         send_permission_denied_email(uid)
+        Notification.objects.create(
+            user=user,
+            message="Your permission has been denied."
+        )
     user.save()
     
     messages.success(request, 'User permission updated Successfully!!')

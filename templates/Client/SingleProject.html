@@ -103,26 +103,25 @@
                     <td>{{ proposal.status }}</td>
                     <td style="display: flex; align-items: center;">
                         <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#proposalModal{{ proposal.id }}">
-                            View Details
+                            View
                         </button>
                         
                     </td>
                     <td>
-                        <form action="{% url 'client:update_proposal_status' proposal.id  %}" method="post">
-                            {% csrf_token %}
-                            <div class="form-row align-items-center">
-                                <div class="col-auto">
-                                    <select class="form-control" name="status">
-                                        <option value="Pending" {% if proposal.status == "Pending" %}selected{% endif %}>Pending</option>
-                                        <option value="Accepted" {% if proposal.status == "Accepted" %}selected{% endif %}>Accepted</option>
-                                        <option value="Rejected" {% if proposal.status == "Rejected" %}selected{% endif %}>Rejected</option>
-                                    </select>
-                                </div>
-                                <div class="col-auto">
-                                    <button type="submit" class="btn btn-primary mt-2">Update</button>
-                                </div>
-                            </div>
-                        </form>
+                        {% if proposal.status != 'Accepted' %}
+    <form method="post" action="{% url 'client:update_proposal_status' pro_id=proposal.id %}">
+        {% csrf_token %}
+        <select name="status">
+            <option value="Pending" {% if proposal.status == 'Pending' %}selected{% endif %}>Pending</option>
+            <option value="Accepted" {% if proposal.status == 'Accepted' %}selected{% endif %}>Accepted</option>
+            <option value="Rejected" {% if proposal.status == 'Rejected' %}selected{% endif %}>Rejected</option>
+        </select>
+        <button type="submit" class="btn btn-primary">Update</button>
+    </form>
+{% else %}
+    <button type="button" class="btn btn-secondary" disabled>Update Status</button>
+{% endif %}
+
                     </td>
                 </tr>
                 <!-- Modal for viewing proposal details -->

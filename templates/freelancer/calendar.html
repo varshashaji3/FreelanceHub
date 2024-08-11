@@ -1,95 +1,255 @@
-
-{% extends 'freelancer/base.html'%}
+{% extends 'freelancer/base.html' %}
 {% block 'freelancer_content' %}
 {% load static %}
 
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.4/jquery.min.js"></script>
 <link rel="stylesheet" href="https://unpkg.com/bootstrap@5.3.3/dist/css/bootstrap.min.css">
-<link href='https://cdn.jsdelivr.net/npm/fullcalendar@5.10.1/main.min.css' rel='stylesheet' />
-    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.10.1/main.min.js'></script>
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css">
-    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            var calendarEl = document.getElementById('calendar');
-            var calendar = new FullCalendar.Calendar(calendarEl, {
-                initialView: 'dayGridMonth',
-                events: [
-                    // Add your events here
-                ],
-                dateClick: function(info) {
-                    $('#addEventModal').modal('show');
-                    $('#id_start_time').val(info.dateStr);
-                    $('#id_end_time').val(info.dateStr);
-                }
-            });
-            calendar.render();
+<link href="https://cdn.jsdelivr.net/npm/fullcalendar@5.10.1/main.min.css" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.10.1/main.min.js"></script>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/6.1.7/core/main.min.css" rel="stylesheet" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var calendarEl = document.getElementById('calendar');
+        var eventsData = {{ events_data|safe }};
+    
+        var calendar = new FullCalendar.Calendar(calendarEl, {
+            initialView: 'dayGridMonth',
+            events: eventsData,
+            eventClick: function(info) {
+                document.getElementById('event-details-title').textContent = info.event.title;
+                document.getElementById('event-details-description').textContent = info.event.extendedProps.description || 'No description';
+                document.getElementById('event-details-start').textContent = info.event.start.toISOString().slice(0, 10);
+                document.getElementById('event-details-end').textContent = info.event.end ? info.event.end.toISOString().slice(0, 10) : info.event.start.toISOString().slice(0, 10);
+                document.getElementById('event-details-color').style.backgroundColor = info.event.backgroundColor || '#ffffff';
+                document.getElementById('event-details-id').textContent = info.event.id;
+    
+                document.getElementById('event-details').style.display = 'block';
+                document.getElementById('update-event-form-container').style.display = 'none';
+            },
+            dateClick: function(info) {
+                document.getElementById('start-time').value = info.dateStr;
+                document.getElementById('end-time').value = info.dateStr; 
+    
+                $('#addEventModal').modal('show');
+            },
+            eventContent: function(arg) {
+                let eventTitle = document.createElement('div');
+                eventTitle.innerHTML = arg.event.title;
+                let eventElement = document.createElement('div');
+                eventElement.style.backgroundColor = arg.event.backgroundColor || '#007bff';
+                eventElement.style.color = '#ffffff';
+                eventElement.style.padding = '5px';
+                eventElement.style.borderRadius = '4px';
+                eventElement.appendChild(eventTitle);
+                return { domNodes: [eventElement] };
+            }
         });
-    </script>
-<style>
-  .error {
-    color: red;
-    font-family: Comic Sans MS;
-    font-weight: bold;
-    font-size: 12px;
-  }
-  
-</style>
+    
+        calendar.render();
+    
+        document.getElementById('editEventButton').addEventListener('click', function() {
+            var eventId = document.getElementById('event-details-id').textContent;
+            if (eventId) {
+                document.getElementById('update-event-title').value = document.getElementById('event-details-title').textContent;
+                document.getElementById('update-event-description').value = document.getElementById('event-details-description').textContent;
+                document.getElementById('update-start-time').value = document.getElementById('event-details-start').textContent;
+                document.getElementById('update-end-time').value = document.getElementById('event-details-end').textContent;
+                document.getElementById('update-event-color').value = getComputedStyle(document.getElementById('event-details-color')).backgroundColor;
+    
+                document.getElementById('update-event-id').value = eventId;
+    
+                document.getElementById('event-details').style.display = 'none';
+                document.getElementById('update-event-form-container').style.display = 'block';
+            }
+        });
+    
+        document.getElementById('cancelUpdateButton').addEventListener('click', function() {
+            document.getElementById('update-event-form-container').style.display = 'none';
+            document.getElementById('event-details').style.display = 'block';
+        });
+    
+        document.getElementById('deleteEventButton').addEventListener('click', function() {
+            var form = document.getElementById('deleteEventForm');
+            var eventId = document.getElementById('event-details-id').textContent;
+            if (eventId) {
+                document.getElementById('delete-event-id').value = eventId; 
+                form.submit(); 
+            }
+        });
+    });
+    
+</script>
 
-<div class="row" style="background-color:white;padding:10px;border-radius:10px;">
-  <div class="container">
-    <h3 style="color:darkred;font-family:'Dancing Script', cursive;margin-left:370px;margin-top:10px;">Calendar</h3>
+
+
+<style>
+    body {
+        background-color: #f8f9fa;
+    }
+
+    h3 {
+        color: darkred;
+        font-family: 'Dancing Script', cursive;
+        text-align: center;
+        margin-top: 10px;
+    }
+
+    .btn-primary {
+        margin-bottom: 20px;
+    }
+
+    .fc-toolbar-title {
+        font-size: 1.5em;
+        color: #343a40;
+    }
+
+    .modal-header {
+        background-color: #343a40;
+        color: white;
+    }
+
+    .modal-content {
+        border-radius: 10px;
+    }
+
+    .form-control {
+        margin-bottom: 10px;
+    }
+
+    .fc-event {
+        font-size: 1em;
+        padding: 5px;
+        color: white;
+        border: none;
+        border-radius: 4px;
+    }
+
+    
+
+    #editEventButton, #deleteEventButton {
+        flex: 1;
+        display: inline-block;
+        text-align: center;
+        white-space: nowrap;
+        margin: 10px;
+        padding: 10px;
+        border-radius: 10px;
+        border: none;
+        outline: none;
+    }
+
+    #editEventButton {
+        background-color: blue;
+    }
+
+    #deleteEventButton {
+        background-color: red;
+    }
+</style>
+<div class="container mt-5 p-3 bg-white rounded shadow-sm">
+    <h3 style="color:darkred;font-family:'Dancing Script', cursive;margin-left:70px;margin-top:10px;">Calendar</h3>
     <button class="btn btn-primary" data-toggle="modal" data-target="#addEventModal">
         <i class="fas fa-calendar-plus"></i> Add Schedule
     </button>
-    <div id='calendar'></div>
-</div>
-
-<!-- Modal -->
-<div class="modal fade" id="addEventModal" tabindex="-1" role="dialog" aria-labelledby="addEventModalLabel" aria-hidden="true">
-    <div class="modal-dialog" role="document">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="addEventModalLabel">Add Event</h5>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                </button>
+    <div class="row">
+        <div class="col-md-9">
+            <div id='calendar'></div>
+        </div>
+        <div class="col-md-3">
+            <!-- Event Details Section -->
+            <div id="event-details" style="border: 1px solid #ddd; padding: 15px; border-radius: 5px; background-color: #f8f9fa;">
+                <h5 id="event-details-title">Select an event</h5>
+                <p id="event-details-description"></p>
+                <p><strong>Start:</strong> <span id="event-details-start"></span></p>
+                <p><strong>End:</strong> <span id="event-details-end"></span></p>
+                <p><strong>Color:</strong> <span id="event-details-color" style="display: inline-block; width: 20px; height: 20px; border-radius: 50%;"></span></p>
+                <button id="editEventButton" class="btn btn-primary">Edit</button>
+                
+                <form id="deleteEventForm" method="post" action="{% url 'freelancer:delete_event' %}">
+                    {% csrf_token %}
+                    <input type="hidden" id="delete-event-id" name="event_id">
+                    <button id="deleteEventButton" class="btn btn-danger">Delete</button>
+                </form>
+                
             </div>
-            <div class="modal-body">
-                <form id="eventForm">
+
+            <!-- Update Event Form -->
+            <div id="update-event-form-container" style="display: none; border: 1px solid #ddd; padding: 15px; border-radius: 5px; background-color: #f8f9fa;">
+                <h5>Update Event</h5>
+                <form id="updateEventForm" method="post" action="{% url 'freelancer:update_event' %}">
+                    {% csrf_token %}
                     <div class="form-group">
-                        <label for="event-title">Event Title</label>
-                        <input type="text" class="form-control" id="event-title" name="title" required>
+                        <label for="update-event-title">Event Title</label>
+                        <input type="text" class="form-control" id="update-event-title" name="title" required>
                     </div>
                     <div class="form-group">
-                        <label for="start-time">Start Time</label>
-                        <input type="datetime-local" class="form-control" id="start-time" name="start_time" required>
+                        <label for="update-event-description">Description</label>
+                        <textarea class="form-control" id="update-event-description" name="description" rows="3"></textarea>
                     </div>
                     <div class="form-group">
-                        <label for="end-time">End Time</label>
-                        <input type="datetime-local" class="form-control" id="end-time" name="end_time" required>
+                        <label for="update-start-time">Start Date</label>
+                        <input type="date" class="form-control" id="update-start-time" name="start_time" required>
                     </div>
-                    <button type="submit" class="btn btn-primary">Save</button>
+                    <div class="form-group">
+                        <label for="update-end-time">End Date</label>
+                        <input type="date" class="form-control" id="update-end-time" name="end_time" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="update-event-color">Event Color</label>
+                        <input type="color" class="form-control" id="update-event-color" name="color">
+                    </div>
+                    <input type="hidden" id="update-event-id" name="event_id"> <!-- Hidden field for event ID -->
+                    <button type="submit" class="btn btn-primary">Update</button>
+                    <button type="button" id="cancelUpdateButton" class="btn btn-secondary">Cancel</button>
                 </form>
             </div>
         </div>
     </div>
+    <!-- Modal for Adding Event -->
+    <div class="modal fade" id="addEventModal" tabindex="-1" role="dialog" aria-labelledby="addEventModalLabel" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="addEventModalLabel">Add Event</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <form id="eventForm" method="post" action="{% url 'freelancer:add_new_event' %}">
+
+                        {% csrf_token %}
+                        <div class="form-group">
+                            <label for="event-title">Event Title</label>
+                            <input type="text" class="form-control" id="event-title" name="title" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="event-description">Description</label>
+                            <textarea class="form-control" id="event-description" name="description" rows="3"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="start-time">Start Date</label>
+                            <input type="date" class="form-control" id="start-time" name="start_time" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="end-time">End Date</label>
+                            <input type="date" class="form-control" id="end-time" name="end_time" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="event-color">Event Color</label>
+                            <input type="color" class="form-control" id="event-color" name="color">
+                        </div>
+                        <button type="submit" class="btn btn-primary">Save</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
-
-</div>
-
-
-
-<script>
-  $('#eventForm').on('submit', function(event){
-      event.preventDefault();
-      // Handle the form submission
-      $('#addEventModal').modal('hide');
-  });
-</script>
-
 
 
 {% endblock %}

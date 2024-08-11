@@ -13,7 +13,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 
 from client.models import ClientProfile, Project
 from core.decorators import nocache
-from core.models import CustomUser, Register
+from core.models import CustomUser, Event, Notification, Register
 
 from django.contrib.auth.decorators import login_required
 
@@ -51,14 +51,15 @@ def freelancer_view(request):
     profile2=Register.objects.get(user_id=uid)
     todos = Todo.objects.filter(user_id=uid)
     profile1=CustomUser.objects.get(id=uid)
+    notifications = Notification.objects.filter(user=request.user)
     if logged_user.is_authenticated and profile2 and not any([
         profile2.phone_number or '',
         profile2.profile_picture or '',
         profile2.bio_description or '',
         profile2.location or ''
     ]):
-        return render(request,'freelancer/Add_profile.html',{'profile1':profile1,'profile2':profile2,'uid':uid,'todos':todos,})
-    return render(request,'freelancer/index.html',{'profile2':profile2,'profile1':profile1,'uid':uid,'todos':todos,})
+        return render(request,'freelancer/Add_profile.html',{'profile1':profile1,'profile2':profile2,'uid':uid,'todos':todos,'notifications':notifications})
+    return render(request,'freelancer/index.html',{'profile2':profile2,'profile1':profile1,'uid':uid,'todos':todos,'notifications':notifications})
 
 
 @login_required
@@ -170,6 +171,16 @@ def account_settings(request):
                                                        })
 
 
+@login_required
+@nocache
+def notification_mark_as_read(request,not_id):
+    notification = Notification.objects.get(id=not_id)
+    notification.is_read = True
+    notification.save()
+    next_url = request.GET.get('next', 'freelancer:freelancer_view')
+    return redirect(next_url)
+
+
 
 
 
@@ -263,7 +274,7 @@ def update_profile(request,uid):
         
         freelancer.professional_title = professional_titles
         freelancer.save()
-
+        messages.success(request, 'Your profile has been changed successfully!')
         return redirect('freelancer:account_settings')
     return render(request, 'freelancer/accounts.html',{'profile1':profile1,'profile2':profile2,'freelancer':freelancer,'todos':todos,})  
   
@@ -286,7 +297,7 @@ def change_profile_image(request,uid):
         if profile_picture:
             profile2.profile_picture = profile_picture
             profile2.save()
-            
+            messages.success(request, 'Your profile picture has been changed successfully!')
             return redirect('freelancer:account_settings')
     return render(request, 'freelancer/accounts.html',{'profile1':profile1,'profile2':profile2,'freelancer':freelancer,'todos':todos,})  
 
@@ -390,24 +401,173 @@ def client_detail(request, cid):
         
         
         
+      
+
+
+           
         
 @login_required
 @nocache
 def calendar(request):
-    if 'uid' not in request.session:
+    if 'uid' not in request.session and not request.user.is_authenticated and request.user.role != 'freelancer':
+        return redirect('login')
+
+    uid = request.session['uid']
+    profile1 = CustomUser.objects.get(id=uid)
+    profile2 = Register.objects.get(user_id=uid)
+    client = FreelancerProfile.objects.get(user_id=uid)
+    events = Event.objects.filter(user=uid)
+    events_data = [
+        {
+            'id': event.id,  # Change this to 'id'
+            'title': event.title,
+            'start': event.start_time.isoformat(),
+            'end': event.end_time.isoformat(),
+            'description': event.description,
+            'color': event.color,
+        }
+        for event in events
+    ]
+
+    if profile1.permission:
+        return render(request, 'client/calendar.html', {
+            'profile1': profile1,
+            'profile2': profile2,
+            'client': client,
+            'events_data': events_data  
+        })
+    else:
+        return render(request, 'client/PermissionDenied.html', {
+            'profile1': profile1,
+            'profile2': profile2,
+            'client': client,
+        })
+
+        
+
+ 
+ 
+ 
+ 
+@login_required
+@nocache
+def add_new_event(request):
+    if 'uid' not in request.session and not request.user.is_authenticated and request.user.role!='freelancer':
         return redirect('login')
 
     uid = request.session['uid']
     profile1 = CustomUser.objects.get(id=uid)
     profile2=Register.objects.get(user_id=uid)
     freelancer=FreelancerProfile.objects.get(user_id=uid)
-    
     if profile1.permission==True:
-        todos = Todo.objects.filter(user_id=uid)
-        return render(request, 'freelancer/calendar.html',{'profile1':profile1,'profile2':profile2,'freelancer':freelancer,'todos':todos})
+        if request.method == 'POST':
+            title = request.POST.get('title')
+            start_time = request.POST.get('start_time')
+            end_time = request.POST.get('end_time')
+            description = request.POST.get('description')
+            color = request.POST.get('color')
+            
+            user=request.user
+            Event.objects.create(
+                title=title,
+                start_time=start_time,
+                end_time=end_time,
+                description=description,
+                color=color,
+                user=user
+            )
+            return redirect('freelancer:calendar')
     else:
-        return render(request, 'freelancer/PermissionDenied.html',{'profile1':profile1,'profile2':profile2,'freelancer':freelancer})
+        return render(request, 'freelancer/PermissionDenied.html',{'profile1': profile1,
+            'profile2': profile2,
+            'freelancer': freelancer,})   
         
+@login_required
+@nocache
+def update_event(request):
+    # Check user session and authentication
+    if not request.user.is_authenticated or request.user.role != 'client':
+        return redirect('login')
+
+    uid = request.session.get('uid')
+    profile1 = get_object_or_404(CustomUser, id=uid)
+    profile2 = get_object_or_404(Register, user_id=uid)
+    freelancer = get_object_or_404(FreelancerProfile, user_id=uid)
+
+    if profile1.permission:
+        if request.method == 'POST':
+            event_id = request.POST.get('event_id')
+            if not event_id:
+                # Handle missing event_id case
+                return redirect('freelancer:calendar')  # or return an error message
+
+            event = get_object_or_404(Event, id=event_id)
+
+            title = request.POST.get('title')
+            start_time = request.POST.get('start_time')
+            end_time = request.POST.get('end_time')
+            description = request.POST.get('description')
+            color = request.POST.get('color')
+
+            # Update event details
+            event.title = title
+            event.start_time = start_time
+            event.end_time = end_time
+            event.description = description
+            event.color = color
+            
+            event.save()
+
+            return redirect('freelancer:calendar')
+
+        
+
+    else:
+        return render(request, 'freelancer/PermissionDenied.html', {
+            'profile1': profile1,
+            'profile2': profile2,
+            'freelancer': freelancer,
+        })
+
+
+
+@login_required
+@nocache
+def delete_event(request):
+    if 'uid' not in request.session or not request.user.is_authenticated or request.user.role != 'freelancer':
+        return redirect('login')
+
+    uid = request.session['uid']
+    profile1 = get_object_or_404(CustomUser, id=uid)
+    profile2 = get_object_or_404(Register, user_id=uid)
+    freelancer = get_object_or_404(FreelancerProfile, user_id=uid)
+
+    if profile1.permission:
+        if request.method == 'POST':
+            event_id = request.POST.get('event_id')
+            if not event_id:
+                return redirect('freelancer:calendar')  # Handle missing event_id case
+
+            try:
+                event = Event.objects.get(id=event_id)
+                event.delete()
+            except Event.DoesNotExist:
+                pass  # Handle case where event does not exist
+
+            return redirect('freelancer:calendar')
+
+        else:
+            return redirect('freelancer:calendar')
+
+    else:
+        return render(request, 'freelancer/PermissionDenied.html', {
+            'profile1': profile1,
+            'profile2': profile2,
+            'freelancer': freelancer,
+        })
+
+
+
 
 
 @login_required

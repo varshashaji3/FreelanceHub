@@ -5,7 +5,7 @@ from django.shortcuts import redirect, render
 
 from client.models import ClientProfile, Project
 from core.decorators import nocache
-from core.models import CustomUser, Event, Register
+from core.models import CustomUser, Event, Notification, Register
 
 from django.contrib.auth.decorators import login_required
 
@@ -30,15 +30,28 @@ def client_view(request):
     
     profile1 = CustomUser.objects.get(id=uid)
     profile2=Register.objects.get(user_id=uid)
-    
+    notifications = Notification.objects.filter(user=request.user)
+    events=Event.objects.filter(user=request.user)
     if logged_user.is_authenticated and profile2 and not any([
         profile2.phone_number or '',
         profile2.profile_picture or '',
         profile2.bio_description or '',
         profile2.location or ''
     ]):
-        return render(request,'Client/Add_profile.html',{'profile2':profile2,'profile1':profile1,'uid':uid})
-    return render(request,'Client/index.html',{'profile2':profile2,'profile1':profile1,'uid':uid})
+        return render(request,'Client/Add_profile.html',{'profile2':profile2,'profile1':profile1,'uid':uid,'notifications':notifications,'events':events})
+    return render(request,'Client/index.html',{'profile2':profile2,'profile1':profile1,'uid':uid,'notifications':notifications,'events':events})
+
+
+
+
+@login_required
+@nocache
+def notification_mark_as_read(request,not_id):
+    notification = Notification.objects.get(id=not_id)
+    notification.is_read = True
+    notification.save()
+    next_url = request.GET.get('next', 'client:client_view')
+    return redirect(next_url)
 
 
 @login_required
@@ -365,26 +378,25 @@ def freelancer_detail(request, fid):
         
                 
         
-
 @login_required
 @nocache
 def calendar(request):
-    if 'uid' not in request.session and not request.user.is_authenticated and request.user.role!='client':
+    if 'uid' not in request.session and not request.user.is_authenticated and request.user.role != 'client':
         return redirect('login')
 
     uid = request.session['uid']
     profile1 = CustomUser.objects.get(id=uid)
-    profile2=Register.objects.get(user_id=uid)
-    client=ClientProfile.objects.get(user_id=uid)
-    events=Event.objects.filter(user_id=uid)
+    profile2 = Register.objects.get(user_id=uid)
+    client = ClientProfile.objects.get(user_id=uid)
+    events = Event.objects.filter(user=uid)
     events_data = [
         {
+            'id': event.id,  # Change this to 'id'
             'title': event.title,
             'start': event.start_time.isoformat(),
             'end': event.end_time.isoformat(),
-            'description':event.description,
+            'description': event.description,
             'color': event.color,
-            'event_id':event.id,
         }
         for event in events
     ]
@@ -397,9 +409,12 @@ def calendar(request):
             'events_data': events_data  
         })
     else:
-        return render(request, 'client/PermissionDenied.html',{'profile1': profile1,
+        return render(request, 'client/PermissionDenied.html', {
+            'profile1': profile1,
             'profile2': profile2,
-            'client': client,})
+            'client': client,
+        })
+
         
 
  
@@ -437,65 +452,104 @@ def add_event(request):
     else:
         return render(request, 'client/PermissionDenied.html',{'profile1': profile1,
             'profile2': profile2,
-            'client': client,})       
-
-
-
-
+            'client': client,})   
+        
 @login_required
 @nocache
-def update_event(request,event_id):
-    if 'uid' not in request.session and not request.user.is_authenticated and request.user.role!='client':
+def update_event(request):
+    # Check user session and authentication
+    if not request.user.is_authenticated or request.user.role != 'client':
         return redirect('login')
 
-    uid = request.session['uid']
-    profile1 = CustomUser.objects.get(id=uid)
-    profile2=Register.objects.get(user_id=uid)
-    client=ClientProfile.objects.get(user_id=uid)
-    if profile1.permission==True:
+    uid = request.session.get('uid')
+    profile1 = get_object_or_404(CustomUser, id=uid)
+    profile2 = get_object_or_404(Register, user_id=uid)
+    client = get_object_or_404(ClientProfile, user_id=uid)
+
+    if profile1.permission:
         if request.method == 'POST':
+            event_id = request.POST.get('event_id')
+            if not event_id:
+                # Handle missing event_id case
+                return redirect('client:calendar')  # or return an error message
+
+            event = get_object_or_404(Event, id=event_id)
+
             title = request.POST.get('title')
             start_time = request.POST.get('start_time')
             end_time = request.POST.get('end_time')
             description = request.POST.get('description')
             color = request.POST.get('color')
-            
-            user=request.user
-            Event.objects.create(
-                title=title,
-                start_time=start_time,
-                end_time=end_time,
-                description=description,
-                color=color,
-                user=user
-            )
-            return redirect('client:calendar')
-    else:
-        return render(request, 'client/PermissionDenied.html',{'profile1': profile1,
-            'profile2': profile2,
-            'client': client,})       
 
+            # Update event details
+            event.title = title
+            event.start_time = start_time
+            event.end_time = end_time
+            event.description = description
+            event.color = color
+            
+            event.save()
+
+            return redirect('client:calendar')
+
+        elif request.method == 'GET':
+            event_id = request.GET.get('event_id')
+            if not event_id:
+                # Handle missing event_id case
+                return redirect('client:calendar')  # or return an error message
+
+            event = get_object_or_404(Event, id=event_id)
+
+            return render(request, 'client/edit_event.html', {
+                'event': event,
+                'profile1': profile1,
+                'profile2': profile2,
+                'client': client,
+            })
+
+    else:
+        return render(request, 'client/PermissionDenied.html', {
+            'profile1': profile1,
+            'profile2': profile2,
+            'client': client,
+        })
 
 
 
 @login_required
 @nocache
-def delete_event(request,event_id):
-    if 'uid' not in request.session and not request.user.is_authenticated and request.user.role!='client':
+def delete_event(request):
+    if 'uid' not in request.session or not request.user.is_authenticated or request.user.role != 'client':
         return redirect('login')
 
     uid = request.session['uid']
-    profile1 = CustomUser.objects.get(id=uid)
-    profile2=Register.objects.get(user_id=uid)
-    client=ClientProfile.objects.get(user_id=uid)
-    if profile1.permission==True:
-        event = Event.objects.get(id=event_id).delete()
-        return redirect('client:calendar')
-    else:
-        return render(request, 'client/PermissionDenied.html',{'profile1': profile1,
-            'profile2': profile2,
-            'client': client,})       
+    profile1 = get_object_or_404(CustomUser, id=uid)
+    profile2 = get_object_or_404(Register, user_id=uid)
+    client = get_object_or_404(ClientProfile, user_id=uid)
 
+    if profile1.permission:
+        if request.method == 'POST':
+            event_id = request.POST.get('event_id')
+            if not event_id:
+                return redirect('client:calendar')  # Handle missing event_id case
+
+            try:
+                event = Event.objects.get(id=event_id)
+                event.delete()
+            except Event.DoesNotExist:
+                pass  # Handle case where event does not exist
+
+            return redirect('client:calendar')
+
+        else:
+            return redirect('client:calendar')
+
+    else:
+        return render(request, 'client/PermissionDenied.html', {
+            'profile1': profile1,
+            'profile2': profile2,
+            'client': client,
+        })
 
 
 @login_required
@@ -706,20 +760,46 @@ def toggle_project_status(request, pid):
     return redirect('client:project_list')         
         
         
-        
 @login_required
 @nocache
 def update_proposal_status(request, pro_id):
-    
     proposal = Proposal.objects.get(id=pro_id)
+    project = proposal.project
+    
     if request.method == 'POST':
-        val = request.POST.get('status')
-        if val in ['Pending', 'Accepted', 'Rejected']:
-            proposal.status = val
-            Proposal.objects.filter(project=proposal.project).exclude(id=pro_id).update(status='Rejected')
+        new_status = request.POST.get('status')
+        
+        if new_status in ['Pending', 'Accepted', 'Rejected']:
+            
+            proposal.status = new_status
             proposal.save()
-            messages.success(request,'Yey you selected a freelancer for your project')
-    return redirect('client:single_project_view',pid=proposal.project.id)
+
+            
+            if new_status == 'Accepted':
+               
+                Notification.objects.create(
+                    user=proposal.freelancer,
+                    message=f'Congratulations! Your proposal for project "{project.title}" has been accepted.'
+                )
+                
+                Proposal.objects.filter(project=project).exclude(id=pro_id).update(status='Rejected')
+                rejected_proposals = Proposal.objects.filter(project=project, status='Rejected')
+                for other_proposal in rejected_proposals:
+                    Notification.objects.create(
+                        user=other_proposal.freelancer,
+                        message=f'Your proposal for project "{project.title}" has been rejected.'
+                    )
+                
+                messages.success(request, 'Yeyy.. you selected a Freelancer for this project.')
+            else:
+                Proposal.objects.filter(project=project).exclude(id=pro_id).update(status='Rejected')
+                for other_proposal in Proposal.objects.filter(project=project, status='Rejected'):
+                    Notification.objects.create(
+                        user=other_proposal.freelancer,
+                        message=f'Your proposal for project "{project.title}" has been rejected.'
+                    )
+
+    return redirect('client:single_project_view', pid=project.id)
 
 
 @login_required

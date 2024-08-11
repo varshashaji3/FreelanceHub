@@ -31,4 +31,114 @@
 </div>
 
 
+<br>
+<div class="row" style="background-color:white;padding:30px;border-radius:10px;display:flex;align-items:center;">
+  <div class="col-md-12 grid-margin stretch-card">
+    <div class="card position-relative">
+      <div class="card-body">
+        <div id="detailedReports" class="carousel slide detailed-report-carousel position-static pt-2" data-ride="carousel">
+          <div class="carousel-inner">
+            
+            <!-- Notifications Section -->
+            <div class="carousel-item active">
+              <div class="row">
+                <div class="col-md-12 col-xl-3 d-flex flex-column justify-content-start">
+                  <div class="ml-xl-8 mt-3">
+                    <h3 class="text-primary"><strong>All Notifications</strong></h3>
+                  </div>  
+                </div>
+                
+                    <div class="col-md-12 border-right">
+                      <div class="table-responsive mb-3 mb-md-0 mt-3">
+                        <table class="table table-borderless report-table">
+                          <thead>
+                            <tr>
+                              <th>Status</th>
+                              <th>Message</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <!-- Replace with dynamic notification data -->
+                            {% for notification in notifications %}
+                              <tr class="{% if not notification.is_read %}table-warning{% else %}table-light{% endif %}">
+                                <td>
+                                  {% if notification.is_read %}
+                                    <span class="badge badge-success">Read</span>
+                                  {% else %}
+                                    <span class="badge badge-danger">Unread</span>
+                                  {% endif %}
+                                </td>
+                                <td>{{ notification.message }}</td>
+                                <td>{% if not notification.is_read %}
+                                <form action="{% url 'client:notification_mark_as_read' notification.id %}" method="post">
+                                  {% csrf_token %}
+                                  <button type="submit" class="btn btn-success btn-sm">Mark as Read</button>
+                                </form>
+                              {% endif %} 
+                            </td>
+                              </tr>
+                            {% empty %}
+                              <tr>
+                                <td colspan="2">No notifications available.</td>
+                              </tr>
+                            {% endfor %}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+              </div>
+            </div>
+            
+            <!-- Events Section -->
+            <div class="carousel-item">
+              <div class="row">
+                <div class="col-md-12 col-xl-3 d-flex flex-column justify-content-start">
+                  <div class="ml-xl-8 mt-3">
+                    <h3 class="text-primary"><strong>Upcoming Events</strong></h3>
+                  </div>  
+                </div>
+                
+                    <div class="col-md-12 border-right">
+                      <div class="table-responsive mb-3 mb-md-0 mt-3">
+                        <table class="table table-borderless report-table">
+                          <thead>
+                            <tr>
+                              <th>Date</th>
+                              <th>Event</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <!-- Replace with dynamic event data -->
+                            {% for event in events %}
+                              <tr>
+                                <td>{{ event.date }}</td>
+                                <td>{{ event.title }}</td>
+                              </tr>
+                            {% empty %}
+                              <tr>
+                                <td colspan="2">No events scheduled.</td>
+                              </tr>
+                            {% endfor %}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                 
+              </div>
+            </div>
+            
+          </div>
+          <a class="carousel-control-prev" href="#detailedReports" role="button" data-slide="prev">
+            <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+            <span class="sr-only">Previous</span>
+          </a>
+          <a class="carousel-control-next" href="#detailedReports" role="button" data-slide="next">
+            <span class="carousel-control-next-icon" aria-hidden="true"></span>
+            <span class="sr-only">Next</span>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}

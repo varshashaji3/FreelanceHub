@@ -7,6 +7,8 @@ from django.http import HttpResponseRedirect
 from django.urls import reverse
 from django.utils import timezone
 from django.shortcuts import render,redirect
+
+from client.models import Project
 from .models import EmailVerification, PasswordReset, CustomUser, Register
 from django.core.mail import EmailMessage
 from django.contrib import messages
@@ -18,20 +20,32 @@ from django.conf import settings
 from django.contrib.sessions.models import Session
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import authenticate, login as auth_login, logout as auth_logout 
-# from freelancer.views import freelancer_view
-# from client.views import client_view
-# from administrator.views import admin_view
+from freelancer.views import freelancer_view
+from client.views import client_view
+from administrator.views import admin_view
 from urllib.parse import urlparse, parse_qs, urlunparse
 from urllib.parse import urlencode
 
 def index(request):
     #CustomUser.objects.get(id=3).delete()
-    
+    close_expired_projects()
     if request.user.is_authenticated or 'uid' in request.session:
         uid=request.user
         print(uid)
         return redirect_based_on_user_type(request, request.user)
     return render(request,'index.html')
+
+
+
+def close_expired_projects():
+    now = timezone.now()
+    expired_projects = Project.objects.filter(end_date__lt=now, status='open')
+    count = expired_projects.update(status='closed')
+    return count
+    
+
+
+
 
 def about(request):
     if request.user.is_authenticated:
@@ -189,7 +203,7 @@ def register(request):
         password = request.POST.get('password')
         
         if CustomUser.objects.filter(username=fname).exists() or CustomUser.objects.filter(email=email).exists():
-            return render(request, 'login.html', {'page':'sign-up','error_msg': 'User with this name or email already exists'})
+            return render(request, 'login.html', {'page':'sign-up','error_msg': 'User with this email already exists'})
         else:
             user_type=''
             user = CustomUser.objects.create_user(username=fname,email=email, password=password,role=user_type)
@@ -268,6 +282,7 @@ def send_forget_password_mail(request):
     return render(request, 'mail_read.html')
 
 
+
 def reset_password(request, token):
     reset_user = PasswordReset.objects.filter(token=token).first()
 
@@ -296,6 +311,8 @@ def reset_password(request, token):
     return render(request, 'password_reset.html', {'user_id': uid})
 
 
+
+
 def send_verification_mail(request):
     email = request.user.email
     try:
@@ -321,8 +338,6 @@ def send_verification_mail(request):
     email_msg.send()
     
     EmailVerification.objects.create(user_id=user, token=token)
-
-    
     messages.success(request, 'Verification email sent. Please check your inbox.')
     
     return redirect('login_view')
@@ -343,4 +358,5 @@ def email_verification(request, token):
     print( 'Email verified successfully.')
 
     return render(request,'email_verification.html')
+
 
