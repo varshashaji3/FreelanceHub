@@ -293,8 +293,7 @@
 
                 <li class="nav-item"> <a class="nav-link" href="{% url 'freelancer:view_created_proposals' %}">Submitted
                     Proposals</a></li>
-                <li class="nav-item"> <a class="nav-link" href="{% url 'freelancer:proposal_list' %}">Project
-                    Proposals</a></li>
+               
               </ul>
             </div>
           </li>
@@ -328,17 +327,7 @@
       <!-- partial -->
       <div class="main-panel">
         <div class="content-wrapper">
-          <script>
-            $(document).ready(function () {
-              {% if error_msg %}
-              toastr.error("{{ error_msg }}");
-              {% endif %}
-
-              {% if success_msg %}
-              toastr.success("{{ success_msg }}");
-              {% endif %}
-            });
-          </script>
+          
           {% block 'freelancer_content' %}
 
 

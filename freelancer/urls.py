@@ -3,8 +3,7 @@ from django.contrib import admin
 from django.shortcuts import render
 from django.urls import include, path
 
-from freelancer.views import  acc_deactivate, add_new_event, delete_event, edit_created_proposal, notification_mark_as_read, update_event, view_created_proposals,proposal_detail1,proposal_detail2,download_proposal_pdf, generate_proposal,delete_todo,proposal_list,add_new_proposal,add_todo, calendar,AddProfileFreelancer, change_profile_image,freelancer_view,account_settings,change_password, single_project_view,update_profile,view_project,client_list,client_detail,todo
-app_name = 'freelancer'
+from freelancer.views import  acc_deactivate, add_new_event, delete_event, edit_created_proposal, notification_mark_as_read, update_event, update_todo, view_created_proposals,proposal_detail1,proposal_detail2,download_proposal_pdf, generate_proposal,delete_todo,proposal_list,add_new_proposal,add_todo, calendar,AddProfileFreelancer, change_profile_image,freelancer_view,account_settings,change_password, single_project_view,update_profile,view_project,client_list,client_detail,todo
 
 urlpatterns = [
     path('freelancer_view/', freelancer_view,name="freelancer_view"),
@@ -29,7 +28,7 @@ urlpatterns = [
     
     path('add_todo/<int:user_id>', add_todo, name='add_todo'),
     path('delete_todo/<int:todo_id>', delete_todo, name='delete_todo'),
-    
+    path('update_todo/', update_todo, name='update_todo'),
     
     path('view_project/', view_project, name='view_project'),
     

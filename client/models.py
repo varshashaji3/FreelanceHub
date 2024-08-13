@@ -43,5 +43,6 @@ class Project(models.Model):
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='client_projects')  
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='open')
 
-    
+    freelancer = models.ForeignKey(CustomUser, on_delete=models.SET_NULL, null=True, blank=True, related_name='freelancer_projects')
+
 

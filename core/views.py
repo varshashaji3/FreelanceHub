@@ -360,3 +360,6 @@ def email_verification(request, token):
     return render(request,'email_verification.html')
 
 
+
+
+

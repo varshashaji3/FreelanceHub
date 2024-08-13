@@ -36,7 +36,8 @@ from django.conf import settings
 
 from io import BytesIO
 from xhtml2pdf import pisa
-
+from datetime import timedelta
+from django.utils import timezone
 
 
 @login_required
@@ -51,15 +52,41 @@ def freelancer_view(request):
     profile2=Register.objects.get(user_id=uid)
     todos = Todo.objects.filter(user_id=uid)
     profile1=CustomUser.objects.get(id=uid)
-    notifications = Notification.objects.filter(user=request.user)
+    notifications = Notification.objects.filter(user=logged_user).order_by('-created_at')[:10]
+
+    current_date = timezone.now().date()
+    one_week_later = current_date + timedelta(days=7)
+    
+    events = Event.objects.filter(
+        user=logged_user,
+        start_time__range=[current_date, one_week_later]
+    ).order_by('start_time')
+    for event in events:
+        one_day_before = event.start_time.date() - timedelta(days=1)
+        
+        if one_day_before == current_date:
+            notification_message = f"Reminder: Upcoming event '{event.title}' tomorrow!"
+            Notification.objects.get_or_create(
+                user=logged_user,
+                message=notification_message,
+                defaults={'is_read': False}
+            )
+        
+        if event.start_time.date() == current_date:
+            notification_message = f"Reminder: Event '{event.title}' is today!"
+            Notification.objects.get_or_create(
+                user=logged_user,
+                message=notification_message,
+                defaults={'is_read': False}
+            )
     if logged_user.is_authenticated and profile2 and not any([
         profile2.phone_number or '',
         profile2.profile_picture or '',
         profile2.bio_description or '',
         profile2.location or ''
     ]):
-        return render(request,'freelancer/Add_profile.html',{'profile1':profile1,'profile2':profile2,'uid':uid,'todos':todos,'notifications':notifications})
-    return render(request,'freelancer/index.html',{'profile2':profile2,'profile1':profile1,'uid':uid,'todos':todos,'notifications':notifications})
+        return render(request,'freelancer/Add_profile.html',{'profile1':profile1,'profile2':profile2,'uid':uid,'todos':todos,'notifications':notifications,'events': events})
+    return render(request,'freelancer/index.html',{'profile2':profile2,'profile1':profile1,'uid':uid,'todos':todos,'notifications':notifications,'events': events})
 
 
 @login_required
@@ -430,7 +457,7 @@ def calendar(request):
     ]
 
     if profile1.permission:
-        return render(request, 'client/calendar.html', {
+        return render(request, 'freelancer/calendar.html', {
             'profile1': profile1,
             'profile2': profile2,
             'client': client,
@@ -452,22 +479,26 @@ def calendar(request):
 @login_required
 @nocache
 def add_new_event(request):
-    if 'uid' not in request.session and not request.user.is_authenticated and request.user.role!='freelancer':
+    if not request.user.is_authenticated or request.user.role != 'freelancer':
         return redirect('login')
 
-    uid = request.session['uid']
-    profile1 = CustomUser.objects.get(id=uid)
-    profile2=Register.objects.get(user_id=uid)
-    freelancer=FreelancerProfile.objects.get(user_id=uid)
-    if profile1.permission==True:
+    uid = request.session.get('uid')
+    if not uid:
+        return redirect('login')
+
+    profile1 = get_object_or_404(CustomUser, id=uid)
+    profile2 = get_object_or_404(Register, user_id=uid)
+    freelancer = get_object_or_404(FreelancerProfile, user_id=uid)
+
+    if profile1.permission:
         if request.method == 'POST':
             title = request.POST.get('title')
             start_time = request.POST.get('start_time')
             end_time = request.POST.get('end_time')
             description = request.POST.get('description')
             color = request.POST.get('color')
-            
-            user=request.user
+
+            user = request.user
             Event.objects.create(
                 title=title,
                 start_time=start_time,
@@ -476,17 +507,21 @@ def add_new_event(request):
                 color=color,
                 user=user
             )
-            return redirect('freelancer:calendar')
-    else:
-        return render(request, 'freelancer/PermissionDenied.html',{'profile1': profile1,
-            'profile2': profile2,
-            'freelancer': freelancer,})   
+            return redirect('freelancer:calendar')  
+        
+    
+    return render(request, 'freelancer/PermissionDenied.html', {
+        'profile1': profile1,
+        'profile2': profile2,
+        'freelancer': freelancer,
+    })
+    
+    
         
 @login_required
 @nocache
 def update_event(request):
-    # Check user session and authentication
-    if not request.user.is_authenticated or request.user.role != 'client':
+    if not request.user.is_authenticated or request.user.role != 'freelancer':
         return redirect('login')
 
     uid = request.session.get('uid')
@@ -498,8 +533,8 @@ def update_event(request):
         if request.method == 'POST':
             event_id = request.POST.get('event_id')
             if not event_id:
-                # Handle missing event_id case
-                return redirect('freelancer:calendar')  # or return an error message
+              
+                return redirect('freelancer:calendar')  
 
             event = get_object_or_404(Event, id=event_id)
 
@@ -509,7 +544,6 @@ def update_event(request):
             description = request.POST.get('description')
             color = request.POST.get('color')
 
-            # Update event details
             event.title = title
             event.start_time = start_time
             event.end_time = end_time
@@ -616,7 +650,7 @@ def add_todo(request,user_id):
 
 @login_required
 @nocache
-def update_todo(request, todo_id):
+def update_todo(request):
     uid = request.session.get('uid')
     
     if uid is None:
@@ -625,17 +659,19 @@ def update_todo(request, todo_id):
     profile1 = CustomUser.objects.get(id=uid)
     profile2 = Register.objects.get(user_id=uid)
     freelancer = FreelancerProfile.objects.get(user_id=uid)
-    
-    if profile1.permission:
-        
 
-            
-        return render(request, 'freelancer/update_todo.html', {
-            'profile1': profile1,
-            'profile2': profile2,
-            'freelancer': freelancer,
-            'todo': todo
-        })
+    if profile1.permission:
+        if request.method == 'POST':
+            todo_title = request.POST.get('title')
+            todo_id = request.POST.get('todo_id')
+            if todo_id:
+                todo = get_object_or_404(Todo, id=todo_id)
+                todo.title = todo_title
+                todo.save()
+                return redirect('freelancer:todo')  
+        
+        return redirect('freelancer:todo') 
+
     else:
         return render(request, 'freelancer/PermissionDenied.html', {
             'profile1': profile1,

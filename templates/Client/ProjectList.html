@@ -2,7 +2,7 @@
 {% extends 'client/base.html' %}
 {% block 'client_content' %}
 {% load static %}
-
+{% load custom_filters %}
 <div class="row" style="background-color:white;padding:10px;border-radius:10px;">
     <h3 align="center" style="margin:1% auto;color:#ff0057">Projects</h3>
 </div><br>
@@ -28,10 +28,19 @@
         background-color: #dc3545;
         color: white;
     }
+    .description-column {
+        width: 100px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
 </style>
-
+<a href="{% url 'client:add_new_project' %}" class="btn btn-primary add-project-btn" style="margin-left:790px;">Add New Project</a>
+    <br><br>
+   
 
 <div class="row" style="background-color:white;padding:10px;border-radius:10px;">
+    
     <table id="projectTable" class="display">
         <thead>
             <tr>
@@ -39,6 +48,7 @@
                 <th>Description</th>
                 <th>Budget</th>
                 <th>Status</th>
+                <th>Assigned To(Freelancer)</th>
                 <th>Actions</th>
             </tr>
         </thead>
@@ -46,7 +56,7 @@
             {% for project in projects %}
             <tr>
                 <td>{{ project.title|default:'' }}</td>
-                <td>{{ project.description|truncatechars:100|default:'' }}</td>
+                <td class="description-column">{{ project.description|truncatechars:50|default:'' }}</td>
                 <td>{{ project.budget|default:'' }}</td>
                 <td>
                     <form action="{% url 'client:toggle_project_status' project.id %}" method="post">
@@ -57,7 +67,13 @@
                     </form>
                 </td>
                 <td>
-                    
+                    {% if project.id in freelancer_names %}
+                        {{ freelancer_names|get_item:project.id }}
+                    {% else %}
+                        No freelancer assigned
+                    {% endif %}
+                </td>
+                    <td>
                     <a href="{% url 'client:single_project_view' project.id %}" style="color:black;padding-left:10px;"><i class="fa-solid fa-eye"></i></a>
                     <a href="{% url 'client:edit_project' project.id %}" style="color:#007bff;padding-left:10px;"><i class="fa-solid fa-edit"></i></a>
                 </td>

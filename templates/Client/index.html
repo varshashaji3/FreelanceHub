@@ -2,6 +2,7 @@
 {% extends 'Client/base.html'%}
 {% block 'client_content' %}
 {% load static %}
+
 <div class="row" style="background-color:white;padding:30px;border-radius:10px;">
   <div class=" col-md-12 grid-margin">
     <div class="row">
@@ -98,32 +99,36 @@
                   </div>  
                 </div>
                 
-                    <div class="col-md-12 border-right">
-                      <div class="table-responsive mb-3 mb-md-0 mt-3">
-                        <table class="table table-borderless report-table">
-                          <thead>
-                            <tr>
-                              <th>Date</th>
-                              <th>Event</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            <!-- Replace with dynamic event data -->
-                            {% for event in events %}
-                              <tr>
-                                <td>{{ event.date }}</td>
-                                <td>{{ event.title }}</td>
-                              </tr>
-                            {% empty %}
-                              <tr>
-                                <td colspan="2">No events scheduled.</td>
-                              </tr>
-                            {% endfor %}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                 
+                <div class="col-md-12 border-right">
+                  <div class="table-responsive mb-3 mb-md-0 mt-3">
+                    <table class="table table-borderless report-table">
+                      <thead>
+                        <tr>
+                          <th style="color:rgb(45, 19, 132);font-size:20px;">Date</th>
+                          <th style="color:rgb(45, 19, 132);font-size:20px;">Event</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {% for event in events %}
+                          <tr>
+                            <td>
+                              {% if event.start_time.date == event.end_time.date %}
+                                {{ event.start_time.date }} 
+                              {% else %}
+                                {{ event.start_time.date }} - {{ event.end_time.date }}
+                              {% endif %}
+                            </td>
+                            <td>{{ event.title }}</td>
+                          </tr>
+                        {% empty %}
+                          <tr>
+                            <td colspan="2">No events scheduled for the upcoming week.</td>
+                          </tr>
+                        {% endfor %}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               </div>
             </div>
             

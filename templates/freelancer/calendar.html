@@ -2,86 +2,278 @@
 {% block 'freelancer_content' %}
 {% load static %}
 
-<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.4/jquery.min.js"></script>
+<!-- Load necessary CSS and JS libraries -->
 <link rel="stylesheet" href="https://unpkg.com/bootstrap@5.3.3/dist/css/bootstrap.min.css">
 <link href="https://cdn.jsdelivr.net/npm/fullcalendar@5.10.1/main.min.css" rel="stylesheet" />
-<script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.10.1/main.min.js"></script>
-<link href="https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/6.1.7/core/main.min.css" rel="stylesheet" />
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.10.1/main.min.js"></script>
+
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        var calendarEl = document.getElementById('calendar');
-        var eventsData = {{ events_data|safe }};
-    
-        var calendar = new FullCalendar.Calendar(calendarEl, {
+    $(document).ready(function() {
+        // Initialize FullCalendar
+        var calendar = new FullCalendar.Calendar($('#calendar')[0], {
             initialView: 'dayGridMonth',
-            events: eventsData,
+            events: {{ events_data|safe }},
             eventClick: function(info) {
-                document.getElementById('event-details-title').textContent = info.event.title;
-                document.getElementById('event-details-description').textContent = info.event.extendedProps.description || 'No description';
-                document.getElementById('event-details-start').textContent = info.event.start.toISOString().slice(0, 10);
-                document.getElementById('event-details-end').textContent = info.event.end ? info.event.end.toISOString().slice(0, 10) : info.event.start.toISOString().slice(0, 10);
-                document.getElementById('event-details-color').style.backgroundColor = info.event.backgroundColor || '#ffffff';
-                document.getElementById('event-details-id').textContent = info.event.id;
-    
-                document.getElementById('event-details').style.display = 'block';
-                document.getElementById('update-event-form-container').style.display = 'none';
+                $('#event-details-title').text(info.event.title);
+                $('#event-details-description').text(info.event.extendedProps.description || 'No description');
+                $('#event-details-start').text(info.event.start.toISOString().slice(0, 10));
+                $('#event-details-end').text(info.event.end ? info.event.end.toISOString().slice(0, 10) : info.event.start.toISOString().slice(0, 10));
+                $('#event-details-color').css('background-color', info.event.backgroundColor || '#ffffff');
+                $('#event-details-id').text(info.event.id);
+
+                $('#event-details').show();
+                $('#update-event-form-container').hide();
             },
             dateClick: function(info) {
-                document.getElementById('start-time').value = info.dateStr;
-                document.getElementById('end-time').value = info.dateStr; 
-    
+                $('#start-time').val(info.dateStr);
+                $('#end-time').val(info.dateStr);
                 $('#addEventModal').modal('show');
             },
             eventContent: function(arg) {
-                let eventTitle = document.createElement('div');
-                eventTitle.innerHTML = arg.event.title;
-                let eventElement = document.createElement('div');
-                eventElement.style.backgroundColor = arg.event.backgroundColor || '#007bff';
-                eventElement.style.color = '#ffffff';
-                eventElement.style.padding = '5px';
-                eventElement.style.borderRadius = '4px';
-                eventElement.appendChild(eventTitle);
-                return { domNodes: [eventElement] };
+                let eventTitle = $('<div>').text(arg.event.title);
+                let eventElement = $('<div>')
+                    .css('background-color', arg.event.backgroundColor || '#007bff')
+                    .css('color', '#ffffff')
+                    .css('padding', '5px')
+                    .css('border-radius', '4px')
+                    .append(eventTitle);
+                return { domNodes: [eventElement[0]] };
             }
         });
-    
+
         calendar.render();
-    
-        document.getElementById('editEventButton').addEventListener('click', function() {
-            var eventId = document.getElementById('event-details-id').textContent;
+
+        // Edit event button click
+        $('#editEventButton').on('click', function() {
+            var eventId = $('#event-details-id').text();
             if (eventId) {
-                document.getElementById('update-event-title').value = document.getElementById('event-details-title').textContent;
-                document.getElementById('update-event-description').value = document.getElementById('event-details-description').textContent;
-                document.getElementById('update-start-time').value = document.getElementById('event-details-start').textContent;
-                document.getElementById('update-end-time').value = document.getElementById('event-details-end').textContent;
-                document.getElementById('update-event-color').value = getComputedStyle(document.getElementById('event-details-color')).backgroundColor;
-    
-                document.getElementById('update-event-id').value = eventId;
-    
-                document.getElementById('event-details').style.display = 'none';
-                document.getElementById('update-event-form-container').style.display = 'block';
+                $('#update-event-title').val($('#event-details-title').text());
+                $('#update-event-description').val($('#event-details-description').text());
+                $('#update-start-time').val($('#event-details-start').text());
+                $('#update-end-time').val($('#event-details-end').text());
+                $('#update-event-color').val($('#event-details-color').css('background-color'));
+                $('#update-event-id').val(eventId);
+
+                $('#event-details').hide();
+                $('#update-event-form-container').show();
             }
         });
-    
-        document.getElementById('cancelUpdateButton').addEventListener('click', function() {
-            document.getElementById('update-event-form-container').style.display = 'none';
-            document.getElementById('event-details').style.display = 'block';
+
+        // Cancel update button click
+        $('#cancelUpdateButton').on('click', function() {
+            $('#update-event-form-container').hide();
+            $('#event-details').show();
         });
+
+        // Delete event button click
+        $('#deleteEventButton').on('click', function() {
+            $('#delete-event-id').val($('#event-details-id').text()); 
+            $('#deleteEventForm').submit(); 
+        });
+    });
+</script>
+<script>
+    $(document).ready(function () {
+        // Validation for Add Event Form
+        $("#event-title").keyup(function () {
+            checkEventTitle();
+        });
+        $("#event-description").keyup(function () {
+            checkEventDescription();
+        });
+        $("#start-time").change(function () {
+            checkStartTime();
+        });
+        $("#end-time").change(function () {
+            checkEndTime();
+        });
+
+        $("#update-event-title").keyup(function () {
+            checkUpdateEventTitle();
+        });
+        $("#update-event-description").keyup(function () {
+            checkUpdateEventDescription();
+        });
+        $("#update-start-time").change(function () {
+            checkUpdateStartTime();
+        });
+        $("#update-end-time").change(function () {
+            checkUpdateEndTime();
+        });
+
+        var title_error = false;
+        var description_error = false;
+        var start_time_error = false;
+        var end_time_error = false;
+
+        function checkEventTitle() {
+            var title = $("#event-title").val();
+            var titlePattern =/^[a-zA-Z ]*$/ // Title must be 5-50 characters long and only contain letters, numbers, and spaces
+            if (titlePattern.test(title) && title!='') {
+                $("#error-title").hide();
+                $("#event-title").css("border", "2px solid green");
+            } else {
+                $("#error-title").html("<br>Event title must  contain only letters,and spaces").show();
+                $("#event-title").css("border", "2px solid red");
+                title_error = true;
+            }
+        }
+
+        function checkEventDescription() {
+            var description = $("#event-description").val();
+            var descriptionPattern = /^(?!.*\d{3})(?=.*[a-zA-Z])[a-zA-Z0-9 .,'!""?\n]*$/; // Description must be 10-300 characters long
+            if (descriptionPattern.test(description)) {
+                $("#error-description").hide();
+                $("#event-description").css("border", "2px solid green");
+            } else {
+                $("#error-description").html("<br>Description must be 10-300 characters long").show();
+                $("#event-description").css("border", "2px solid red");
+                description_error = true;
+            }
+        }
+
+        function checkStartTime() {
+            var startTime = $("#start-time").val();
+            var today = new Date().toISOString().split('T')[0];
+            
+            if (startTime !== "" && startTime >= today) {
+                $("#error-start-time").hide();
+                $("#start-time").css("border", "2px solid green");
+            } else {
+                $("#error-start-time").html("<br>Start time cannot be in the past").show();
+                $("#start-time").css("border", "2px solid red");
+                start_time_error = true;
+            }
+        }
+        
+        function checkEndTime() {
+            var endTime = $("#end-time").val();
+            var startTime = $("#start-time").val();
+            var today = new Date().toISOString().split('T')[0];
+            
+            if (endTime !== "" && endTime >= today) {
+                if (startTime !== "" && endTime >= startTime) {
+                    $("#error-end-time").hide();
+                    $("#end-time").css("border", "2px solid green");
+                } else {
+                    $("#error-end-time").html("<br>End time must be after the start time").show();
+                    $("#end-time").css("border", "2px solid red");
+                    end_time_error = true;
+                }
+            } else {
+                $("#error-end-time").html("<br>End time cannot be in the past").show();
+                $("#end-time").css("border", "2px solid red");
+                end_time_error = true;
+            }
+        }
+        
+        
+function checkUpdateEventTitle() {
+        var title = $("#update-event-title").val();
+        var titlePattern = /^[a-zA-Z ]*$/;
+        if (titlePattern.test(title) && title != '') {
+            $("#error-update-title").hide();
+            $("#update-event-title").css("border", "2px solid green");
+        } else {
+            $("#error-update-title").html("<br>Event title must contain only letters and spaces").show();
+            $("#update-event-title").css("border", "2px solid red");
+            title_error = true;
+        }
+    }
+
+    function checkUpdateEventDescription() {
+        var description = $("#update-event-description").val();
+        var descriptionPattern = /^(?!.*\d{3})(?=.*[a-zA-Z])[a-zA-Z0-9 .,'!""?\n]*$/;
+        if (descriptionPattern.test(description)) {
+            $("#error-update-description").hide();
+            $("#update-event-description").css("border", "2px solid green");
+        } else {
+            $("#error-update-description").html("<br>Description must be 10-300 characters long").show();
+            $("#update-event-description").css("border", "2px solid red");
+            description_error = true;
+        }
+    }
+
+    function checkUpdateStartTime() {
+        var startTime = $("#update-start-time").val();
+        var today = new Date().toISOString().split('T')[0];
+        
+        if (startTime !== "" && startTime >= today) {
+            $("#error-update-start-time").hide();
+            $("#update-start-time").css("border", "2px solid green");
+        } else {
+            $("#error-update-start-time").html("<br>Start time cannot be in the past").show();
+            $("#update-start-time").css("border", "2px solid red");
+            start_time_error = true;
+        }
+    }
+
+    function checkUpdateEndTime() {
+        var endTime = $("#update-end-time").val();
+        var startTime = $("#update-start-time").val();
+        var today = new Date().toISOString().split('T')[0];
+        
+        if (endTime !== "" && endTime >= today) {
+            if (startTime !== "" && endTime >= startTime) {
+                $("#error-update-end-time").hide();
+                $("#update-end-time").css("border", "2px solid green");
+            } else {
+                $("#error-update-end-time").html("<br>End time must be after the start time").show();
+                $("#update-end-time").css("border", "2px solid red");
+                end_time_error = true;
+            }
+        } else {
+            $("#error-update-end-time").html("<br>End time cannot be in the past").show();
+            $("#update-end-time").css("border", "2px solid red");
+            end_time_error = true;
+        }
+    }
+
+
+        $("#addEventForm").submit(function () {
+            title_error = false;
+            description_error = false;
+            start_time_error = false;
+            end_time_error = false;
+
+            checkEventTitle();
+            checkEventDescription();
+            checkStartTime();
+            checkEndTime();
+
+            if (title_error === false && description_error === false && start_time_error === false && end_time_error === false) {
+                $("#add-event-error").hide();
+                return true;
+            } else {
+                $("#add-event-error").html("Please fill the form correctly.").show();
+                return false;
+            }
+        });
+
+        $("#updateEventForm").submit(function () {
+            title_error = false;
+            description_error = false;
+            start_time_error = false;
+            end_time_error = false;
     
-        document.getElementById('deleteEventButton').addEventListener('click', function() {
-            var form = document.getElementById('deleteEventForm');
-            var eventId = document.getElementById('event-details-id').textContent;
-            if (eventId) {
-                document.getElementById('delete-event-id').value = eventId; 
-                form.submit(); 
+            checkUpdateEventTitle();
+            checkUpdateEventDescription();
+            checkUpdateStartTime();
+            checkUpdateEndTime();
+    
+            if (title_error === false && description_error === false && start_time_error === false && end_time_error === false) {
+                $("#update-event-error").hide();
+                return true;
+            } else {
+                $("#update-event-error").html("Please fill the form correctly.").show();
+                return false;
             }
         });
     });
-    
 </script>
 
 
@@ -90,36 +282,29 @@
     body {
         background-color: #f8f9fa;
     }
-
     h3 {
         color: darkred;
         font-family: 'Dancing Script', cursive;
         text-align: center;
         margin-top: 10px;
     }
-
     .btn-primary {
         margin-bottom: 20px;
     }
-
     .fc-toolbar-title {
         font-size: 1.5em;
         color: #343a40;
     }
-
     .modal-header {
         background-color: #343a40;
         color: white;
     }
-
     .modal-content {
         border-radius: 10px;
     }
-
     .form-control {
         margin-bottom: 10px;
     }
-
     .fc-event {
         font-size: 1em;
         padding: 5px;
@@ -127,9 +312,6 @@
         border: none;
         border-radius: 4px;
     }
-
-    
-
     #editEventButton, #deleteEventButton {
         flex: 1;
         display: inline-block;
@@ -141,18 +323,60 @@
         border: none;
         outline: none;
     }
-
     #editEventButton {
         background-color: blue;
     }
-
     #deleteEventButton {
         background-color: red;
     }
 </style>
+
+<!-- Add Event Form Modal -->
+<div class="modal fade" id="addEventModal" tabindex="-1" role="dialog" aria-labelledby="addEventModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addEventModalLabel">Add Event</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addEventForm" method="post" action="{% url 'freelancer:add_new_event' %}">
+                    {% csrf_token %}
+                    <div class="form-group">
+                        <label for="event-title">Event Title</label>
+                        <input type="text" class="form-control" id="event-title" name="title" required>
+                        <span id="error-title" class="text-danger" style="display: none;"></span>
+                    </div>
+                    <div class="form-group">
+                        <label for="event-description">Description</label>
+                        <textarea class="form-control" id="event-description" name="description" rows="3"></textarea>
+                        <span id="error-description" class="text-danger" style="display: none;"></span>
+                    </div>
+                    <div class="form-group">
+                        <label for="start-time">Start Date</label>
+                        <input type="date" class="form-control" id="start-time" name="start_time" required>
+                        <span id="error-start-time" class="text-danger" style="display: none;"></span>
+                    </div>
+                    <div class="form-group">
+                        <label for="end-time">End Date</label>
+                        <input type="date" class="form-control" id="end-time" name="end_time" required>
+                        <span id="error-end-time" class="text-danger" style="display: none;"></span>
+                    </div>
+                    <div class="form-group">
+                        <label for="event-color">Event Color</label>
+                        <input type="color" class="form-control" id="event-color" name="color">
+                    </div>
+                    <button type="submit" class="btn btn-primary">Add Event</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Event Details and Update Form -->
 <div class="container mt-5 p-3 bg-white rounded shadow-sm">
-    <h3 style="color:darkred;font-family:'Dancing Script', cursive;margin-left:70px;margin-top:10px;">Calendar</h3>
-    <button class="btn btn-primary" data-toggle="modal" data-target="#addEventModal">
+    <h3>Calendar</h3>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addEventModal">
         <i class="fas fa-calendar-plus"></i> Add Schedule
     </button>
     <div class="row">
@@ -161,20 +385,16 @@
         </div>
         <div class="col-md-3">
             <!-- Event Details Section -->
-            <div id="event-details" style="border: 1px solid #ddd; padding: 15px; border-radius: 5px; background-color: #f8f9fa;">
+            <div id="event-details" style="display: none; border: 1px solid #ddd; padding: 15px; border-radius: 5px; background-color: #f8f9fa;">
                 <h5 id="event-details-title">Select an event</h5>
                 <p id="event-details-description"></p>
                 <p><strong>Start:</strong> <span id="event-details-start"></span></p>
                 <p><strong>End:</strong> <span id="event-details-end"></span></p>
                 <p><strong>Color:</strong> <span id="event-details-color" style="display: inline-block; width: 20px; height: 20px; border-radius: 50%;"></span></p>
-                <button id="editEventButton" class="btn btn-primary">Edit</button>
-                
-                <form id="deleteEventForm" method="post" action="{% url 'freelancer:delete_event' %}">
-                    {% csrf_token %}
-                    <input type="hidden" id="delete-event-id" name="event_id">
-                    <button id="deleteEventButton" class="btn btn-danger">Delete</button>
-                </form>
-                
+                <p style="display: none;"><strong>ID:</strong> <span id="event-details-id"></span></p>
+
+                <button id="editEventButton" class="btn btn-primary">Edit Event</button>
+                <button id="deleteEventButton" class="btn btn-danger">Delete Event</button>
             </div>
 
             <!-- Update Event Form -->
@@ -185,71 +405,39 @@
                     <div class="form-group">
                         <label for="update-event-title">Event Title</label>
                         <input type="text" class="form-control" id="update-event-title" name="title" required>
+                        <span id="error-update-title" class="text-danger" style="display: none;"></span>
                     </div>
                     <div class="form-group">
                         <label for="update-event-description">Description</label>
                         <textarea class="form-control" id="update-event-description" name="description" rows="3"></textarea>
+                        <span id="error-update-description" class="text-danger" style="display: none;"></span>
                     </div>
                     <div class="form-group">
                         <label for="update-start-time">Start Date</label>
                         <input type="date" class="form-control" id="update-start-time" name="start_time" required>
+                        <span id="error-update-start-time" class="text-danger" style="display: none;"></span>
                     </div>
                     <div class="form-group">
                         <label for="update-end-time">End Date</label>
                         <input type="date" class="form-control" id="update-end-time" name="end_time" required>
+                        <span id="error-update-end-time" class="text-danger" style="display: none;"></span>
                     </div>
                     <div class="form-group">
                         <label for="update-event-color">Event Color</label>
                         <input type="color" class="form-control" id="update-event-color" name="color">
                     </div>
-                    <input type="hidden" id="update-event-id" name="event_id"> <!-- Hidden field for event ID -->
-                    <button type="submit" class="btn btn-primary">Update</button>
+                    <input type="hidden" id="update-event-id" name="event_id">
+                    <button type="submit" class="btn btn-primary">Update Event</button>
                     <button type="button" id="cancelUpdateButton" class="btn btn-secondary">Cancel</button>
                 </form>
             </div>
         </div>
     </div>
-    <!-- Modal for Adding Event -->
-    <div class="modal fade" id="addEventModal" tabindex="-1" role="dialog" aria-labelledby="addEventModalLabel" aria-hidden="true">
-        <div class="modal-dialog" role="document">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="addEventModalLabel">Add Event</h5>
-                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                        <span aria-hidden="true">&times;</span>
-                    </button>
-                </div>
-                <div class="modal-body">
-                    <form id="eventForm" method="post" action="{% url 'freelancer:add_new_event' %}">
-
-                        {% csrf_token %}
-                        <div class="form-group">
-                            <label for="event-title">Event Title</label>
-                            <input type="text" class="form-control" id="event-title" name="title" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="event-description">Description</label>
-                            <textarea class="form-control" id="event-description" name="description" rows="3"></textarea>
-                        </div>
-                        <div class="form-group">
-                            <label for="start-time">Start Date</label>
-                            <input type="date" class="form-control" id="start-time" name="start_time" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="end-time">End Date</label>
-                            <input type="date" class="form-control" id="end-time" name="end_time" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="event-color">Event Color</label>
-                            <input type="color" class="form-control" id="event-color" name="color">
-                        </div>
-                        <button type="submit" class="btn btn-primary">Save</button>
-                    </form>
-                </div>
-            </div>
-        </div>
-    </div>
 </div>
 
-
+<!-- Delete Event Form -->
+<form id="deleteEventForm" method="post" action="{% url 'freelancer:delete_event' %}" style="display: none;">
+    {% csrf_token %}
+    <input type="hidden" id="delete-event-id" name="event_id">
+</form>
 {% endblock %}

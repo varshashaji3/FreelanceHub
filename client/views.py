@@ -1,5 +1,6 @@
 
 
+import datetime
 from django.contrib import messages
 from django.shortcuts import redirect, render
 
@@ -17,6 +18,9 @@ from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
 from django.utils.html import strip_tags
 from django.conf import settings
+from django.utils import timezone
+from datetime import timedelta
+
 
 @login_required
 @nocache
@@ -27,11 +31,32 @@ def client_view(request):
     uid = request.session['uid']
     logged_user=request.user
     uid=request.user.id
-    
+    current_date = datetime.date.today()
+    one_week_later = current_date + datetime.timedelta(days=7)
+
+    events = Event.objects.filter(user=logged_user, start_time__range=[current_date, one_week_later])
+
     profile1 = CustomUser.objects.get(id=uid)
     profile2=Register.objects.get(user_id=uid)
-    notifications = Notification.objects.filter(user=request.user)
-    events=Event.objects.filter(user=request.user)
+    notifications = Notification.objects.filter(user=logged_user).order_by('-created_at')[:10]
+    for event in events:
+        # One day before the event
+        one_day_before = event.start_time.date() - datetime.timedelta(days=1)
+        if one_day_before == current_date:
+            notification_message = f"Reminder: Upcoming event '{event.title}' tomorrow!"
+            Notification.objects.get_or_create(
+                user=logged_user,
+                message=notification_message,
+                defaults={'is_read': False}
+            )
+
+        if event.start_time.date() == current_date:
+            notification_message = f"Reminder: Event '{event.title}' is today!"
+            Notification.objects.get_or_create(
+                user=logged_user,
+                message=notification_message,
+                defaults={'is_read': False}
+            )
     if logged_user.is_authenticated and profile2 and not any([
         profile2.phone_number or '',
         profile2.profile_picture or '',
@@ -531,14 +556,12 @@ def delete_event(request):
         if request.method == 'POST':
             event_id = request.POST.get('event_id')
             if not event_id:
-                return redirect('client:calendar')  # Handle missing event_id case
-
+                return redirect('client:calendar')  
             try:
                 event = Event.objects.get(id=event_id)
                 event.delete()
             except Event.DoesNotExist:
-                pass  # Handle case where event does not exist
-
+                pass  
             return redirect('client:calendar')
 
         else:
@@ -688,21 +711,41 @@ def edit_project(request, pid):
 @login_required
 @nocache
 def project_list(request):
-    if 'uid' not in request.session and not request.user.is_authenticated and request.user.role!='client':
+    if 'uid' not in request.session and not request.user.is_authenticated and request.user.role != 'client':
         return redirect('login')
 
     uid = request.session['uid']
     profile1 = CustomUser.objects.get(id=uid)
-    profile2=Register.objects.get(user_id=uid)
-    client=ClientProfile.objects.get(user_id=uid)
-    if profile1.permission==True:
-        projects=Project.objects.filter(user_id=uid)
-        return render(request, 'client/ProjectList.html',{'profile1':profile1,'profile2':profile2,'client':client,'projects':projects})
-    else:
-        return render(request, 'client/PermissionDenied.html',{'profile1': profile1,
+    profile2 = Register.objects.get(user_id=uid)
+    client = ClientProfile.objects.get(user_id=uid)
+    if profile1.permission:
+        projects = Project.objects.filter(user_id=uid).select_related('freelancer')
+        freelancer_names = {}
+
+        for project in projects:
+            if project.freelancer:
+                register = Register.objects.filter(user=project.freelancer).first()
+                if register:
+                    full_name = f"{register.first_name} {register.last_name}"
+                    freelancer_names[project.id] = full_name
+                else:
+                    freelancer_names[project.id] = 'No name available'
+            else:
+                freelancer_names[project.id] = 'No freelancer assigned'
+
+        return render(request, 'client/ProjectList.html', {
+            'profile1': profile1,
             'profile2': profile2,
-            'client': client,})      
-        
+            'client': client,
+            'projects': projects,
+            'freelancer_names': freelancer_names
+        })
+    else:
+        return render(request, 'client/PermissionDenied.html', {
+            'profile1': profile1,
+            'profile2': profile2,
+            'client': client,
+        })
         
         
         
@@ -776,7 +819,8 @@ def update_proposal_status(request, pro_id):
 
             
             if new_status == 'Accepted':
-               
+                project.freelancer = proposal.freelancer
+                project.save()
                 Notification.objects.create(
                     user=proposal.freelancer,
                     message=f'Congratulations! Your proposal for project "{project.title}" has been accepted.'
