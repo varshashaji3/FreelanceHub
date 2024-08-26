@@ -25,6 +25,8 @@ from client.views import client_view
 from administrator.views import admin_view
 from urllib.parse import urlparse, parse_qs, urlunparse
 from urllib.parse import urlencode
+from django.http import JsonResponse
+
 
 def index(request):
     #CustomUser.objects.get(id=3).delete()
@@ -35,6 +37,13 @@ def index(request):
         return redirect_based_on_user_type(request, request.user)
     return render(request,'index.html')
 
+
+def check_email(request):
+    email = request.POST.get('email', None)
+    data = {
+        'is_taken': CustomUser.objects.filter(email__iexact=email).exists()
+    }
+    return JsonResponse(data)
 
 
 def close_expired_projects():

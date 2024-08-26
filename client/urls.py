@@ -3,7 +3,7 @@ from django.contrib import admin
 from django.shortcuts import render
 from django.urls import include, path
 
-from client.views import  acc_deactivate,lock_proposal, notification_mark_as_read, toggle_project_status,edit_project,delete_event,update_event,add_event,update_proposal_status,freelancer_detail,calendar,AddProfileClient, client_view,account_settings,change_password, project_list, single_project_view,update_profile,change_profile_image,add_new_project,freelancer_list
+from client.views import  verify_payment,payment_success,make_payment, submit_contract,add_task, add_url,add_note,add_file, create_repository,acc_deactivate,lock_proposal, notification_mark_as_read, toggle_project_status,edit_project,delete_event,update_event,add_event,update_proposal_status,freelancer_detail,calendar,AddProfileClient, client_view,account_settings,change_password, project_list, single_project_view,update_profile,change_profile_image,add_new_project,freelancer_list, update_task_progress, view_repository
 
 def welcome(request):
     return render(request,'welcome.html')
@@ -40,4 +40,32 @@ urlpatterns = [
     path('acc_deactivate/', acc_deactivate, name='acc_deactivate'),
 
     path('notification_mark_as_read/<int:not_id>', notification_mark_as_read, name='notification_mark_as_read'),
+    
+    
+    path('create_repository/', create_repository, name='create_repository'),
+    path('view_repository/<int:repo_id>', view_repository, name='view_repository'),
+    
+    path('add_file/<int:repo_id>', add_file, name='add_file'),
+    
+    path('add_url/<int:repo_id>', add_url, name='add_url'),
+    
+    path('add_note/<int:repo_id>', add_note, name='add_note'),
+    
+    path('add_task/<int:repo_id>', add_task, name='add_task'),
+    
+    path('update_task_progress/<int:repo_id>', update_task_progress, name='update_task_progress'),
+    
+    
+    
+    
+    path('submit_contract/<int:pro_id>', submit_contract, name='submit_contract'),
+    
+    
+    
+    
+    
+    path('make_payment/<int:installment_id>/', make_payment, name='make_payment'),
+    path('verify_payment/', verify_payment, name='verify_payment'),
+    
+    path('payment_success/', payment_success, name='payment_success'),
 ]

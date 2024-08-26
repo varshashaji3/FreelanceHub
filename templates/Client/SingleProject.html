@@ -4,6 +4,37 @@
 {% load static %}
 
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+<script>
+    $(document).ready(function() {
+        function updateSubmitButtons() {
+            $('tr.proposal-row').each(function() {
+                var status = $(this).find('select[name="status"]').val();
+                var button = $(this).find('.agreement-button');
+                
+                if (status === 'Accepted') {
+                    button.prop('disabled', false);
+                    button.on('click', function() {
+                        window.location.href = $(this).data('href');
+                    });
+                } else {
+                    button.prop('disabled', true);
+                    button.off('click');
+                }
+            });
+        }
+    
+        // Set initial button states
+        updateSubmitButtons();
+    
+        // Update button states on status change
+        $(document).on('change', 'select[name="status"]', function() {
+            updateSubmitButtons();
+        });
+    });
+    
+</script>
+
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
@@ -105,7 +136,8 @@
                         <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#proposalModal{{ proposal.id }}">
                             View
                         </button>
-                        
+                        <button type="button" class="btn btn-success agreement-button" data-href="{% url 'client:submit_contract' project.id %}" disabled>Agreement</button>
+
                     </td>
                     <td>
                         {% if proposal.status == 'Pending' %}

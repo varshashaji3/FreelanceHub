@@ -90,6 +90,7 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'core.context_processors.unread_notifications',
+                'core.context_processors.repository_list', 
             ],
         },
     },
@@ -109,6 +110,9 @@ DATABASES = {
         'PASSWORD': 'varsha',
         'HOST': 'localhost',
         'PORT': '3306',
+        'OPTIONS': {
+            'charset': 'utf8mb4',
+        },
     }
 }
 
@@ -151,7 +155,8 @@ TIME_ZONE = 'Asia/Kolkata'
 
 USE_I18N = True
 
-USE_TZ = True
+# USE_TZ = True
+USE_TZ = False
 
 
 
@@ -198,3 +203,5 @@ ACCOUNT_USERNAME_REQUIRED = False
 ACCOUNT_USER_MODEL_USERNAME_FIELD = None
 
 
+RAZORPAY_KEY_ID = 'rzp_test_1vZK3GexmGW5zt'
+RAZORPAY_KEY_SECRET = 'eIKYygydEQ5iicHT2N6gaVuC'

@@ -1,5 +1,3 @@
-
-
 from django.shortcuts import render
 
 # Create your views here.
@@ -14,11 +12,13 @@ from freelancer.models import FreelancerProfile
 
 from django.contrib import messages
 
-
+from django.db.models.functions import TruncMonth
+from django.db.models import Count
 from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
 from django.utils.html import strip_tags
 from django.conf import settings
+from client.models import Project
 
 @login_required
 @nocache
@@ -26,15 +26,41 @@ def admin_view(request):
     if 'uid' not in request.session and not request.user.is_authenticated:
         return redirect('login_view')
     
-    logged_user=request.user
-    uid=request.user.id
-    
-    user=CustomUser.objects.get(id=uid)
-    profile=Register.objects.get(user_id=uid)
-    if user:
-        return render(request, 'Admin/index.html',{'user1':user,'profile':profile})
-    else:
-        return redirect('login')
+    uid = request.user.id
+    user = CustomUser.objects.get(id=uid)
+    profile = Register.objects.get(user_id=uid)
+
+    client_count = CustomUser.objects.filter(role='client').count()
+    freelancer_count = CustomUser.objects.filter(role='freelancer').count()
+
+    # Aggregate monthly user counts
+    monthly_data = CustomUser.objects.annotate(month=TruncMonth('joined')).values('month').annotate(count=Count('id')).order_by('month')
+
+    months = []
+    client_counts = []
+    freelancer_counts = []
+
+    for month in monthly_data:
+        month_name = month['month'].strftime('%b %Y')
+        months.append(month_name)
+        client_counts.append(CustomUser.objects.filter(role='client', joined__month=month['month'].month, joined__year=month['month'].year).count())
+        freelancer_counts.append(CustomUser.objects.filter(role='freelancer', joined__month=month['month'].month, joined__year=month['month'].year).count())
+
+    posted_count = Project.objects.all().count()
+    completed_count = Project.objects.filter(project_status='Completed').count()
+    in_progress_count = Project.objects.filter(project_status='In Progress').count()
+
+    return render(request, 'Admin/index.html', {
+        'user1': user,
+        'profile': profile,
+        'months': months,
+        'client_counts': client_counts,
+        'freelancer_counts': freelancer_counts,
+        # Add project statistics to context
+        'posted_count': posted_count,
+        'completed_count': completed_count,
+        'in_progress_count': in_progress_count,
+    })
 
 
 @login_required
@@ -344,4 +370,3 @@ def send_activation_email(uid):
     email = EmailMultiAlternatives(subject, text_content, settings.EMAIL_HOST_USER, [user.email])
     email.attach_alternative(html_content, "text/html")
     email.send()
-

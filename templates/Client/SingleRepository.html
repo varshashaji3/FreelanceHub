@@ -1,0 +1,585 @@
+{% extends 'client/base.html' %}
+{% block 'client_content' %}
+{% load static %}
+
+<!-- Load necessary CSS and JS libraries -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+<link href="https://cdn.jsdelivr.net/npm/fullcalendar@5.10.1/main.min.css" rel="stylesheet" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.10.1/main.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css">
+<script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+
+
+<script>
+    $(document).ready(function() {
+        $('#tasksTable').DataTable({
+            responsive: true,
+            autoWidth: false,
+            pagingType: "simple_numbers",
+            lengthMenu: [5, 10, 25, 50],
+            language: {
+                search: "_INPUT_",
+                searchPlaceholder: "Search tasks..."
+            }
+        });
+    });
+</script>
+
+<style>
+    body {
+        background-color: #f0f2f5;
+        font-family: 'Arial', sans-serif;
+    }
+
+    .container {
+        background-color: #ffffff;
+        border-radius: 12px;
+        box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+        padding: 40px;
+        margin-top: 40px;
+    }
+
+    h1, h2, h3 {
+        color: #333;
+        margin-bottom: 25px;
+        font-weight: 600;
+    }
+
+    .action-buttons {
+        display: flex;
+        justify-content: center;
+        margin-bottom: 30px;
+    }
+
+    .action-buttons .btn {
+        font-size: 1rem;
+        padding: 12px 25px;
+        border-radius: 50px;
+        color: white;
+        transition: all 0.3s ease;
+        margin: 0 10px;
+        font-weight: 500;
+    }
+
+    .action-buttons .btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    }
+
+    .btn-add-url {
+        background-color: #4285F4;
+        border-color: #4285F4;
+    }
+
+    .btn-add-url:hover {
+        background-color: #3367D6;
+    }
+
+    .btn-add-note {
+        background-color: #34A853;
+        border-color: #34A853;
+    }
+
+    .btn-add-note:hover {
+        background-color: #2E8B57;
+    }
+
+    .btn-add-files {
+        background-color: #FBBC05;
+        border-color: #FBBC05;
+    }
+
+    .btn-add-files:hover {
+        background-color: #F9A825;
+    }
+
+    .btn-github {
+        background-color: white;
+        border-color: #333;
+    }
+
+    .btn-github:hover {
+        background-color: #444;
+    }
+
+    .recent-activity, .recent-notes {
+        list-style-type: none;
+        padding-left: 0;
+    }
+
+    .activity-item, .note-item {
+        display: flex;
+        align-items: center;
+        background-color: #fff;
+        border: 1px solid #e0e0e0;
+        border-radius: 12px;
+        padding: 25px;
+        margin-bottom: 20px;
+        transition: all 0.3s ease;
+    }
+
+    .activity-item:hover, .note-item:hover {
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        transform: translateY(-3px);
+    }
+
+    .user-logo {
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        overflow: hidden;
+        margin-right: 20px;
+    }
+
+    .user-logo img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .activity-content, .note-content {
+        flex: 1;
+    }
+
+    .activity-header, .note-header {
+        font-weight: bold;
+        font-size: 1.1rem;
+        margin-bottom: 5px;
+    }
+
+    .activity-meta, .note-meta {
+        color: #666;
+        font-size: 0.9rem;
+        margin-bottom: 10px;
+    }
+
+    .activity-description, .note-description {
+        color: #333;
+        line-height: 1.5;
+    }
+
+    .modal-content {
+        border-radius: 12px;
+    }
+
+    .modal-header {
+        background-color: #f8f9fa;
+        border-bottom: 1px solid #dee2e6;
+        padding: 20px;
+    }
+
+    .modal-title {
+        color: #333;
+        font-weight: 600;
+    }
+
+    .form-label {
+        font-weight: 500;
+        margin-bottom: 8px;
+    }
+
+    .form-control {
+        border-radius: 8px;
+        padding: 12px;
+    }
+
+    .form-control:focus {
+        border-color: #4285F4;
+        box-shadow: 0 0 0 0.2rem rgba(66, 133, 244, 0.25);
+    }
+
+    .btn-primary {
+        background-color: #4285F4;
+        border-color: #4285F4;
+        padding: 10px 20px;
+        font-weight: 500;
+    }
+
+    .btn-primary:hover {
+        background-color: #3367D6;
+        border-color: #3367D6;
+    }
+
+    /* Toggle buttons */
+    .toggle-buttons {
+        display: flex;
+        justify-content: center;
+        margin-bottom: 30px;
+    }
+
+    .toggle-buttons .btn {
+        margin: 0 10px;
+    }
+
+
+    .note-item, .task-item {
+        display: flex;
+        align-items: center;
+        background-color: #fff;
+        border: 1px solid #e0e0e0;
+        border-radius: 12px;
+        padding: 25px;
+        margin-bottom: 20px;
+        transition: all 0.3s ease;
+    }
+
+    .note-item:hover, .task-item:hover {
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        transform: translateY(-3px);
+    }
+
+    .note-content, .task-content {
+        flex: 1;
+    }
+
+    .note-header, .task-header {
+        font-weight: bold;
+        font-size: 1.1rem;
+        margin-bottom: 5px;
+    }
+
+    .note-meta, .task-meta {
+        color: #666;
+        font-size: 0.9rem;
+        margin-bottom: 10px;
+    }
+
+    .note-description, .task-description {
+        color: #333;
+        line-height: 1.5;
+    }
+
+    .note-textarea, .task-textarea {
+        border-radius: 8px;
+        padding: 12px;
+        width: 100%;
+        height: 150px;
+        margin-bottom: 20px;
+        resize: vertical;
+    }
+
+    .note-actions, .task-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+    }
+
+
+    table.dataTable thead th {
+        background-color: #4285F4;
+        color: white;
+    }
+
+    table.dataTable tbody tr {
+        transition: background-color 0.3s;
+    }
+
+    table.dataTable tbody tr:hover {
+        background-color: #f5f5f5;
+    }
+
+    table.dataTable tfoot th {
+        background-color: #f8f9fa;
+        color: #333;
+    }
+
+</style>
+
+<div class="container mt-4">
+    <div class="toggle-buttons">
+        <button class="btn btn-outline-secondary" id="toggle-tasks">
+            <i class="fas fa-tasks"></i> Tasks
+        </button>
+        <button class="btn btn-outline-secondary" id="toggle-activities">
+            <i class="fas fa-bell"></i> Activities
+        </button>
+        <button class="btn btn-outline-secondary" id="toggle-notes">
+            <i class="fas fa-sticky-note"></i> Meeting Notes
+        </button>
+        
+        <a href="https://github.com/your-repo-link" target="_blank" class="btn btn-outline-secondary">
+            <i class="fab fa-github"></i> GitHub Repository
+        </a>
+    </div>
+
+    <div id="tasks-section">
+        <h2>Project Tasks</h2>
+        <button class="btn btn-add-note" id="addTaskButton"  data-bs-toggle="modal" data-bs-target="#addTaskModal">
+            <i class="fas fa-plus"></i> Add Task
+        </button><br><br><br>
+        <div id="task-container">
+            <table id="tasksTable" class="display" style="width:100%">
+                <thead>
+                    <tr>
+                        <th>Task Title</th>
+                        <th>Description</th>
+                        <th>Start Date</th>
+                        <th>Due Date</th>
+                        <th>Status</th>
+                        <th>Progress</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for task in tasks %}
+                    <tr>
+                        <td>{{ task.title }}</td>
+                        <td>{{ task.description }}</td>
+                        <td>{{ task.start_date|date:"Y-m-d" }}</td>
+                        <td>{{ task.due_date|date:"Y-m-d" }}</td>
+                        <td>{{ task.status }}</td>
+                        <td>
+                            {{ task.progress_percentage }}%
+                            <div class="progress">
+                                <div class="progress-bar" role="progressbar" style="width: {{ task.progress_percentage }}%" aria-valuenow="{{ task.progress_percentage }}" aria-valuemin="0" aria-valuemax="100"></div>
+                            </div>
+                            <!-- Add a form to update progress -->
+                            <form method="post" action="{% url 'client:update_task_progress' repository.id %}">
+                                {% csrf_token %}
+                                <input type="hidden" name="task_id" value="{{ task.id }}">
+                                <input type="text" name="progress_percentage" max="100" value="{{ task.progress_percentage }}" class="form-control" style="width: 80px; display: inline-block;" required>
+                                <button type="submit" class="btn btn-primary btn-sm mt-1">Update</button>
+                            </form>
+                        </td>
+                    </tr>
+                    
+                    {% empty %}
+                    <tr>
+                        <td colspan="4">No tasks found.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                
+            </table>
+        
+        </div>
+    </div>
+
+    <div id="activity-section" style="display: none;">
+        <div class="action-buttons mb-4">
+            <a href="#" class="btn btn-add-url me-2" data-bs-toggle="modal" data-bs-target="#addUrlModal">
+                <i class="fas fa-link"></i> Add URL
+            </a>
+            <a href="#" class="btn btn-add-files" data-bs-toggle="modal" data-bs-target="#addFilesModal">
+                <i class="fas fa-file-upload"></i> Add Files
+            </a>
+        </div>
+
+        <h2>Recent Activity</h2>
+        <ul class="recent-activity">
+            {% for item in items %}
+                {% if item.type == 'file' %}
+                <li class="activity-item {% if item.uploaded_by == user.id %}logged-in-user{% else %}freelancer{% endif %}">
+                    <div class="user-logo">
+                        <img src="{% if item.uploaded_by == user.id %}{{ profile2.profile_picture.url }}{% else %}{{ freelancer_profile_picture.url }}{% endif %}" alt="{{ item.user_name }}'s logo">
+                    </div>
+                    <div class="activity-content">
+                        <div class="activity-header">
+                            <strong>File:</strong> <a href="{{ item.path }}" download>{{ item.path }}</a>
+                        </div>
+                        <div class="activity-meta">
+                            Uploaded by {% if item.uploaded_by == user.id %}you{% else %}{{ freelancer_name }}{% endif %} on {{ item.date|date:"F j, Y, g:i a" }}
+                        </div>
+                        <p class="activity-description">{{ item.description }}</p>
+                    </div>
+                </li>
+                {% elif item.type == 'url' %}
+                <li class="activity-item {% if item.shared_by == user.id %}logged-in-user{% else %}freelancer{% endif %}">
+                    <div class="user-logo">
+                        <img src="{% if item.shared_by == user.id %}{{ profile2.profile_picture.url }}{% else %}{{ freelancer_profile_picture.url }}{% endif %}" alt="{{ item.user_name }}'s logo">
+                    </div>
+                    <div class="activity-content">
+                        <div class="activity-header">
+                            <strong>URL:</strong> <a href="{{ item.path }}" target="_blank">{{ item.path }}</a>
+                        </div>
+                        <div class="activity-meta">
+                            Shared by {% if item.shared_by == user.id %}you{% else %}{{ freelancer_name }}{% endif %} on {{ item.date|date:"F j, Y, g:i a" }}
+                        </div>
+                        <p class="activity-description">{{ item.description }}</p>
+                    </div>
+                </li>
+                {% endif %}
+            {% empty %}
+            <li>No activity found.</li>
+            {% endfor %}
+        </ul>
+    </div>
+
+    <div id="notes-section" style="display: none;">
+        <h2>Meeting Notes</h2>
+        <button class="btn btn-add-note" id="addNoteButton">
+            <i class="fas fa-sticky-note"></i> Add Note
+        </button>
+        <div id="note-container"></div>
+
+        <!-- Note Entry Section -->
+        <div id="note-entry" style="display: none;">
+            <form method="post" action="{% url 'client:add_note' repository.id %}" id="noteForm">
+                {% csrf_token %}
+                <textarea class="note-textarea" id="noteTextArea" name="content" placeholder="Write your meeting notes here..." required></textarea>
+                <div class="note-actions">
+                    <button type="submit" class="btn btn-primary" id="saveNoteButton">Save</button>
+                </div>
+            </form>
+            <button type="button" class="btn btn-secondary" id="clearNoteButton">Clear</button>
+        </div>
+        
+        <ul class="recent-notes">
+            {% for note in notes %}
+                <br><li class="note-item">
+                    <div class="note-content">
+                        <div class="note-header">{{ note.note }}</div>
+                        <div class="note-meta">Added by you on {{ note.added_at|date:"F j, Y, g:i a" }}</div>
+                        <p class="note-description">{{ note.content }}</p>
+                    </div>
+                </li>
+            {% empty %}
+            <li>No notes found.</li>
+            {% endfor %}
+        </ul>
+    </div>
+</div>
+
+<!-- Add URL Modal -->
+<div class="modal fade" id="addUrlModal" tabindex="-1" aria-labelledby="addUrlModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addUrlModalLabel">Add URL</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form method="post" action="{% url 'client:add_url' repository.id %}">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="url" class="form-label">URL</label>
+                        <input type="url" class="form-control" id="url" placeholder="Enter URL" name="url">
+                    </div>
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Description</label>
+                        <textarea class="form-control" id="description" rows="3" placeholder="Enter description" name="description"></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Save</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<!-- Add Files Modal -->
+<div class="modal fade" id="addFilesModal" tabindex="-1" aria-labelledby="addFilesModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addFilesModalLabel">Add Files</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form method="post" enctype="multipart/form-data" action="{% url 'client:add_file' repository.id %}">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="fileUpload" class="form-label">Choose files</label>
+                        <input type="file" class="form-control" id="fileUpload" name="files" multiple>
+                    </div>
+                    <div class="mb-3">
+                        <label for="fileDescription" class="form-label">Description</label>
+                        <textarea class="form-control" id="fileDescription" rows="3" placeholder="Enter description" name="description"></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Upload</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+<div class="modal fade" id="addTaskModal" tabindex="-1" aria-labelledby="addTaskModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <!-- Modal Header -->
+            <div class="modal-header">
+                <h5 class="modal-title" id="addTaskModalLabel">Add New Task</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <!-- Modal Body -->
+            <div class="modal-body">
+                <form method="POST" action="{% url 'client:add_task' repository.id %}">
+                    {% csrf_token %}
+                    
+                    
+
+                    <!-- Task Title -->
+                    <div class="mb-3">
+                        <label for="title" class="form-label">Title:</label>
+                        <input type="text" id="title" name="title" class="form-control" maxlength="255" required>
+                    </div>
+
+                    <!-- Task Description -->
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Description:</label>
+                        <textarea id="description" name="description" class="form-control"></textarea>
+                    </div>
+
+
+                    <div class="mb-3">
+                        <label for="start_date" class="form-label">Start Date:</label>
+                        <input type="date" id="start_date" name="start_date" class="form-control" required>
+                    </div>
+                    <!-- Due Date -->
+                    <div class="mb-3">
+                        <label for="due_date" class="form-label">Due Date:</label>
+                        <input type="date" id="due_date" name="due_date" class="form-control" required>
+                    </div>
+
+                   
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        <button type="submit" class="btn btn-primary">Save Task</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<script>
+    $(document).ready(function() {
+        $('#toggle-tasks').click(function() {
+            $('#tasks-section').show();
+            $('#activity-section').hide();
+            $('#notes-section').hide();
+        });
+
+        $('#toggle-activities').click(function() {
+            $('#tasks-section').hide();
+            $('#activity-section').show();
+            $('#notes-section').hide();
+        });
+
+        $('#toggle-notes').click(function() {
+            $('#tasks-section').hide();
+            $('#activity-section').hide();
+            $('#notes-section').show();
+        });
+
+        $('#addNoteButton').click(function() {
+            $('#note-entry').toggle();
+        });
+
+        
+
+        $('#clearNoteButton').click(function() {
+            $('#noteTextArea').val('');
+        });
+    });
+</script>
+
+{% endblock %}

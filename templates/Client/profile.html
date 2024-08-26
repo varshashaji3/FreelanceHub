@@ -455,6 +455,44 @@
 
     margin-top: -160px;
   }
+
+  .form-floating {
+    position: relative;
+  }
+
+  .form-floating > label {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    padding: 1rem 0.75rem;
+    pointer-events: none;
+    border: 1px solid transparent;
+    transform-origin: 0 0;
+    transition: opacity 0.1s ease-in-out, transform 0.1s ease-in-out;
+  }
+
+  .form-floating > .form-control:focus ~ label,
+  .form-floating > .form-control:not(:placeholder-shown) ~ label {
+    opacity: 0.65;
+    transform: scale(0.85) translateY(-0.5rem) translateX(0.15rem);
+  }
+
+  .error {
+    color: #dc3545;
+    font-size: 0.875em;
+    margin-top: 0.25rem;
+  }
+
+  .btn-primary {
+    background-color: #007bff;
+    border-color: #007bff;
+  }
+
+  .btn-primary:hover {
+    background-color: #0056b3;
+    border-color: #0056b3;
+  }
 </style>
 <ul class="nav nav-tabs" id="myTab" role="tablist">
   <li class="nav-item" role="presentation">
@@ -617,183 +655,142 @@
 
     <!-- Update Profile Form -->
     <div class="tab-pane fade" id="update" role="tabpanel" aria-labelledby="update-tab">
-      <div class="row" style="background-color:white;padding:10px;border-radius:10px;margin-bottom:60px;">
-        <form action="{% url 'client:change_profile_image' profile1.id %}" method="post" enctype="multipart/form-data"
-          id="image-form">
-          {% csrf_token %}
-          <div class="profile-box">
-            <div class="profile-pic" style="height:170px;border-radius:50px;">
-              <img id="profileImage" src="{{profile2.profile_picture.url}}" alt="Profile Picture"
-                style="object-fit:contain">
-            </div>
-          </div>
-          <span class="change-photo">
-            <input type="file" class="form-control" id="profile_picture" name="profile_picture" style="width:300px;">
-            <span id="error_image" class="error"></span>
-
-            <button type=" button" class="btn btn-primary">Upload
-              New Picture</button>
-            <span id="imgform_err" class="error"></span>
-
-          </span>
-        </form>
-      </div>
-
-
       <div class="card">
-
-
-        <div class="card-header">
-          <h4>Update Profile</h4>
+        <div class="card-header bg-primary text-white">
+          <h4 class="mb-0">Update Profile</h4>
         </div>
         <div class="card-body">
-          <form method="post" action="{% url 'client:update_profile' profile1.id %}" enctype="multipart/form-data"
-            id="profile_form">
+          <form method="post" action="{% url 'client:update_profile' profile1.id %}" enctype="multipart/form-data" id="profile_form">
             {% csrf_token %}
-            <div class="row gy-3">
-              <div class="col-12 col-md-6">
-                <div class="form-floating mb-3">
-                  <input type="role" class="form-control" id="role" name="role" placeholder="Role"
-                    value="{{ profile1.role }}" disabled>
-                  <label for="role" class="form-label">Role</label>
-                </div>
-              </div>
-              <!-- Client Type Selection -->
-              <div class="col-12 col-md-6">
-                <div class="form-floating mb-3">
-                  <input type="text" class="form-control" id="client_type" name="client_type" placeholder="Client Type"
-                    value="{{ client.client_type}}" disabled>
-
-                  <label for="client_type" class="form-label">Client Type</label>
+            <div class="row g-4">
+              <!-- Profile Picture Update -->
+              <div class="col-12 mb-4">
+                <div class="d-flex align-items-center">
+                  <div class="profile-pic me-4" style="width: 100px; height: 100px; border-radius: 50%; overflow: hidden;">
+                    <img id="profileImage" src="{{profile2.profile_picture.url}}" alt="Profile Picture" style="width: 100%; height: 100%; object-fit: cover;">
+                  </div>
+                  <div>
+                    <input type="file" class="form-control" id="profile_picture" name="profile_picture" style="width: 300px;">
+                    <span id="error_image" class="error"></span>
+                  </div>
                 </div>
               </div>
 
-              <!-- Specific Fields for Individual -->
-              <div class="individual-fields">
-                <div class="col-12 col-md-12">
-                  <div class="form-floating mb-3">
-                    <input type="text" class="form-control" id="fname" name="fname" placeholder="First Name"
-                      value="{{ profile2.first_name|default:'' }}">
-                    <label for="fname" class="form-label">First Name</label>
+              <!-- Common Fields -->
+              <div class="col-md-6">
+                <div class="form-floating">
+                  <input type="text" class="form-control" id="role" name="role" placeholder="Role" value="{{ profile1.role }}" disabled>
+                  <label for="role">Role</label>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="form-floating">
+                  <input type="text" class="form-control" id="client_type" name="client_type" placeholder="Client Type" value="{{ client.client_type}}" disabled>
+                  <label for="client_type">Client Type</label>
+                </div>
+              </div>
+
+              <!-- Conditional Fields -->
+              {% if client.client_type == "Individual" %}
+                <div class="col-md-6">
+                  <div class="form-floating">
+                    <input type="text" class="form-control" id="fname" name="fname" placeholder="First Name" value="{{ profile2.first_name|default:'' }}">
+                    <label for="fname">First Name</label>
                     <span id="error_fname" class="error"></span>
                   </div>
                 </div>
-                <div class="col-12 col-md-12">
-                  <div class="form-floating mb-3">
-                    <input type="text" class="form-control" id="lname" name="lname" placeholder="Last Name"
-                      value="{{ profile2.last_name|default:'' }}">
-                    <label for="lname" class="form-label">Last Name</label>
+                <div class="col-md-6">
+                  <div class="form-floating">
+                    <input type="text" class="form-control" id="lname" name="lname" placeholder="Last Name" value="{{ profile2.last_name|default:'' }}">
+                    <label for="lname">Last Name</label>
                     <span id="error_lname" class="error"></span>
                   </div>
                 </div>
-                <div class="col-12 col-md-12">
-                  <div class="form-floating mb-3">
-                    <input type="file" class="form-control" id="aadhar" name="aadhar" placeholder="Aadhaar Card"
-                      value="{{ client.aadhaar_document|default:'' }}"><a href="{{ client.aadhaar_document}}"></a>
-                    <label for="aadhar" class="form-label">Aadhaar Card</label>
+                <div class="col-md-6">
+                  <div class="form-floating">
+                    <input type="file" class="form-control" id="aadhar" name="aadhar" placeholder="Aadhaar Card">
+                    <label for="aadhar">Aadhaar Card</label>
                     <span id="error_aadhar" class="error"></span>
                   </div>
                 </div>
-              </div>
-
-              <!-- Specific Fields for Company -->
-              <div class="company-fields">
-                <div class="col-12 col-md-12">
-                  <div class="form-floating mb-3">
-                    <input type="text" class="form-control" id="company_name" name="company_name"
-                      placeholder="Company Name" value="{{ client.company_name|default:'' }}">
-                    <label for="company_name" class="form-label">Company Name</label>
+              {% elif client.client_type == "Company" %}
+                <div class="col-md-6">
+                  <div class="form-floating">
+                    <input type="text" class="form-control" id="company_name" name="company_name" placeholder="Company Name" value="{{ client.company_name|default:'' }}">
+                    <label for="company_name">Company Name</label>
                     <span id="error_company_name" class="error"></span>
                   </div>
                 </div>
-                <div class="col-12 col-md-12">
-                  <div class="form-floating mb-3">
-                    <input type="text" class="form-control" id="license_number" name="license_number"
-                      placeholder="License Number">
-                    <label for="license_number" class="form-label"
-                      value="{{ client.license_number|default:'' }}">Company
-                      CIN Number</label>
+                <div class="col-md-6">
+                  <div class="form-floating">
+                    <input type="text" class="form-control" id="license_number" name="license_number" placeholder="License Number" value="{{ client.license_number|default:'' }}">
+                    <label for="license_number">Company CIN Number</label>
                     <span id="error_license_number" class="error"></span>
                   </div>
                 </div>
-                <!-- Company Website Field -->
-                <div class="col-12 col-md-12">
-                  <div class="form-floating mb-3">
-                    <input type="url" class="form-control" id="company_website" name="company_website"
-                      value="{{ client.website|default:'' }}" placeholder="Company Website">
-                    <label for="company_website" class="form-label">Company Website</label>
+                <div class="col-md-6">
+                  <div class="form-floating">
+                    <input type="url" class="form-control" id="company_website" name="company_website" value="{{ client.website|default:'' }}" placeholder="Company Website">
+                    <label for="company_website">Company Website</label>
                     <span id="error_company_website" class="error"></span>
                   </div>
                 </div>
-              </div>
-              <!-- Common Fields -->
+              {% endif %}
 
-              <div class="col-12 col-md-6">
-                <div class="form-floating mb-3">
-                  <input type="email" class="form-control" id="email" name="email" placeholder="Email"
-                    value="{{ profile1.email }}" disabled>
-                  <label for="email" class="form-label">Email</label>
-                  <span id="error_email" class="error"></span>
+              <!-- More Common Fields -->
+              <div class="col-md-6">
+                <div class="form-floating">
+                  <input type="email" class="form-control" id="email" name="email" placeholder="Email" value="{{ profile1.email }}" disabled>
+                  <label for="email">Email</label>
                 </div>
               </div>
-              <div class="col-12 col-md-6">
-                <div class="form-floating mb-3">
-                  <input type="text" class="form-control" id="phone" name="phone_number"
-                    value="{{ profile2.phone_number|default:'' }}" placeholder="Phone Number" required>
-                  <label for="phone" class="form-label">Phone Number</label>
+              <div class="col-md-6">
+                <div class="form-floating">
+                  <input type="text" class="form-control" id="phone" name="phone_number" value="{{ profile2.phone_number|default:'' }}" placeholder="Phone Number" required>
+                  <label for="phone">Phone Number</label>
                   <span id="error_phone" class="error"></span>
                 </div>
               </div>
-
-              <div class="col-12 col-md-6">
-                <div class="form-floating mb-3">
-                  <textarea class="form-control" id="bio_description" name="bio_description"
-                    placeholder="Bio Description" style="height: 100px;"
-                    value="{{ profile2.bio_description|default:'' }}">{{ profile2.bio_description|default:'' }}</textarea>
-                  <label for="bio_description" class="form-label">Bio Description</label>
+              <div class="col-12">
+                <div class="form-floating">
+                  <textarea class="form-control" id="bio_description" name="bio_description" placeholder="Bio Description" style="height: 100px;">{{ profile2.bio_description|default:'' }}</textarea>
+                  <label for="bio_description">Bio Description</label>
                   <span id="error_bio" class="error"></span>
                 </div>
               </div>
-              <div class="col-12 col-md-6">
-                <div class="form-floating mb-3">
-                  <input type="text" class="form-control" id="location" name="location" placeholder="Location"
-                    value="{{ profile2.location|default:'' }}" required>
-                  <label for="location" class="form-label">Location</label>
+              <div class="col-md-6">
+                <div class="form-floating">
+                  <input type="text" class="form-control" id="location" name="location" placeholder="Location" value="{{ profile2.location|default:'' }}" required>
+                  <label for="location">Location</label>
                   <span id="error_location" class="error"></span>
                 </div>
               </div>
-              <div class="col-12 col-md-6">
-                <div class="form-floating mb-3">
-                  <input type="url" class="form-control" id="linkedin" name="linkedin"
-                    value="{{ profile2.linkedin|default:'' }}" placeholder="LinkedIn">
-                  <label for="linkedin" class="form-label">LinkedIn Link</label>
+              <div class="col-md-6">
+                <div class="form-floating">
+                  <input type="url" class="form-control" id="linkedin" name="linkedin" value="{{ profile2.linkedin|default:'' }}" placeholder="LinkedIn">
+                  <label for="linkedin">LinkedIn Link</label>
                   <span id="error_linkedin" class="error"></span>
                 </div>
               </div>
-              <div class="col-12 col-md-6">
-                <div class="form-floating mb-3">
-                  <input type="url" class="form-control" id="instagram" name="instagram"
-                    value="{{ profile2.instagram|default:'' }}" placeholder="Instagram">
-                  <label for="instagram" class="form-label">Instagram Link</label>
+              <div class="col-md-6">
+                <div class="form-floating">
+                  <input type="url" class="form-control" id="instagram" name="instagram" value="{{ profile2.instagram|default:'' }}" placeholder="Instagram">
+                  <label for="instagram">Instagram Link</label>
                   <span id="error_instagram" class="error"></span>
                 </div>
               </div>
-              <div class="col-12 col-md-6">
-                <div class="form-floating mb-3">
-                  <input type="url" class="form-control" id="twitter" name="twitter"
-                    value="{{ profile2.twitter|default:'' }}" placeholder="Twitter">
-                  <label for="twitter" class="form-label">Twitter Link</label>
+              <div class="col-md-6">
+                <div class="form-floating">
+                  <input type="url" class="form-control" id="twitter" name="twitter" value="{{ profile2.twitter|default:'' }}" placeholder="Twitter">
+                  <label for="twitter">Twitter Link</label>
                   <span id="error_twitter" class="error"></span>
                 </div>
               </div>
-
               <div class="col-12">
-                <div class="d-grid">
-                  <button type="submit" class="btn btn-dark btn-lg">Save</button>
-                </div>
+                <button type="submit" class="btn btn-primary btn-lg w-100">Save Changes</button>
               </div>
             </div>
-            <span id="profile_err" class="error"></span>
+            <span id="profile_err" class="error mt-3"></span>
           </form>
         </div>
       </div>

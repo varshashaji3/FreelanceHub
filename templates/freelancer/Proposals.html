@@ -82,11 +82,14 @@
             <tbody>
                 {% for item in project_details %}
                 <tr>
-                    <td>{{ item.project.title }}</td>
                     <td>{{ item.client_name }}</td>
-                    <td class="truncate">{{ item.project.description|truncatechars:100 }}</td>
-                    <td>{{ item.project.budget }}</td>
+                    <td>{{ item.project.title }}</td>
                     <td>{{ item.proposal.status }}</td>
+                    <td>{{ item.proposal.date_issued|date:"M. d, Y" }}</td>
+                    <td>
+                        <a href="{% url 'proposal_view' item.proposal.id %}" class="btn btn-primary">View</a>
+                        <a href="{% url 'proposal_edit' item.proposal.id %}" class="btn btn-secondary">Edit</a>
+                    </td>
                 </tr>
                 {% empty %}
                 <tr>

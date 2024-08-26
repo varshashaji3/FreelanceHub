@@ -1,100 +1,169 @@
-
 {% extends 'client/base.html' %}
 {% block 'client_content' %}
 {% load static %}
 {% load custom_filters %}
-<div class="row" style="background-color:white;padding:10px;border-radius:10px;">
-    <h3 align="center" style="margin:1% auto;color:#ff0057">Projects</h3>
-</div><br>
 
+<div class="container mt-4" >
+    <div class="row mb-4">
+        <div class="col-12">
+            <h3 class="text-center" style="color:#ff0057">Projects</h3>
+        </div>
+    </div>
 
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
-<!-- DataTables CSS -->
-<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.11.3/css/jquery.dataTables.css">
+    <div class="row mb-3" style="margin-right:-60px;">
+        <div class="col-12 text-right">
+            <a href="{% url 'client:add_new_project' %}" class="btn btn-primary add-project-btn">Add New Project</a>
+        </div>
+    </div>
 
-<style>
-   
-    table.dataTable {
-        width: 100%;
-        height:250px;
-    }
-    .status-active {
-        background-color: #28a745;
-        color: white;
-    }
-    .status-inactive {
-        background-color: #dc3545;
-        color: white;
-    }
-    .description-column {
-        width: 100px;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-</style>
-<a href="{% url 'client:add_new_project' %}" class="btn btn-primary add-project-btn" style="margin-left:790px;">Add New Project</a>
-    <br><br>
-   
-
-<div class="row" style="background-color:white;padding:10px;border-radius:10px;">
-    
-    <table id="projectTable" class="display">
-        <thead>
-            <tr>
-                <th>Title</th>
-                <th>Description</th>
-                <th>Budget</th>
-                <th>Status</th>
-                <th>Assigned To(Freelancer)</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for project in projects %}
-            <tr>
-                <td>{{ project.title|default:'' }}</td>
-                <td class="description-column">{{ project.description|truncatechars:50|default:'' }}</td>
-                <td>{{ project.budget|default:'' }}</td>
-                <td>
-                    <form action="{% url 'client:toggle_project_status' project.id %}" method="post">
-                        {% csrf_token %}
-                        <button type="submit" class="btn {% if project.status == 'open' %}status-active{% else %}status-inactive{% endif %}">
-                            {% if project.status == 'open' %}Open{% else %}Closed{% endif %}
-                        </button>
-                    </form>
-                </td>
-                <td>
-                    {% if project.id in freelancer_names %}
-                        {{ freelancer_names|get_item:project.id }}
-                    {% else %}
-                        No freelancer assigned
-                    {% endif %}
-                </td>
-                    <td>
-                    <a href="{% url 'client:single_project_view' project.id %}" style="color:black;padding-left:10px;"><i class="fa-solid fa-eye"></i></a>
-                    <a href="{% url 'client:edit_project' project.id %}" style="color:#007bff;padding-left:10px;"><i class="fa-solid fa-edit"></i></a>
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+    <div class="row" style="margin-right:-60px;background-color:white;">
+        <div class="col-12" style="margin-top:40px;">
+            <div class="table-responsive">
+                <table id="projectTable" class="table table-striped ">
+                    <thead>
+                        <tr>
+                            <th>Title</th>
+                            <th>Description</th>
+                            <th>Budget</th>
+                            <th>Status</th>
+                            <th>Assigned To(Freelancer)</th>
+                            <th class="actions-column">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for project in projects %}
+                        <tr>
+                            <td>{{ project.title|default:'' }}</td>
+                            <td>{{ project.description|default:''|truncatechars:50 }}</td>
+                            <td>{{ project.budget|default:'' }}</td>
+                            <td>
+                                <form action="{% url 'client:toggle_project_status' project.id %}" method="post">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-sm {% if project.status == 'open' %}btn-success{% else %}btn-danger{% endif %}" data-toggle="tooltip" title="{% if project.status == 'open' %}Click to close{% else %}Click to open{% endif %}">
+                                        {% if project.status == 'open' %}Open{% else %}Closed{% endif %}
+                                    </button>
+                                </form>
+                            </td>
+                            <td>
+                                {% if project.id in freelancer_names %}
+                                    {{ freelancer_names|get_item:project.id }}
+                                {% else %}
+                                    No freelancer assigned
+                                {% endif %}
+                            </td>
+                            <td class="actions-column">
+                                <div class="action-buttons">
+                                    <a href="{% url 'client:single_project_view' project.id %}" class="btn btn-sm btn-secondary" title="View Project"><i class="fa-solid fa-eye"></i></a>
+                                    <a href="{% url 'client:edit_project' project.id %}" class="btn btn-sm btn-primary" title="Edit Project"><i class="fa-solid fa-edit"></i></a>
+                                    <a href="#" class="btn btn-sm btn-info github-icon" title="View GitHub Repository" data-project-id="{{ project.id }}"><i class="fa-brands fa-github"></i></a>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 </div>
 
+<!-- GitHub Modal -->
+<div class="modal fade" id="githubModal" tabindex="-1" role="dialog" aria-labelledby="githubModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="githubModalLabel">Create New Repository</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <form method="post" action="{% url 'client:create_repository' %}">
+                {% csrf_token %}
+                <input type="hidden" id="projectId" name="project_id" value="">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="repoName">Repository Name:</label>
+                        <input type="text" class="form-control" id="repoName" placeholder="Enter repository name" name="repoName">
+                    </div>
+                    <!-- Add your GitHub repository content here -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-primary">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 
 <script type="text/javascript" charset="utf8" src="https://cdn.datatables.net/1.11.3/js/jquery.dataTables.js"></script>
 
 <script>
-$(document).ready( function () {
+$(document).ready(function () {
     $('#projectTable').DataTable({
         "paging": true,
         "searching": true,
-        "info": true
+        "info": true,
+        "responsive": true,
+        "autoWidth": false,
+        "columnDefs": [
+            { "width": "15%", "targets": 5 } // Set width for Actions column
+        ]
+    });
+
+    // Enable tooltips
+    $('[title]').tooltip();
+
+    // GitHub icon click event
+    $('.github-icon').click(function(e) {
+        e.preventDefault();
+        $('#githubModal').modal('show');
+        $('#projectId').val($(this).data('project-id'));
+    });
+
+    // Save repository button click event
+    $('#saveRepo').click(function() {
+        var repoName = $('#repoName').val();
+        // Add your logic to save the repository name
+        console.log("Repository name:", repoName);
+        $('#githubModal').modal('hide');
     });
 });
 </script>
+
+<style>
+    .table-responsive {
+        overflow-x: auto;
+    }
+    #projectTable {
+        width: 100%;
+        table-layout: auto;
+        background-color: white;
+    }
+    #projectTable th,
+    #projectTable td {
+        white-space: normal;
+        word-wrap: break-word;
+        max-width: none;
+    }
+    .btn-sm {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.875rem;
+        line-height: 1.5;
+        margin-right: 2px;
+    }
+    .github-icon {
+        color: #ffffff;
+    }
+    .action-buttons {
+        display: flex;
+        justify-content: flex-start;
+        align-items: center;
+    }
+    .action-buttons .btn {
+        margin-right: 5px;
+    }
+</style>
 {% endblock %}

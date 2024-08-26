@@ -11,7 +11,7 @@ import os
 from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404, redirect, render
 
-from client.models import ClientProfile, Project
+from client.models import ClientProfile, Project,SharedFile, SharedNote,SharedURL,Repository, Task
 from core.decorators import nocache
 from core.models import CustomUser, Event, Notification, Register
 
@@ -449,7 +449,7 @@ def calendar(request):
             'id': event.id,  # Change this to 'id'
             'title': event.title,
             'start': event.start_time.isoformat(),
-            'end': event.end_time.isoformat(),
+            'end': (event.end_time + timedelta(days=1)).isoformat(),  
             'description': event.description,
             'color': event.color,
         }
@@ -800,19 +800,15 @@ def single_project_view(request, pid):
     freelancer = get_object_or_404(FreelancerProfile, user_id=uid)
     
     if profile1.permission:
-        # Fetch the project and client details
         project = get_object_or_404(Project, id=pid)
-        client_user_id = project.user_id  # Retrieve the client user ID from the project
+        client_user_id = project.user_id  
         client_profile = get_object_or_404(ClientProfile, user_id=client_user_id)
         client_register = get_object_or_404(Register, user_id=client_user_id)
         
-        # Check if a proposal has already been submitted
         proposal_exists = Proposal.objects.filter(freelancer=uid, project_id=pid).exists()
         
-        # Get todos for the user
         todos = Todo.objects.filter(user_id=uid)
         
-        # Render the project view template with the context
         context = {
             'profile1': profile1,
             'profile2': profile2,
@@ -868,8 +864,8 @@ def add_new_proposal(request,pid):
         return render(request, 'freelancer/PermissionDenied.html',{'profile1':profile1,'profile2':profile2,'freelancer':freelancer})
          
          
-         
-         
+ 
+        
 @login_required
 @nocache
 def proposal_list(request):
@@ -891,14 +887,17 @@ def proposal_list(request):
         for proposal in proposals:
             project = proposal.project
             client_profile = ClientProfile.objects.get(user_id=project.user_id)
-            reg=Register.objects.get(user_id=project.user_id)
+            reg = Register.objects.get(user_id=project.user_id)
+            
+            print(f"Proposal: {proposal}, Project: {project}, Client: {reg.first_name} {reg.last_name}")
+
             if client_profile.client_type == 'Individual':
                 client_name = f"{reg.first_name} {reg.last_name}"
             else:
                 client_name = client_profile.company_name
             
             project_details.append({
-                'proposal': proposal,  # Include the entire proposal object
+                'proposal': proposal,
                 'project': project,
                 'client_name': client_name
             })
@@ -916,6 +915,8 @@ def proposal_list(request):
             'profile2': profile2,
             'freelancer': freelancer
         })
+
+
         
         
 @login_required
@@ -1070,45 +1071,37 @@ def view_created_proposals(request):
     profile2 = Register.objects.get(user_id=uid)
     freelancer = FreelancerProfile.objects.get(user_id=uid)
     
-    
     if profile1.permission:
         todos = Todo.objects.filter(user_id=uid)
-        proposals = Proposal.objects.filter(freelancer=uid)
-        project = None
-        client_profile = None
-        client_register = None
-        userprofile = None
+        proposals = Proposal.objects.filter(freelancer=uid).select_related('project')
         
-        if proposals.exists():
-            # Get the first proposal's project details
-            for proposal in proposals:
-                project = get_object_or_404(Project, id=proposal.project_id)
-                client_profile = get_object_or_404(ClientProfile, user_id=project.user_id)
-                client_register = get_object_or_404(Register, user_id=project.user_id)
-                userprofile = get_object_or_404(CustomUser, id=project.user_id)
-                break  # Exit the loop after getting the details of the first proposal
+        project_details = []
+        for proposal in proposals:
+            project = proposal.project
+            client_profile = get_object_or_404(ClientProfile, user_id=project.user_id)
+            client_register = get_object_or_404(Register, user_id=project.user_id)
+            project_details.append({
+                'proposal': proposal,
+                'project': project,
+                'client_profile': client_profile,
+                'client_register': client_register
+            })
 
         return render(request, 'freelancer/proposals_created.html', {
             'profile1': profile1,
             'profile2': profile2,
             'freelancer': freelancer,
             'todos': todos,
-            'proposals': proposals,
-            'project': project,
-            'client_profile': client_profile,
-            'client_register': client_register,
-            'userprofile': userprofile
-            
+            'project_details': project_details
         })
     else:
         return render(request, 'freelancer/PermissionDenied.html', {
             'profile1': profile1,
             'profile2': profile2,
             'freelancer': freelancer
-        })       
-        
-   
-   
+        })
+
+
 @login_required
 @nocache
 def edit_created_proposal(request, prop_id):
@@ -1247,3 +1240,177 @@ def acc_deactivate(request):
     email.send()
     return redirect('login')
 
+
+
+
+@login_required
+@nocache
+def view_repository(request, repo_id):
+    if not request.user.is_authenticated or request.user.role != 'freelancer':
+        return redirect('login')
+
+    uid = request.user.id
+    profile1 = CustomUser.objects.get(id=uid)
+    profile2 = Register.objects.get(user_id=uid)
+    freelancer = FreelancerProfile.objects.get(user_id=uid)
+    
+    if profile1.permission:
+        repository = get_object_or_404(Repository, id=repo_id)
+        project = get_object_or_404(Project, id=repository.project_id)
+        client_profile = ClientProfile.objects.get(user_id=project.user_id)
+        client_register = Register.objects.get(user_id=project.user_id)
+        
+        if client_profile.client_type == 'Individual':
+            client_name = f"{client_register.first_name} {client_register.last_name}"
+        else:
+            client_name = client_profile.company_name
+        
+        client_profile_picture = client_register.profile_picture if client_register.profile_picture else None
+
+        shared_files = SharedFile.objects.filter(repository=repository).values(
+            'file', 'uploaded_at', 'uploaded_by', 'description'
+        )
+        shared_urls = SharedURL.objects.filter(repository=repository).values(
+            'url', 'shared_at', 'shared_by', 'description'
+        )
+        
+        items = []
+        
+        for file in shared_files:
+            items.append({
+                'type': 'file',
+                'path': file['file'],
+                'date': file['uploaded_at'],
+                'uploaded_by': file['uploaded_by'],
+                'description': file['description']
+            })
+        
+        for url in shared_urls:
+            items.append({
+                'type': 'url',
+                'path': url['url'],
+                'date': url['shared_at'],
+                'shared_by': url['shared_by'],
+                'description': url['description']
+            })
+        
+        items.sort(key=lambda x: x['date'])
+        notes = SharedNote.objects.filter(repository=repository).order_by('added_at')
+        tasks=Task.objects.filter(project=project)
+        return render(request, 'freelancer/SingleRepository.html', {
+            'profile1': profile1,
+            'profile2': profile2,
+            'freelancer': freelancer,
+            'repository': repository,
+            'items': items,
+             'notes':notes,
+            'tasks':tasks,
+            'client_name': client_name,
+            'client_profile_picture': client_profile_picture,
+        })
+    else:
+        return render(request, 'freelancer/PermissionDenied.html', {
+            'profile1': profile1,
+            'profile2': profile2,
+            'freelancer': freelancer,
+        })
+
+
+@login_required
+@nocache
+def add_file(request, repo_id):
+    if not request.user.is_authenticated or request.user.role != 'freelancer':
+        return redirect('login')
+
+    uid = request.user.id
+    profile1 = CustomUser.objects.get(id=uid)
+    profile2 = Register.objects.get(user_id=uid)
+    freelancer = FreelancerProfile.objects.get(user_id=uid)
+    
+    if profile1.permission:
+        repository = get_object_or_404(Repository, id=repo_id)
+        if request.method == 'POST':
+            file = request.FILES['files']
+            description = request.POST.get('description')
+            newfile = SharedFile(
+                file=file,
+                repository=repository,
+                description=description,
+                uploaded_by=request.user
+            )
+            newfile.save()
+
+            messages.success(request, 'Files added successfully.')
+            return redirect('freelancer:view_repository', repo_id=repository.id)
+    else:
+        return render(request, 'freelancer/PermissionDenied.html', {
+            'profile1': profile1,
+            'profile2': profile2,
+            'freelancer': freelancer,
+        })
+
+@login_required
+@nocache
+def add_url(request, repo_id):
+    if not request.user.is_authenticated or request.user.role != 'freelancer':
+        return redirect('login')
+
+    uid = request.user.id
+    profile1 = CustomUser.objects.get(id=uid)
+    profile2 = Register.objects.get(user_id=uid)
+    freelancer = FreelancerProfile.objects.get(user_id=uid)
+    
+    if profile1.permission:
+        repository = get_object_or_404(Repository, id=repo_id)
+        if request.method == 'POST':
+            url = request.POST.get('url')
+            description = request.POST.get('description')
+            newurl = SharedURL(
+                url=url,
+                repository=repository,
+                description=description,
+                shared_by=request.user
+            )
+            newurl.save()
+
+            messages.success(request, 'URL added successfully.')
+            return redirect('freelancer:view_repository', repo_id=repository.id)
+    else:
+        return render(request, 'freelancer/PermissionDenied.html', {
+            'profile1': profile1,
+            'profile2': profile2,
+            'freelancer': freelancer,
+        })
+
+@login_required
+@nocache
+def add_note(request, repo_id):
+    if not request.user.is_authenticated or request.user.role != 'freelancer':
+        return redirect('login')
+
+    uid = request.user.id
+    profile1 = CustomUser.objects.get(id=uid)
+    profile2 = Register.objects.get(user_id=uid)
+    freelancer = FreelancerProfile.objects.get(user_id=uid)
+    
+    if profile1.permission:
+        repository = get_object_or_404(Repository, id=repo_id)
+        if request.method == 'POST':
+            file = request.FILES['files']
+            description = request.POST.get('description')
+            newfile = SharedFile(
+                file=file,
+                repository=repository,
+                description=description,
+                uploaded_by=request.user
+            )
+            newfile.save()
+
+            messages.success(request, 'Files added successfully.')
+            return redirect('freelancer:view_repository', repo_id=repository.id)
+    else:
+        return render(request, 'freelancer/PermissionDenied.html', {
+            'profile1': profile1,
+            'profile2': profile2,
+            'freelancer': freelancer,
+        })

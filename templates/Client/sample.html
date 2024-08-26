@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Freelance Contract Agreement</title>
+    <style>
+        body {
+            font-family: 'Georgia', serif;
+            margin: 40px;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        .contract-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 30px;
+            background-color: white;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
+        }
+        h1 {
+            text-align: center;
+            font-size: 28px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: #444;
+            margin-bottom: 40px;
+        }
+        .section-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-top: 30px;
+            color: #555;
+        }
+        p {
+            font-size: 16px;
+            line-height: 1.6;
+            margin-bottom: 15px;
+        }
+        .editable {
+            background-color: #e9ecef;
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+            display: inline-block;
+            min-width: 200px;
+        }
+        .signature-container {
+            margin-top: 40px;
+        }
+        .signature-block {
+            margin-top: 50px;
+            display: flex;
+            justify-content: space-between;
+        }
+        .signature-block div {
+            text-align: center;
+            width: 45%;
+            position: relative;
+        }
+        .signature-line {
+            border-top: 1px solid #333;
+            margin-top: 40px;
+            padding-top: 8px;
+        }
+        .signature-box {
+            border: 2px solid #ccc;
+            padding: 20px;
+            text-align: center;
+            border-radius: 4px;
+            margin-top: 10px;
+            position: relative;
+            margin-left:60px;
+        }
+        .signature-box input[type="file"] {
+            display: none;
+        }
+        .signature-box label {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+        .signature-box img {
+            margin-top: 20px;
+            max-width: 100%;
+            max-height: 150px;
+            border-radius: 4px;
+            position: absolute;
+            bottom: 10px; /* Position image at the bottom of the box */
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        .agree-section {
+            margin-top: 30px;
+            text-align: center;
+        }
+        .agree-section input[type="checkbox"] {
+            margin-right: 10px;
+            vertical-align: middle;
+        }
+        .submit-btn {
+            display: block;
+            margin: 30px auto;
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #5252a9;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .submit-btn:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+
+<form class="contract-container" action="/submit_contract" method="POST" enctype="multipart/form-data">
+    <h1>Freelance Contract Agreement</h1>
+
+    <p class="section-title">1. Parties</p>
+    <p>This Freelance Contract ("Contract") is made and entered into on <input type="text" name="date" class="editable" value="[Date]"></p>
+    <p><strong>Client:</strong> <input type="text" name="client_name" class="editable" value="[Client Name]"></p>
+    <p><strong>Freelancer:</strong> <input type="text" name="freelancer_name" class="editable" value="[Freelancer Name]"></p>
+
+    <p class="section-title">2. Project Description</p>
+    <p>The Client hereby engages the Freelancer to provide the following services:</p>
+    <p><textarea name="project_description" class="editable" rows="3">[Project Description]</textarea></p>
+
+    <p class="section-title">3. Payment Terms</p>
+    <p>The Client agrees to pay the Freelancer as follows:</p>
+    <p><strong>Total Payment:</strong> <input type="text" name="total_amount" class="editable" value="[Total Amount]"></p>
+    <p><strong>Payment Schedule:</strong></p>
+    <ul>
+        <li><strong>Installment 1:</strong> <input type="text" name="installment_1_amount" class="editable" value="[Amount]">, due on <input type="text" name="installment_1_due_date" class="editable" value="[Due Date]"></li>
+        <li><strong>Installment 2:</strong> <input type="text" name="installment_2_amount" class="editable" value="[Amount]">, due on <input type="text" name="installment_2_due_date" class="editable" value="[Due Date]"></li>
+        <li><strong>Installment 3:</strong> <input type="text" name="installment_3_amount" class="editable" value="[Amount]">, due on <input type="text" name="installment_3_due_date" class="editable" value="[Due Date]"></li>
+        <!-- Add more installments as needed -->
+    </ul>
+    <p>Each installment is due on the specified date. The Client agrees to make all payments in accordance with the schedule. Late payments may result in delays in project deliverables or termination of this Contract.</p>
+
+    <p class="section-title">4. Deadline and Deliverables</p>
+    <p>The Freelancer agrees to complete the project by:</p>
+    <p><strong>Deadline:</strong> <input type="text" name="deadline_date" class="editable" value="[Deadline Date]"></p>
+    <p><strong>Deliverables:</strong> <textarea name="deliverables" class="editable" rows="3">[List Deliverables]</textarea></p>
+
+    <p class="section-title">5. Confidentiality</p>
+    <p>Both parties agree to keep all project-related information confidential and not disclose it to any third parties without prior consent.</p>
+
+    <p class="section-title">6. Termination</p>
+    <p>Either party may terminate this Contract with written notice. The Client agrees to pay for all work completed up to the termination date.</p>
+
+    <p class="section-title">7. Acceptance</p>
+    <p>By signing below, both parties agree to the terms of this Contract and signify their intent to fulfill their respective obligations.</p>
+
+    <div class="signature-container">
+        <div class="signature-block">
+            <div>
+                <div class="signature-box">
+                    <input type="file" id="clientSignatureUpload" name="client_signature" accept="image/*" onchange="displaySignature(event, 'clientSignatureImage')">
+                    <label for="clientSignatureUpload">Upload Client Signature</label>
+                    <img id="clientSignatureImage" src="#" alt="Client Signature" style="display:none;">
+                </div>
+                <p class="signature-line">Client Signature</p>
+                <p><input type="text" name="client_signature_name" class="editable" value="[Client Name]"></p>
+            </div>
+            <div>
+                <div class="signature-box">
+                    <input type="file" id="freelancerSignatureUpload" name="freelancer_signature" accept="image/*" onchange="displaySignature(event, 'freelancerSignatureImage')">
+                    <label for="freelancerSignatureUpload"> Freelancer Signature</label>
+                    <img id="freelancerSignatureImage" src="#" alt="Freelancer Signature" style="display:none;">
+                </div>
+                <p class="signature-line">Freelancer Signature</p>
+                <p><input type="text" name="freelancer_signature_name" class="editable" value="[Freelancer Name]"></p>
+            </div>
+        </div>
+        <p><strong>Date:</strong> <input type="text" name="contract_date" class="editable" value="[Date]"></p>
+    </div>
+
+    <button class="submit-btn" id="submitBtn" type="submit" disabled>Submit Contract</button>
+</form>
+
+<script>
+   
+    const submitButton = document.getElementById('submitBtn');
+
+
+    function displaySignature(event, imageId) {
+        const reader = new FileReader();
+        reader.onload = function () {
+            const img = document.getElementById(imageId);
+            img.src = reader.result;
+            img.style.display = 'block';
+        };
+        reader.readAsDataURL(event.target.files[0]);
+    }
+</script>
+
+</body>
+</html>

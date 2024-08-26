@@ -1,0 +1,215 @@
+{% extends 'client/base.html' %}
+{% block 'client_content' %}
+{% load static %}
+
+<script>
+    document.addEventListener('DOMContentLoaded', (event) => {
+        const now = new Date();
+        const formattedDate = `${now.toLocaleString('default', { month: 'long' })} ${now.getDate()}, ${now.getFullYear()}`;
+        document.getElementById('contractDate').textContent = formattedDate;
+        document.getElementById('TodayDate').textContent = formattedDate;
+        // Function to add new installment fields
+        document.getElementById('addInstallment').addEventListener('click', function() {
+            const installments = document.getElementById('installments');
+            const count = installments.children.length + 1;
+            const li = document.createElement('li');
+            
+            li.innerHTML = `
+                <strong>Installment ${count}:</strong>
+                <input type="text" name="installment_amount[]" class="editable" placeholder="Amount">
+                <input type="date" name="installment_due_date[]" class="editable" placeholder="Due Date">
+            `;
+            
+            installments.appendChild(li);
+        });
+    });
+</script>
+
+<style>
+    .contract-container {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 30px;
+    }
+    h1 {
+        text-align: center;
+        font-size: 28px;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        color: #444;
+        margin-bottom: 40px;
+    }
+    .section-title {
+        font-size: 18px;
+        font-weight: bold;
+        margin-top: 30px;
+        color: #555;
+    }
+    p {
+        font-size: 16px;
+        line-height: 1.6;
+        margin-bottom: 15px;
+    }
+    .editable {
+        background-color: #e9ecef;
+        padding: 8px;
+        border-radius: 4px;
+        border: 1px solid #ccc;
+        display: inline-block;
+        min-width: 200px;
+    }
+    .signature-container {
+        margin-top: 40px;
+    }
+    .signature-block {
+        margin-top: 50px;
+        display: flex;
+        justify-content: space-between;
+    }
+    .signature-block div {
+        text-align: center;
+        width: 45%;
+        position: relative;
+    }
+    .signature-line {
+        border-top: 1px solid #333;
+        margin-top: 40px;
+        padding-top: 8px;
+    }
+    .signature-box {
+        border: 2px solid #ccc;
+        padding: 20px;
+        text-align: center;
+        border-radius: 4px;
+        margin-top: 0px;
+        position: relative;
+        margin-left:60px;
+    }
+    .signature-box input[type="file"] {
+        display: none;
+    }
+    .signature-box label {
+        display: inline-block;
+        padding: 10px 20px;
+        background-color: #007bff;
+        color: white;
+        cursor: pointer;
+        border-radius: 5px;
+        margin-top: 10px;
+    }
+    .signature-box img {
+        margin-top: 20px;
+        max-width: 100%;
+        max-height: 150px;
+        border-radius: 4px;
+        position: absolute;
+        bottom: 10px; /* Position image at the bottom of the box */
+        left: 50%;
+        transform: translateX(-50%);
+    }
+    .agree-section {
+        margin-top: 30px;
+        text-align: center;
+    }
+    .agree-section input[type="checkbox"] {
+        margin-right: 10px;
+        vertical-align: middle;
+    }
+    .submit-btn {
+        display: block;
+        margin: 30px auto;
+        padding: 10px 20px;
+        font-size: 16px;
+        background-color: #5252a9;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+    }
+    .submit-btn:disabled {
+        background-color: #ccc;
+        cursor: not-allowed;
+    }
+</style>
+
+<div class="row" style="background-color:white;padding:20px;border-radius:10px;width:850px;">
+    <form class="contract-container" action="{% url 'client:submit_contract' project.id %}" method="POST" enctype="multipart/form-data">
+       {% csrf_token %}
+        <h1>Freelance Contract Agreement</h1>
+        <input type="hidden" name="client_id" value="{{ project.user_id }}">
+        <input type="hidden" name="freelancer_id" value="{{ project.freelancer_id }}">
+        <input type="hidden" name="project_id" value="{{ project.id }}">
+        <p class="section-title">1. Parties</p>
+        <p>This Freelance Contract ("Contract") is made and entered into on <span id="contractDate"></span></p>
+        <p><strong>Client:</strong> {% if client.client_type == 'Individual' %}{{profile2.first_name}} {{ profile2.last_name}}{% else %}{{ client.company_name}}{% endif %}</p>
+        <p><strong>Freelancer:</strong> {{freelancer_name}}</p>
+    
+        <p class="section-title">2. Project Description</p>
+        <p>The Client hereby engages the Freelancer to provide the following services:</p>
+        <p>Title : {{project.title}}</p>
+        <p>Description <br>{{project.description}}</p>
+    
+        <p class="section-title">3. Payment Terms</p>
+        <p>The Client agrees to pay the Freelancer as follows:</p>
+        <p><strong>Total Payment:</strong> {{project.budget}}</p>
+        <p><strong>Payment Schedule:</strong></p>
+        
+        
+
+
+        <ul id="installments">
+            <li>
+                <strong>Installment 1:</strong>
+                <input type="text" name="installment_amount[]" class="editable" placeholder="Amount">
+                <input type="date" name="installment_due_date[]" class="editable" placeholder="Due Date">
+            </li>
+        </ul>
+        <button type="button" id="addInstallment">Add Installment</button>
+
+        
+
+        <p>Each installment is due on the specified date. I agree to make all payments in accordance with the schedule. Late payments may result in delays in project deliverables or termination of this Contract.</p>
+    
+        <p class="section-title">4. Deadline and Deliverables</p>
+        <p>The Freelancer agrees to complete the project by:</p>
+        <p><strong>Deadline:</strong> {{proposal.deadline|date:"F j, Y" }}</p>
+        <p><strong>Deliverables:</strong> {{proposal.proposal_details | safe}}</p>
+    
+        <p class="section-title">5. Confidentiality</p>
+        <p>Both parties agree to keep all project-related information confidential and not disclose it to any third parties without prior consent.</p>
+    
+        <p class="section-title">6. Termination</p>
+        <p>Either party may terminate this Contract with written notice. The Client agrees to pay for all work completed up to the termination date.</p>
+    
+        <p class="section-title">7. Acceptance</p>
+        <p>By signing below, both parties agree to the terms of this Contract and signify their intent to fulfill their respective obligations.</p>
+    
+        <div class="signature-container">
+            <div class="signature-block">
+                <div>
+                    <div class="signature-box">
+                        <input type="file" id="clientSignatureUpload" name="client_signature" accept="image/*" onchange="displaySignature(event, 'clientSignatureImage')">
+                        <label for="clientSignatureUpload">Client Signature</label>
+                        <img id="clientSignatureImage" src="#" alt="Client Signature" style="display:none;">
+                    </div>
+                    <p class="signature-line">Client Signature</p>
+                    <p>{% if client.client_type == 'Individual' %}{{profile2.first_name}} {{ profile2.last_name}}{% else %}{{ client.company_name}}{% endif %}</p>
+                </div>
+                <div>
+                    <div class="signature-box">
+                        <input type="file" id="freelancerSignatureUpload" name="freelancer_signature" accept="image/*" onchange="displaySignature(event, 'freelancerSignatureImage')">
+                        <label for="freelancerSignatureUpload"> Freelancer Signature</label>
+                        <img id="freelancerSignatureImage" src="#" alt="Freelancer Signature" style="display:none;">
+                    </div>
+                    <p class="signature-line">Freelancer Signature</p>
+                    <p>{{freelancer_name}}</p>
+                </div>
+            </div>
+            <p><strong>Date:</strong> <span id="TodayDate"></span></p>
+        </div>
+    
+        <button class="submit-btn" id="submitBtn" type="submit">Submit Contract</button>
+    </form>
+</div>
+
+{% endblock %}

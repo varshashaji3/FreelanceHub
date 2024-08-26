@@ -3,8 +3,9 @@
 import datetime
 from django.contrib import messages
 from django.shortcuts import redirect, render
+import razorpay
 
-from client.models import ClientProfile, Project
+from client.models import ClientProfile, FreelanceContract, PaymentInstallment, Project, SharedFile, SharedNote, SharedURL, Task
 from core.decorators import nocache
 from core.models import CustomUser, Event, Notification, Register
 
@@ -20,7 +21,9 @@ from django.utils.html import strip_tags
 from django.conf import settings
 from django.utils import timezone
 from datetime import timedelta
-
+from django.http import HttpResponse, JsonResponse
+import json
+from django.views.decorators.csrf import csrf_exempt
 
 @login_required
 @nocache
@@ -40,7 +43,7 @@ def client_view(request):
     profile2=Register.objects.get(user_id=uid)
     notifications = Notification.objects.filter(user=logged_user).order_by('-created_at')[:10]
     for event in events:
-        # One day before the event
+        
         one_day_before = event.start_time.date() - datetime.timedelta(days=1)
         if one_day_before == current_date:
             notification_message = f"Reminder: Upcoming event '{event.title}' tomorrow!"
@@ -57,6 +60,36 @@ def client_view(request):
                 message=notification_message,
                 defaults={'is_read': False}
             )
+            
+    client_projects = Project.objects.filter(user=request.user)
+    project_progress_data = []
+    
+    for project in client_projects:
+        tasks = Task.objects.filter(project=project)
+        total_tasks = tasks.count()
+        completed_tasks = tasks.filter(status='Completed').count()
+
+        if total_tasks > 0:
+            progress_percentage = (completed_tasks / total_tasks) * 100
+        else:
+            progress_percentage = 0.0
+
+        project_progress_data.append({
+            'project': project,
+            'progress_percentage': progress_percentage,
+            'total_tasks': total_tasks,
+            'completed_tasks': completed_tasks
+        })
+
+
+    total_projects = client_projects.count()
+    completed_projects = client_projects.filter(project_status='Completed').count()
+    not_completed_projects = total_projects - completed_projects
+    
+    client_contracts = FreelanceContract.objects.filter(client=logged_user)
+    payment_installments = PaymentInstallment.objects.filter(contract__in=client_contracts)
+
+
     if logged_user.is_authenticated and profile2 and not any([
         profile2.phone_number or '',
         profile2.profile_picture or '',
@@ -64,9 +97,123 @@ def client_view(request):
         profile2.location or ''
     ]):
         return render(request,'Client/Add_profile.html',{'profile2':profile2,'profile1':profile1,'uid':uid,'notifications':notifications,'events':events})
-    return render(request,'Client/index.html',{'profile2':profile2,'profile1':profile1,'uid':uid,'notifications':notifications,'events':events})
+    return render(request,'Client/index.html',{'profile2':profile2,'profile1':profile1,'uid':uid,'notifications':notifications,'events':events,
+                'total_projects': total_projects,
+        'completed_projects': completed_projects,
+        'not_completed_projects': not_completed_projects, 
+        'project_progress_data': project_progress_data,   
+        'payment_installments':payment_installments,                     
+                })
 
 
+
+
+
+client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
+
+
+@login_required
+@nocache
+def make_payment(request, installment_id):
+    if not request.user.is_authenticated or request.user.role != 'client':
+        return redirect('login')
+
+    uid = request.user.id
+    profile1 = CustomUser.objects.get(id=uid)
+    profile2 = Register.objects.get(user_id=uid)
+    client = ClientProfile.objects.get(user_id=uid)
+    
+    if profile1.permission:
+        if request.method == 'POST':
+            installment = get_object_or_404(PaymentInstallment, id=installment_id)
+            
+            if installment.status == 'paid':
+                return JsonResponse({'status': 'error', 'message': 'This installment has already been paid.'})
+            
+            # Create Razorpay order
+            order_amount = int(installment.amount * 100)  # Convert to paise
+            order_currency = 'INR'
+            order_receipt = f'installment_{installment.id}'
+            
+            client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
+            
+            try:
+                order = client.order.create({
+                    'amount': order_amount,
+                    'currency': order_currency,
+                    'receipt': order_receipt,
+                    'payment_capture': '1'
+                })
+                installment.razorpay_order_id = order['id']
+                installment.save()
+                response_data = {
+                    'razorpay_key_id': settings.RAZORPAY_KEY_ID,
+                    'order_id': order['id'],
+                    'amount': order_amount,
+                    'currency': order_currency,
+                    'installment_id': installment.id,
+                }
+                
+                return JsonResponse(response_data)
+            except Exception as e:
+                return JsonResponse({'status': 'error', 'message': str(e)})
+        else:
+            return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
+    else:
+        return render(request, 'client/PermissionDenied.html', {
+            'profile1': profile1,
+            'profile2': profile2,
+            'client': client,
+        })
+
+
+@csrf_exempt
+def verify_payment(request):
+    if request.method == 'POST':
+        data = json.loads(request.body)
+        payment_id = data.get('razorpay_payment_id')
+        order_id = data.get('razorpay_order_id')
+        signature = data.get('razorpay_signature')
+
+        if not (payment_id and order_id and signature):
+            return JsonResponse({'status': 'error', 'message': 'Missing parameters'})
+
+        params_dict = {
+            'razorpay_order_id': order_id,
+            'razorpay_payment_id': payment_id,
+            'razorpay_signature': signature
+        }
+        
+        client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
+
+        try:
+            client.utility.verify_payment_signature(params_dict)
+            installment = get_object_or_404(PaymentInstallment, razorpay_order_id=order_id)
+            installment.status = 'paid'
+            installment.razorpay_payment_id = payment_id
+            installment.save()
+            
+            return JsonResponse({'status': 'success'})
+        except razorpay.errors.SignatureVerificationError:
+            return JsonResponse({'status': 'error', 'message': 'Payment verification failed: Signature mismatch'})
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': f'An error occurred: {str(e)}'})
+    return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
+
+
+
+def payment_success(request):
+    installment_id = request.GET.get('installment_id')
+    
+    if not installment_id:
+        return HttpResponse("No installment ID provided.", status=400)
+    
+    installment = get_object_or_404(PaymentInstallment, id=installment_id)
+    
+    installment.status = 'paid'
+    installment.save()
+
+    return render(request, 'client/success.html', {'installment': installment})
 
 
 @login_required
@@ -78,18 +225,18 @@ def notification_mark_as_read(request,not_id):
     next_url = request.GET.get('next', 'client:client_view')
     return redirect(next_url)
 
-
 @login_required
 @nocache
 def AddProfileClient(request, uid):
-    if 'uid' not in request.session and not request.user.is_authenticated and request.user.role!='client':
+    if 'uid' not in request.session and not request.user.is_authenticated and request.user.role != 'client':
         return redirect('login')
 
-    uid = request.session['uid']
+    uid = request.session.get('uid', uid)  # Retrieve uid from session if not passed in URL
     profile = Register.objects.get(user_id=uid)
     client_profile, created = ClientProfile.objects.get_or_create(user_id=uid)
 
     if request.method == 'POST':
+        # Fetching data from POST request
         first_name = request.POST.get('fname')
         last_name = request.POST.get('lname')
         phone_number = request.POST.get('phone_number')
@@ -101,10 +248,11 @@ def AddProfileClient(request, uid):
         twitter = request.POST.get('twitter')
         client_type = request.POST.get('client_type')
         company_name = request.POST.get('company_name')
-        industry = request.POST.get('industry')
-        company_size = request.POST.get('company_size')
-        website = request.POST.get('website')
-        aadhar=request.FILES.get('aadhar')
+        website = request.POST.get('company_website')
+        aadhar = request.FILES.get('aadhar')
+        license_number = request.POST.get('license_number')  # CIN number
+
+        # Update Register profile
         profile.first_name = first_name
         profile.last_name = last_name
         profile.phone_number = phone_number
@@ -121,21 +269,77 @@ def AddProfileClient(request, uid):
         client_profile.client_type = client_type
         if client_type == 'Company':
             client_profile.company_name = company_name
-            client_profile.industry = industry
-            client_profile.company_size = company_size
             client_profile.website = website
-            client_profile.aadhaar_document=''
+            client_profile.license_number = license_number  # Save CIN number
+            client_profile.aadhaar_document = ''
         else:
             client_profile.company_name = ''
-            client_profile.industry = ''
-            client_profile.company_size = ''
             client_profile.website = ''
-            client_profile.aadhaar_document=aadhar
+            client_profile.license_number = ''
+            client_profile.aadhaar_document = aadhar
         client_profile.save()
 
         return redirect('client:client_view')
 
     return render(request, 'client/add_profile_client.html', {'profile': profile, 'client_profile': client_profile})
+
+
+@login_required
+@nocache   
+def update_profile(request, uid):
+    if 'uid' not in request.session and not request.user.is_authenticated and request.user.role != 'client':
+        return redirect('login')
+
+    uid = request.session['uid']
+    profile1 = CustomUser.objects.get(id=uid)
+    profile2 = Register.objects.get(user_id=uid)
+    client = ClientProfile.objects.get(user_id=uid)
+
+    if request.method == 'POST':
+        # Fetch POST data
+        first_name = request.POST.get('fname')
+        last_name = request.POST.get('lname')
+        phone_number = request.POST.get('phone_number')
+        bio_description = request.POST.get('bio_description')
+        location = request.POST.get('location')
+        linkedin = request.POST.get('linkedin')
+        instagram = request.POST.get('instagram')
+        twitter = request.POST.get('twitter')
+        license_number = request.POST.get('license_number')
+        company_name = request.POST.get('company_name')
+        website = request.POST.get('company_website')
+        aadhar = request.FILES.get('aadhar')
+
+        # Update Register model fields
+        profile2.first_name = first_name
+        profile2.last_name = last_name
+        profile2.phone_number = phone_number
+        profile2.bio_description = bio_description
+        profile2.location = location
+        profile2.linkedin = linkedin
+        profile2.instagram = instagram
+        profile2.twitter = twitter
+        profile2.save()
+
+        # Update ClientProfile model fields
+        client_type = client.client_type
+        if client_type == 'Company':
+            client.company_name = company_name
+            client.website = website
+            client.license_number = license_number
+            client.aadhaar_document = ''
+        else:
+            client.company_name = ''
+            client.website = ''
+            client.license_number = ''
+            client.aadhaar_document = aadhar
+
+        client.save()
+
+        return redirect('client:account_settings')
+
+    return render(request, 'client/profile.html', {'profile1': profile1, 'profile2': profile2, 'client': client})
+
 
 
 @login_required
@@ -188,65 +392,6 @@ def change_password(request, uid):
     
     
     
-@login_required
-@nocache   
-def update_profile(request,uid):
-
-    if 'uid' not in request.session and not request.user.is_authenticated and request.user.role!='client':
-        return redirect('login')
-
-    uid = request.session['uid']
-    profile1 = CustomUser.objects.get(id=uid)
-    profile2 = Register.objects.get(user_id=uid)
-    client = ClientProfile.objects.get(user_id=uid)
-
-    if request.method == 'POST':
-        first_name = request.POST.get('fname')
-        last_name = request.POST.get('lname')
-        phone_number = request.POST.get('phone_number')
-        
-        bio_description = request.POST.get('bio_description')
-        location = request.POST.get('location')
-        linkedin = request.POST.get('linkedin')
-        instagram = request.POST.get('instagram')
-        twitter = request.POST.get('twitter')
-        company_name = request.POST.get('company_name')
-        industry = request.POST.get('industry')
-        company_size = request.POST.get('company_size')
-        website = request.POST.get('website')
-        aadhar=request.FILES.get('aadhar')
-        profile2.first_name = first_name
-        profile2.last_name = last_name
-        profile2.phone_number = phone_number
-        
-        profile2.bio_description = bio_description
-        profile2.location = location
-        profile2.linkedin = linkedin
-        profile2.instagram = instagram
-        profile2.twitter = twitter
-        profile2.save()
-
-        client_type=client.client_type
-        print(client_type)
-        if client_type == 'Company':
-            client.company_name = company_name
-            client.industry = industry
-            client.company_size = company_size
-            client.website = website
-            client.aadhaar_document=''
-        else:
-            client.company_name = ''
-            client.industry = ''
-            client.company_size = ''
-            client.website = ''
-            client.aadhaar_document=aadhar
-
-        client.save()
-
-        return redirect('client:account_settings')
-    return render(request, 'client/profile.html',{'profile1':profile1,'profile2':profile2,'client':client})
-
-
 
 @login_required
 @nocache
@@ -271,8 +416,6 @@ def change_profile_image(request,uid):
 
 
         
-        
-        
 @login_required
 @nocache
 def freelancer_list(request):
@@ -294,12 +437,14 @@ def freelancer_list(request):
             freelancerprofile__professional_title__isnull=False
         ).exclude(
             freelancerprofile__professional_title__exact=''
-        ).select_related('freelancerprofile')
+        ).select_related('freelancerprofile', 'register')
 
         if search_query:
             users_with_profiles = users_with_profiles.filter(
                 Q(username__icontains=search_query) |
-                Q(freelancerprofile__professional_title__icontains=search_query)
+                Q(freelancerprofile__professional_title__icontains=search_query) |
+                Q(register__first_name__icontains=search_query) |
+                Q(register__last_name__icontains=search_query)
             )
 
         if profession_filter:
@@ -363,7 +508,7 @@ def freelancer_list(request):
             'profile2': profile2,
             'client': client,
         })
-        
+
         
         
 
@@ -378,21 +523,24 @@ def freelancer_detail(request, fid):
 
     uid = request.session['uid']
     profile1 = CustomUser.objects.get(id=uid)
-    profile2=Register.objects.get(user_id=uid)
-    client=ClientProfile.objects.get(user_id=uid)
+    profile2 = Register.objects.get(user_id=uid)
+    client = ClientProfile.objects.get(user_id=uid)
     if profile1.permission:
        
         profile3 = CustomUser.objects.get(id=fid)
-        profile4=Register.objects.get(user_id=fid)
-        freelancer=FreelancerProfile.objects.get(user_id=fid)
+        profile4 = Register.objects.get(user_id=fid)
+        freelancer = FreelancerProfile.objects.get(user_id=fid)
+        
+        skills_list = [skill.strip() for skill in freelancer.skills.strip('[]').replace("'", "").split(',')]
         
         return render(request, 'client/SingleFreelancer.html', {
             'profile1': profile1,
             'profile2': profile2,
             'freelancer': freelancer,
-            'client':client,
-            'profile3':profile3,
-            'profile4':profile4,
+            'client': client,
+            'profile3': profile3,
+            'profile4': profile4,
+            'skills': skills_list,  
         })
     else:
         return render(request, 'client/PermissionDenied.html', {
@@ -400,6 +548,7 @@ def freelancer_detail(request, fid):
             'profile2': profile2,
             'client': client,
         })
+         
         
                 
         
@@ -820,6 +969,10 @@ def update_proposal_status(request, pro_id):
             
             if new_status == 'Accepted':
                 project.freelancer = proposal.freelancer
+                project.budget = proposal.budget
+                project.project_status='In Progress'
+                project.status='closed'
+                project.start_date=timezone.now().date()
                 project.save()
                 Notification.objects.create(
                     user=proposal.freelancer,
@@ -888,3 +1041,365 @@ def acc_deactivate(request):
     email.attach_alternative(html_content, "text/html")
     email.send()
     return redirect('login')
+
+
+
+from client.models import Repository
+from django.contrib import messages
+
+@login_required
+@nocache
+def create_repository(request):
+    if 'uid' not in request.session and not request.user.is_authenticated and request.user.role != 'client':
+        return redirect('login')
+
+    uid = request.session['uid']
+    profile1 = CustomUser.objects.get(id=uid)
+    profile2 = Register.objects.get(user_id=uid)
+    client = ClientProfile.objects.get(user_id=uid)
+    
+    if profile1.permission:
+        if request.method == 'POST':
+            title = request.POST.get('repoName')
+            project_id = request.POST.get('project_id')
+            project = get_object_or_404(Project, id=project_id)
+
+            if title:
+                # Check if a repository with the same name (case-insensitive) already exists
+                if Repository.objects.filter(project=project, name__iexact=title).exists():
+                    messages.error(request, 'A repository with this name already exists for this project.')
+                    return redirect('client:project_list')  # Or wherever you want to redirect after an error
+
+                repository = Repository.objects.create(
+                    name=title,
+                    project=project,
+                    created_by=request.user
+                )
+                messages.success(request, 'Repository created successfully.')
+                return redirect('client:project_list')
+        
+    else:
+        return render(request, 'client/PermissionDenied.html', {
+            'profile1': profile1,
+            'profile2': profile2,
+            'client': client,
+        })
+        
+ 
+
+@login_required
+@nocache
+def view_repository(request,repo_id):
+    if 'uid' not in request.session and not request.user.is_authenticated and request.user.role != 'client':
+        return redirect('login')
+
+    uid = request.session['uid']
+    profile1 = CustomUser.objects.get(id=uid)
+    profile2 = Register.objects.get(user_id=uid)
+    client = ClientProfile.objects.get(user_id=uid)
+    
+    if profile1.permission:
+        repository = get_object_or_404(Repository, id=repo_id)
+        project = get_object_or_404(Project, id=repository.project_id)
+        freelancer_name = None
+        freelancer_profile_picture = None
+
+        
+        if project.freelancer_id:
+            freelancer_register = Register.objects.get(user_id=project.freelancer_id)
+            freelancer_name = f"{freelancer_register.first_name} {freelancer_register.last_name}"
+            freelancer_profile_picture = freelancer_register.profile_picture if freelancer_register.profile_picture else None
+
+        shared_files = SharedFile.objects.filter(repository=repository).values(
+        'file', 'uploaded_at', 'uploaded_by', 'description'
+    )
+        shared_urls = SharedURL.objects.filter(repository=repository).values(
+            'url', 'shared_at', 'shared_by', 'description'
+        )
+        notes = SharedNote.objects.filter(repository=repository).order_by('added_at')
+        tasks=Task.objects.filter(project=project)
+        items = []
+        
+        for file in shared_files:
+            items.append({
+                'type': 'file',
+                'path': file['file'],
+                'date': file['uploaded_at'],
+                'uploaded_by': file['uploaded_by'],
+                'description': file['description']
+            })
+        
+        for url in shared_urls:
+            items.append({
+                'type': 'url',
+                'path': url['url'],
+                'date': url['shared_at'],
+                'shared_by': url['shared_by'],
+                'description': url['description']
+            })
+        
+        items.sort(key=lambda x: x['date'])
+    
+        return render(request,'client/SingleRepository.html',{'profile1': profile1,
+            'profile2': profile2,
+            'client': client,
+            "repository":repository,
+            'repository': repository,
+        'items': items,
+        'notes':notes,
+        'tasks':tasks,
+        'freelancer_name': freelancer_name,
+        'freelancer_profile_picture': freelancer_profile_picture,
+        })
+        
+    else:
+        return render(request, 'client/PermissionDenied.html', {
+            'profile1': profile1,
+            'profile2': profile2,
+            'client': client,
+        })       
+
+
+
+
+@login_required
+@nocache
+def add_file(request,repo_id):
+    if 'uid' not in request.session and not request.user.is_authenticated and request.user.role != 'client':
+        return redirect('login')
+
+    uid = request.session['uid']
+    profile1 = CustomUser.objects.get(id=uid)
+    profile2 = Register.objects.get(user_id=uid)
+    client = ClientProfile.objects.get(user_id=uid)
+    
+    if profile1.permission:
+        repository = get_object_or_404(Repository, id=repo_id)
+        if request.method=='POST':
+            file = request.FILES['files']
+            description=request.POST.get('description')
+            newfile = SharedFile(
+                    file=file,
+                    repository=repository,
+                    description=description,
+                    uploaded_by=request.user)
+            newfile.save()
+
+            messages.success(request, 'Files added successfully.')
+            return redirect('client:view_repository', repo_id=repository.id)
+        
+    else:
+        return render(request, 'client/PermissionDenied.html', {
+            'profile1': profile1,
+            'profile2': profile2,
+            'client': client,
+        })       
+
+
+
+
+
+@login_required
+@nocache
+def add_url(request,repo_id):
+    if 'uid' not in request.session and not request.user.is_authenticated and request.user.role != 'client':
+        return redirect('login')
+
+    uid = request.session['uid']
+    profile1 = CustomUser.objects.get(id=uid)
+    profile2 = Register.objects.get(user_id=uid)
+    client = ClientProfile.objects.get(user_id=uid)
+    
+    if profile1.permission:
+        repository = get_object_or_404(Repository, id=repo_id)
+        if request.method=='POST':
+            url = request.POST.get('url')
+            description=request.POST.get('description')
+            newurl = SharedURL(
+                    url=url,
+                    repository=repository,
+                    description=description,
+                    shared_by=request.user)
+            newurl.save()
+
+            messages.success(request, 'URL added successfully.')
+            return redirect('client:view_repository', repo_id=repository.id)
+        
+    else:
+        return render(request, 'client/PermissionDenied.html', {
+            'profile1': profile1,
+            'profile2': profile2,
+            'client': client,
+        })       
+
+
+
+
+
+@login_required
+@nocache
+def add_note(request, repo_id):
+    # Check if user has required permission
+    if not request.user.is_authenticated or request.user.role != 'client':
+        return redirect('login')
+
+    # Fetch user profiles
+    profile1 = CustomUser.objects.get(id=request.user.id)
+    profile2 = Register.objects.get(user_id=request.user.id)
+    client = ClientProfile.objects.get(user_id=request.user.id)
+    
+    if profile1.permission:
+        repository = get_object_or_404(Repository, id=repo_id)
+        if request.method == 'POST':
+            note_content = request.POST.get('content')
+            print(f"Note Content: {note_content}")  
+            if note_content:
+                new_note=SharedNote(
+                    repository=repository,  
+                    note=note_content,
+                    added_by=request.user
+                )
+                new_note.save()
+                messages.success(request, 'Note added successfully.')
+                return redirect('client:view_repository', repo_id=repository.id)
+            else:
+                messages.error(request, 'Note content cannot be empty.')
+        
+    else:
+        return render(request, 'client/PermissionDenied.html', {
+            'profile1': profile1,
+            'profile2': profile2,
+            'client': client,
+        })
+
+    return redirect('client:view_repository', repo_id=repo_id) 
+
+
+
+
+@login_required
+@nocache
+def add_task(request, repo_id):
+    if not request.user.is_authenticated or request.user.role != 'client':
+        return redirect('login')
+
+    profile1 = CustomUser.objects.get(id=request.user.id)
+    profile2 = Register.objects.get(user_id=request.user.id)
+    client = ClientProfile.objects.get(user_id=request.user.id)
+    
+    if profile1.permission:
+        repository = get_object_or_404(Repository, id=repo_id)
+        project = repository.project
+        if request.method == "POST":
+            title = request.POST.get('title')
+            description = request.POST.get('description')
+            start_date = request.POST.get('start_date')
+            due_date = request.POST.get('due_date')
+
+            task = Task.objects.create(
+            project=project,
+            title=title,
+            description=description,
+            start_date=start_date,
+            due_date=due_date,
+        )
+        task.save()
+
+    else:
+        return render(request, 'client/PermissionDenied.html', {
+            'profile1': profile1,
+            'profile2': profile2,
+            'client': client,
+        })
+
+    return redirect('client:view_repository', repo_id=repo_id) 
+
+
+
+@login_required
+@nocache
+def update_task_progress(request, repo_id):
+    if not request.user.is_authenticated or request.user.role != 'client':
+        return redirect('login')
+
+    profile1 = CustomUser.objects.get(id=request.user.id)
+    profile2 = Register.objects.get(user_id=request.user.id)
+    client = ClientProfile.objects.get(user_id=request.user.id)
+    
+    if profile1.permission:
+        if request.method == "POST":
+            progress = request.POST.get('progress_percentage')
+            task_id=request.POST.get('task_id')
+            task = Task.objects.get(id=task_id)
+            task.progress_percentage = progress
+            task.save()
+            return redirect('client:view_repository', repo_id=repo_id) 
+    else:
+        return render(request, 'client/PermissionDenied.html', {
+            'profile1': profile1,
+            'profile2': profile2,
+            'client': client,
+        })
+
+    return redirect('client:view_repository', repo_id=repo_id) 
+
+
+
+
+
+
+@login_required
+@nocache
+def submit_contract(request, pro_id):
+    if not request.user.is_authenticated or request.user.role != 'client':
+        return redirect('login')
+
+    profile1 = CustomUser.objects.get(id=request.user.id)
+    profile2 = Register.objects.get(user_id=request.user.id)
+    client = ClientProfile.objects.get(user_id=request.user.id)
+    
+    if profile1.permission:
+        project = Project.objects.get(id=pro_id) 
+        freelancer = project.freelancer 
+        freelancer_data = Register.objects.get(user_id=freelancer)
+        freelancer_name = f"{freelancer_data.first_name} {freelancer_data.last_name}"
+        proposal = Proposal.objects.get(project=project, freelancer=project.freelancer)
+        
+        if request.method == 'POST':
+            client_instance = CustomUser.objects.get(id=request.POST.get('client_id'))
+            freelancer_instance = CustomUser.objects.get(id=request.POST.get('freelancer_id'))
+            signature = request.FILES.get('client_signature')
+            project_instance=Project.objects.get(id=request.POST.get('project_id'))
+            contract = FreelanceContract(
+                client=client_instance,
+                freelancer=freelancer_instance,
+                project = project_instance,
+                client_signature=signature
+            )
+            contract.save()
+
+            amounts = request.POST.getlist('installment_amount[]')
+            due_dates = request.POST.getlist('installment_due_date[]')
+        
+            for amount, due_date in zip(amounts, due_dates):
+                PaymentInstallment.objects.create(contract=contract,amount=amount, due_date=due_date)
+                    
+
+            return redirect('client:client_view')
+        
+        return render(request, 'client/Agreement_template.html', {
+            'profile1': profile1,
+            'profile2': profile2,
+            'client': client,
+            'project': project,
+            'freelancer_name': freelancer_name,
+            'proposal': proposal,
+            'freelancer': freelancer_data
+        })
+    else:
+        return render(request, 'client/PermissionDenied.html', {
+            'profile1': profile1,
+            'profile2': profile2,
+            'client': client,
+        })
+

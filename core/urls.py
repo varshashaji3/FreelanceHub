@@ -3,7 +3,7 @@ from django.contrib import admin
 from django.shortcuts import render
 from django.urls import include, path
 
-from core.views import   about, add_user_type, contact, email_verification, index, login, login_view, logout, register, register_view, reset_password, send_forget_password_mail, send_verification_mail, service,faqs
+from core.views import   check_email,about, add_user_type, contact, email_verification, index, login, login_view, logout, register, register_view, reset_password, send_forget_password_mail, send_verification_mail, service,faqs
 
 
 urlpatterns = [
@@ -15,7 +15,7 @@ urlpatterns = [
     path('faqs/',faqs,name="faqs"),
     path('register_view/', register_view,name="register_view"),
     path('login_view/', login_view,name="login_view"),
-    
+    path('check_email/', check_email, name='check_email'),
     path('add_user_type/<int:uid>', add_user_type,name="add_user_type"),
     path('register/', register,name="register"),
     path('logout/', logout,name="logout"),

@@ -1,7 +1,6 @@
-
 {% extends 'Admin/base.html'%}
 {% block 'admin_content' %}
-
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <div class="row" style="background-color:white;padding:30px;border-radius:10px;display:flex;align-items:center;">
   <div class="col-md-12 grid-margin">
     <div class="row">
@@ -15,9 +14,114 @@
   </div>
 </div>
 
+<br>
+<div class="row" >
+  <div class="col-md-6 grid-margin stretch-card">
+    <div class="card">
+      <div class="card-body">
+        <p class="card-title">Project Overview</p>
+        <p class="font-weight-500">This chart shows the number of projects based on their status: Posted, Completed, and In Progress.
+        </p>
+        <div class="d-flex flex-wrap mb-5">
+          <div class="mr-5 mt-3">
+            <p class="text-muted">Posted</p>
+            <h3 class="text-primary fs-30 font-weight-medium">{{ posted_count }}</h3>
+          </div>
+
+          
+          <div class="mr-5 mt-3">
+            <p class="text-muted">Completed</p>
+            <h3 class="text-primary fs-30 font-weight-medium">{{ completed_count }}</h3>
+          </div>
+          <div class="mr-5 mt-3">
+            <p class="text-muted">In Progress</p>
+            <h5 class="text-primary fs-30 font-weight-medium">{{ in_progress_count }}</h5>
+          </div>
+          
+        </div>
+        <canvas id="projectChart" style="width: 100%; height: 300px;"></canvas>
+          
+      </div>
+    </div>
+    <div class="col-md-12 grid-margin stretch-card" style="width: 100px; height: 500px;">
+      <div class="card">
+          <div class="card-body">
+              <div class="d-flex justify-content-between">
+                  <p class="card-title">Monthly User Registrations</p> <!-- Updated heading -->
+              </div>
+              <p class="font-weight-500">
+                  This chart shows the number of new user registrations each month. It provides an overview of user growth over time, helping to identify trends and patterns in registration activity.
+              </p><br>
+              <canvas id="userChart" style="width: 100px; height: 70px;"></canvas>
+          </div>
+      </div>
+  </div>
+  
+  </div>
 
 
-</div>
+  <script>
+    const ctx = document.getElementById('userChart').getContext('2d');
+    const userChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: {{ months| safe }},
+    datasets: [
+      {
+        label: 'Clients',
+        data: {{ client_counts| safe }},
+      backgroundColor: '#f09398',
+      borderColor: 'white',
+      borderWidth: 1,
+      barThickness: 40
+                    },
+      {
+        label: 'Freelancers',
+        data: {{ freelancer_counts| safe }},
+      backgroundColor: '#5252a9',
+      borderColor: 'white',
+      borderWidth: 1,
+      barThickness: 40
+                    }
+    ]
+            },
+    options: {
+      scales: {
+        y: {
+          beginAtZero: true,
+                        
+                    }
+      }
+    }
+        });
+  </script>
 
+
+
+  <script>
+
+    const ctxProject = document.getElementById('projectChart').getContext('2d');
+    const projectChart = new Chart(ctxProject, {
+      type: 'bar',
+      data: {
+        labels: ['Posted', 'Completed', 'In Progress'],
+        datasets: [{
+          label: 'Projects',
+          data: [{{ posted_count|default:0 }}, {{ completed_count|default:0 }}, {{ in_progress_count|default:0 }}],
+          backgroundColor: ['#f09398', '#52a9a9', '#f0c94a'],
+          borderColor: 'white',
+          borderWidth: 1,
+          barThickness: 40
+        }]
+      },
+      options: {
+        scales: {
+          y: {
+            beginAtZero: true,
+          }
+        }
+      }
+    });
+  </script>
 
 {% endblock %}

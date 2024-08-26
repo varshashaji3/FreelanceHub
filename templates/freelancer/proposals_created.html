@@ -2,14 +2,11 @@
 {% block 'freelancer_content' %}
 {% load static %}
 
-
 <div class="row" style="background-color:white;padding:20px;border-radius:10px;width:850px;">
-
     <h3 style="color:red;margin-left:240px;">Submitted Project Proposals</h3>
-    </div>
-    <br><br>
+</div>
+<br><br>
 <div class="row" style="background-color:white;padding:20px;border-radius:10px;width:850px;">
-    
     <div class="col-12">
         <table id="proposalsTable" class="table table-striped table-bordered">
             <thead>
@@ -17,35 +14,36 @@
                     <th>Proposal To</th>
                     <th>Project Title</th>
                     <th>Status</th>
-                    
                     <th>Date Issued</th>
                     <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
-                    {% for proposal in proposals %}
-                    <tr>
-                        <td> {% if client_profile.client_type == 'Individual' %}
-                            {{ client_register.first_name }} {{ client_register.last_name }}
+                {% for detail in project_details %}
+                <tr>
+                    <td>
+                        {% if detail.client_profile.client_type == 'Individual' %}
+                            {{ detail.client_register.first_name }} {{ detail.client_register.last_name }}
                         {% else %}
-                            {{ client_profile.company_name }}
-                        {% endif %}</td>
-                        <td>{{ project.title }}</td>
-                        <td>{{proposal.status}}</td>
-                        <td>{{ proposal.date_issued }}</td>
-                        <td>
-                            <a href="{% url 'freelancer:proposal_detail2' proposal.id %}" class="btn btn-primary">View</a>
-                            <a href="{% url 'freelancer:edit_created_proposal' proposal.id %}" 
-                            class="btn btn-primary" 
-                            {% if proposal.locked %} 
-                                onclick="return false;" 
-                                style="pointer-events: none; opacity: 0.5;" 
-                            {% endif %}>
-                            Edit
+                            {{ detail.client_profile.company_name }}
+                        {% endif %}
+                    </td>
+                    <td>{{ detail.project.title }}</td>
+                    <td>{{ detail.proposal.status }}</td>
+                    <td>{{ detail.proposal.date_issued }}</td>
+                    <td>
+                        <a href="{% url 'freelancer:proposal_detail2' detail.proposal.id %}" class="btn btn-primary">View</a>
+                        <a href="{% url 'freelancer:edit_created_proposal' detail.proposal.id %}" 
+                           class="btn btn-primary" 
+                           {% if detail.proposal.locked %} 
+                               onclick="return false;" 
+                               style="pointer-events: none; opacity: 0.5;" 
+                           {% endif %}>
+                           Edit
                         </a>
-                        </td>
-                    </tr>
-                    {% endfor %}
+                    </td>
+                </tr>
+                {% endfor %}
             </tbody>
         </table>
     </div>

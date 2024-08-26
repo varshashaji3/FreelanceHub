@@ -3,7 +3,7 @@ from django.contrib import admin
 from django.shortcuts import render
 from django.urls import include, path
 
-from freelancer.views import  acc_deactivate, add_new_event, delete_event, edit_created_proposal, notification_mark_as_read, update_event, update_todo, view_created_proposals,proposal_detail1,proposal_detail2,download_proposal_pdf, generate_proposal,delete_todo,proposal_list,add_new_proposal,add_todo, calendar,AddProfileFreelancer, change_profile_image,freelancer_view,account_settings,change_password, single_project_view,update_profile,view_project,client_list,client_detail,todo
+from freelancer.views import  add_url,add_note,add_file,view_repository,acc_deactivate, add_new_event, delete_event, edit_created_proposal, notification_mark_as_read, update_event, update_todo, view_created_proposals,proposal_detail1,proposal_detail2,download_proposal_pdf, generate_proposal,delete_todo,proposal_list,add_new_proposal,add_todo, calendar,AddProfileFreelancer, change_profile_image,freelancer_view,account_settings,change_password, single_project_view,update_profile,view_project,client_list,client_detail,todo
 
 urlpatterns = [
     path('freelancer_view/', freelancer_view,name="freelancer_view"),
@@ -46,4 +46,13 @@ urlpatterns = [
     path('download_proposal_pdf/<int:prop_id>', download_proposal_pdf, name='download_proposal_pdf'),
     path('acc_deactivate/', acc_deactivate, name='acc_deactivate'),
     
+    
+    
+     path('view_repository/<int:repo_id>', view_repository, name='view_repository'),
+    
+    path('add_file/<int:repo_id>', add_file, name='add_file'),
+    
+    path('add_url/<int:repo_id>', add_url, name='add_url'),
+    
+    path('add_note/<int:repo_id>', add_note, name='add_note'),
 ]

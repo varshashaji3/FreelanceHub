@@ -10,23 +10,36 @@
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.10.1/main.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
 
 <script>
     $(document).ready(function() {
         // Initialize FullCalendar
         var calendar = new FullCalendar.Calendar($('#calendar')[0], {
             initialView: 'dayGridMonth',
-            events: {{ events_data|safe }},
+            events: function(fetchInfo, successCallback, failureCallback) {
+                var events = {{ events_data|safe }};
+                events = events.map(function(event) {
+                    return {
+                        ...event,
+                        start: moment(event.start).subtract(1, 'days').format('YYYY-MM-DD'),
+                        end: moment(event.end).subtract(1, 'days').format('YYYY-MM-DD')
+                    };
+                });
+                successCallback(events);
+            },
             eventClick: function(info) {
                 $('#event-details-title').text(info.event.title);
                 $('#event-details-description').text(info.event.extendedProps.description || 'No description');
-                $('#event-details-start').text(info.event.start.toISOString().slice(0, 10));
-                $('#event-details-end').text(info.event.end ? info.event.end.toISOString().slice(0, 10) : info.event.start.toISOString().slice(0, 10));
+                $('#event-details-start').text(moment(info.event.start).format('YYYY-MM-DD'));
+                $('#event-details-end').text(moment(info.event.end).subtract(1, 'days').format('YYYY-MM-DD'));
                 $('#event-details-color').css('background-color', info.event.backgroundColor || '#ffffff');
                 $('#event-details-id').text(info.event.id);
 
                 $('#event-details').show();
                 $('#update-event-form-container').hide();
+                $('.event-details-column').removeClass('hidden');
+                calendar.updateSize(); // Refresh calendar size
             },
             dateClick: function(info) {
                 $('#start-time').val(info.dateStr);
@@ -42,7 +55,8 @@
                     .css('border-radius', '4px')
                     .append(eventTitle);
                 return { domNodes: [eventElement[0]] };
-            }
+            },
+            height: 'auto' // This will make the calendar's height adjust to its content
         });
 
         calendar.render();
@@ -65,14 +79,90 @@
 
         // Cancel update button click
         $('#cancelUpdateButton').on('click', function() {
-            $('#update-event-form-container').hide();
-            $('#event-details').show();
+            hideEventDetails();
         });
 
         // Delete event button click
         $('#deleteEventButton').on('click', function() {
             $('#delete-event-id').val($('#event-details-id').text()); 
             $('#deleteEventForm').submit(); 
+        });
+
+        // Add this new function to hide event details
+        function hideEventDetails() {
+            $('#event-details').hide();
+            $('#update-event-form-container').hide();
+            $('.event-details-column').addClass('hidden');
+            calendar.updateSize(); // Refresh calendar size
+        }
+
+        // Add a close button to the event details
+        $('#event-details').prepend('<button id="closeEventDetails" class="btn btn-sm btn-secondary float-end">&times;</button>');
+        $('#closeEventDetails').on('click', function() {
+            hideEventDetails();
+        });
+
+        // Form submission handlers
+        $("#addEventForm").submit(function(e) {
+            e.preventDefault();
+            var formData = new FormData(this);
+            formData.set('start_time', moment(formData.get('start_time')).format('YYYY-MM-DD'));
+            formData.set('end_time', moment(formData.get('end_time')).format('YYYY-MM-DD'));
+            $.ajax({
+                type: "POST",
+                url: "{% url 'freelancer:add_new_event' %}",
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function(response) {
+                    $('#addEventModal').modal('hide');
+                    calendar.refetchEvents();
+                    toastr.success('Event added successfully');
+                },
+                error: function(error) {
+                    toastr.error('Error adding event');
+                }
+            });
+        });
+
+        $("#updateEventForm").submit(function(e) {
+            e.preventDefault();
+            var formData = new FormData(this);
+            formData.set('start_time', moment(formData.get('start_time')).format('YYYY-MM-DD'));
+            formData.set('end_time', moment(formData.get('end_time')).format('YYYY-MM-DD'));
+            $.ajax({
+                type: "POST",
+                url: "{% url 'freelancer:update_event' %}",
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function(response) {
+                    hideEventDetails();
+                    calendar.refetchEvents();
+                    toastr.success('Event updated successfully');
+                },
+                error: function(error) {
+                    toastr.error('Error updating event');
+                }
+            });
+        });
+
+        $("#deleteEventForm").submit(function(e) {
+            e.preventDefault();
+            var formData = $(this).serialize();
+            $.ajax({
+                type: "POST",
+                url: "{% url 'freelancer:delete_event' %}",
+                data: formData,
+                success: function(response) {
+                    hideEventDetails();
+                    calendar.refetchEvents();
+                    toastr.success('Event deleted successfully');
+                },
+                error: function(error) {
+                    toastr.error('Error deleting event');
+                }
+            });
         });
     });
 </script>
@@ -280,54 +370,116 @@ function checkUpdateEventTitle() {
 
 <style>
     body {
-        background-color: #f8f9fa;
+        background-color: #f0f2f5;
     }
     h3 {
-        color: darkred;
-        font-family: 'Dancing Script', cursive;
+        color: #3a3a3a;
+        font-family: 'Poppins', sans-serif;
         text-align: center;
-        margin-top: 10px;
+        margin-top: 20px;
+        font-size: 2.5em;
+        font-weight: 600;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
     }
     .btn-primary {
-        margin-bottom: 20px;
+        background-color: #4e54c8;
+        border-color: #4e54c8;
+        transition: all 0.3s ease;
     }
-    .fc-toolbar-title {
-        font-size: 1.5em;
-        color: #343a40;
+    .btn-primary:hover {
+        background-color: #3f4499;
+        border-color: #3f4499;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
-    .modal-header {
-        background-color: #343a40;
-        color: white;
+    .calendar-container {
+        height: auto;
+        display: flex;
+        background-color: #ffffff;
+        border-radius: 15px;
+        overflow: hidden;
+        box-shadow: 0 10px 20px rgba(0,0,0,0.1);
     }
-    .modal-content {
-        border-radius: 10px;
+    #calendar {
+        flex-grow: 1;
+        width: 100%;
+        padding: 20px;
     }
-    .form-control {
-        margin-bottom: 10px;
+    .fc .fc-toolbar-title {
+        font-size: 1.8em;
+        color: #3a3a3a;
+        font-weight: 600;
+    }
+    .fc .fc-button-primary {
+        background-color: #4e54c8;
+        border-color: #4e54c8;
+        transition: all 0.3s ease;
+    }
+    .fc .fc-button-primary:hover {
+        background-color: #3f4499;
+        border-color: #3f4499;
+    }
+    .fc-day-today {
+        background-color: rgba(78, 84, 200, 0.1) !important;
     }
     .fc-event {
-        font-size: 1em;
-        padding: 5px;
-        color: white;
         border: none;
         border-radius: 4px;
+        padding: 3px;
+        font-size: 0.9em;
+        transition: transform 0.2s ease;
+    }
+    .fc-event:hover {
+        transform: scale(1.05);
+    }
+    .fc-daygrid-day-number, .fc-col-header-cell-cushion {
+        color: #3a3a3a;
+        font-weight: 500;
+        text-decoration: none;
+    }
+    .fc-daygrid-day-number:hover, .fc-col-header-cell-cushion:hover {
+        color: #4e54c8;
+    }
+    .fc-day-sat, .fc-day-sun {
+        background-color: #f8f9fa;
+    }
+    .fc .fc-daygrid-day.fc-day-today {
+        background-color: rgba(78, 84, 200, 0.1);
+    }
+    .event-details-column {
+        width: 300px;
+        transition: all 0.3s ease;
+        overflow-y: auto;
+        background-color: #ffffff;
+        box-shadow: -5px 0 15px rgba(0,0,0,0.1);
+    }
+    .event-details-column.hidden {
+        width: 0;
+    }
+    #event-details, #update-event-form-container {
+        padding: 20px;
+        border: none;
+        background-color: #ffffff;
     }
     #editEventButton, #deleteEventButton {
-        flex: 1;
-        display: inline-block;
-        text-align: center;
-        white-space: nowrap;
-        margin: 10px;
+        width: 100%;
+        margin: 10px 0;
         padding: 10px;
-        border-radius: 10px;
-        border: none;
-        outline: none;
+        border-radius: 5px;
+        font-weight: 600;
+        transition: all 0.3s ease;
     }
     #editEventButton {
-        background-color: blue;
+        background-color: #4e54c8;
+        border-color: #4e54c8;
     }
     #deleteEventButton {
-        background-color: red;
+        background-color: #ff6b6b;
+        border-color: #ff6b6b;
+    }
+    #editEventButton:hover, #deleteEventButton:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
 </style>
 
@@ -374,16 +526,14 @@ function checkUpdateEventTitle() {
 </div>
 
 <!-- Event Details and Update Form -->
-<div class="container mt-5 p-3 bg-white rounded shadow-sm">
+<div class="container-fluid mt-5 p-3 bg-white rounded shadow-sm">
     <h3>Calendar</h3>
-    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addEventModal">
+    <button class="btn btn-primary mb-3" data-bs-toggle="modal" data-bs-target="#addEventModal">
         <i class="fas fa-calendar-plus"></i> Add Schedule
     </button>
-    <div class="row">
-        <div class="col-md-9">
-            <div id='calendar'></div>
-        </div>
-        <div class="col-md-3">
+    <div class="calendar-container">
+        <div id='calendar'></div>
+        <div class="event-details-column hidden">
             <!-- Event Details Section -->
             <div id="event-details" style="display: none; border: 1px solid #ddd; padding: 15px; border-radius: 5px; background-color: #f8f9fa;">
                 <h5 id="event-details-title">Select an event</h5>

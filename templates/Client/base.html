@@ -1,4 +1,3 @@
-
 {% load static %}
 <!DOCTYPE html>
 <html lang="en">
@@ -27,55 +26,55 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
 
   <script>
-      toastr.options = {
-          "closeButton": true,
-          "debug": false,
-          "newestOnTop": true,
-          "progressBar": true,
-          "positionClass": "toast-top-right",
-          "preventDuplicates": true,
-          "onclick": null,
-          "showDuration": "300",
-          "hideDuration": "1000",
-          "timeOut": "5000",
-          "extendedTimeOut": "1000",
-          "showEasing": "swing",
-          "hideEasing": "linear",
-          "showMethod": "fadeIn",
-          "hideMethod": "fadeOut"
-      };
+    toastr.options = {
+      "closeButton": true,
+      "debug": false,
+      "newestOnTop": true,
+      "progressBar": true,
+      "positionClass": "toast-top-right",
+      "preventDuplicates": true,
+      "onclick": null,
+      "showDuration": "300",
+      "hideDuration": "1000",
+      "timeOut": "5000",
+      "extendedTimeOut": "1000",
+      "showEasing": "swing",
+      "hideEasing": "linear",
+      "showMethod": "fadeIn",
+      "hideMethod": "fadeOut"
+    };
   </script>
   <script>
-        $(document).ready(function() {
-            {% if messages %}
-                {% for message in messages %}
-                    toastr.options = {
-                        "closeButton": true,
-                        "progressBar": true
-                    };
-                    toastr.{{ message.tags }}("{{ message }}");
-                {% endfor %}
-            {% endif %}
-        });
-    </script>
-  
+    $(document).ready(function () {
+      {% if messages %}
+      {% for message in messages %}
+      toastr.options = {
+        "closeButton": true,
+        "progressBar": true
+      };
+      toastr.{ { message.tags } } ("{{ message }}");
+      {% endfor %}
+      {% endif %}
+    });
+  </script>
+
   <style>
     .preview-item {
       padding: 10px;
       border-bottom: 1px solid #e0e0e0;
       display: flex;
       align-items: center;
-  }
-  
-  .preview-thumbnail {
+    }
+
+    .preview-thumbnail {
       margin-right: 10px;
-  }
-  
-  .preview-icon {
+    }
+
+    .preview-icon {
       display: flex;
       align-items: center;
       justify-content: center;
@@ -84,35 +83,34 @@
       border-radius: 50%;
       color: #fff;
       font-size: 18px;
-  }
-  
-  .preview-item-content {
+    }
+
+    .preview-item-content {
       flex-grow: 1;
-  }
-  
-  .preview-subject {
+    }
+
+    .preview-subject {
       font-size: 14px;
       margin: 0;
-  }
-  
-  .small-text {
+    }
+
+    .small-text {
       font-size: 12px;
       color: #888;
-  }
-  
-  .mark-as-read {
+    }
+
+    .mark-as-read {
       font-size: 12px;
       color: #092b51;
       background: none;
       border: none;
       cursor: pointer;
-  }
-  
-  .mark-as-read:hover {
+    }
+
+    .mark-as-read:hover {
       text-decoration: none;
       color: #0d3d70;
-  }
-  
+    }
   </style>
 </head>
 
@@ -144,41 +142,47 @@
         </ul>
         <ul class="navbar-nav navbar-nav-right">
           <li class="nav-item dropdown">
-            <a class="nav-link count-indicator dropdown-toggle" id="notificationDropdown" href="#" data-toggle="dropdown">
-                <i class="icon-bell mx-0"></i>
-                <span style="margin-left:8px;color:white; font-size:10px;background-color:rgb(14, 14, 160);margin-top:-5px;height:16px;width:16px;" class="count">{{ unread_notifications.count }}</span>
+            <a class="nav-link count-indicator dropdown-toggle" id="notificationDropdown" href="#"
+              data-toggle="dropdown">
+              <i class="icon-bell mx-0"></i>
+              <span
+                style="margin-left:8px;color:white; font-size:10px;background-color:rgb(14, 14, 160);margin-top:-5px;height:16px;width:16px;"
+                class="count">{{ unread_notifications.count }}</span>
             </a>
-            <div class="dropdown-menu dropdown-menu-right navbar-dropdown preview-list" aria-labelledby="notificationDropdown">
-                <p class="mb-0 font-weight-normal float-left dropdown-header">Notifications</p>
-                {% for notification in unread_notifications %}
-                <a class="dropdown-item preview-item">
-                    <div class="d-flex align-items-center">
-                        <div class="preview-thumbnail">
-                            <div class="preview-icon bg-success">
-                                <i class="ti-info-alt mx-0"></i>
-                            </div>
-                        </div>
-                        <div class="preview-item-content flex-grow-1">
-                            <h6 class="preview-subject font-weight-normal">{{ notification.message }}</h6>
-                            <p class="font-weight-light small-text mb-0 text-muted">
-                                {{ notification.created_at|timesince }} ago
-                            </p>
-                        </div>
-                        <form action="{% url 'client:notification_mark_as_read' not_id=notification.id %}?next={{ request.path }}" method="post">
-                          {% csrf_token %}
-                          <button type="submit" class="btn btn-sm btn-link">Mark as Read</button>
-                      </form>
-                      
+            <div class="dropdown-menu dropdown-menu-right navbar-dropdown preview-list"
+              aria-labelledby="notificationDropdown">
+              <p class="mb-0 font-weight-normal float-left dropdown-header">Notifications</p>
+              {% for notification in unread_notifications %}
+              <a class="dropdown-item preview-item">
+                <div class="d-flex align-items-center">
+                  <div class="preview-thumbnail">
+                    <div class="preview-icon bg-success">
+                      <i class="ti-info-alt mx-0"></i>
                     </div>
-                </a>
-                {% endfor %}
-                {% if not unread_notifications %}
-                <p class="font-weight-light small-text mb-0 text-muted">No unread notifications</p>
-                {% endif %}
+                  </div>
+                  <div class="preview-item-content flex-grow-1">
+                    <h6 class="preview-subject font-weight-normal">{{ notification.message }}</h6>
+                    <p class="font-weight-light small-text mb-0 text-muted">
+                      {{ notification.created_at|timesince }} ago
+                    </p>
+                  </div>
+                  <form
+                    action="{% url 'client:notification_mark_as_read' not_id=notification.id %}?next={{ request.path }}"
+                    method="post">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-link">Mark as Read</button>
+                  </form>
+
+                </div>
+              </a>
+              {% endfor %}
+              {% if not unread_notifications %}
+              <p class="font-weight-light small-text mb-0 text-muted">No unread notifications</p>
+              {% endif %}
             </div>
-        </li>
-        
-        
+          </li>
+
+
           <li class="nav-item nav-search d-none d-lg-block">
             <span>Hi,{{ profile2.first_name }}</span>
           </li>
@@ -290,10 +294,33 @@
             <div class="collapse" id="work">
               <ul class="nav flex-column sub-menu">
                 <li class="nav-item"> <a class="nav-link" href="{% url 'client:project_list' %}">Project List</a></li>
-                <li class="nav-item"> <a class="nav-link" href="{% url 'client:add_new_project' %}">Post New Project</a></li>
+                <li class="nav-item"> <a class="nav-link" href="{% url 'client:add_new_project' %}">Post New Project</a>
+                </li>
               </ul>
             </div>
           </li>
+
+          <li class="nav-item">
+            <a class="nav-link" data-toggle="collapse" href="#repos" aria-expanded="false" aria-controls="ui-basic">
+              <i class="fas fa-tasks menu-icon"></i>
+              <span class="menu-title">Repositories</span>
+              <i class="menu-arrow"></i>
+            </a>
+            <div class="collapse" id="repos">
+              <ul class="nav flex-column sub-menu">
+                {% for repo in repositories %}
+                <li class="nav-item">
+                  <a class="nav-link" href="{% url 'client:view_repository' repo.id %}">{{ repo.name }}</a>
+
+                </li>
+                {% empty %}
+                <li class="nav-item">No repositories found.</li>
+                {% endfor %}
+              </ul>
+            </div>
+          </li>
+
+
           <li class="nav-item">
             <a class="nav-link" href="{% url 'client:freelancer_list' %}">
               <i class="fas fa-users menu-icon"></i>
@@ -329,29 +356,32 @@
   </div>
   <!-- container-scroller -->
 
-<!---Modal -->
+  <!---Modal -->
 
-<div class="modal fade" id="verificationModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
-  <div class="modal-dialog" role="document">
-    <div class="modal-content">
-      <div class="modal-header">
-          <h5 class="modal-title" id="verificationModalLabel" style="margin-left:100px;color:brown;font-size:20px;">Account Verification Required</h5>
+  <div class="modal fade" id="verificationModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel"
+    aria-hidden="true">
+    <div class="modal-dialog" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="verificationModalLabel" style="margin-left:100px;color:brown;font-size:20px;">
+            Account Verification Required</h5>
           <button type="button" class="close" data-dismiss="modal" aria-label="Close">
             <span aria-hidden="true">&times;</span>
           </button>
         </div>
-      <div class="modal-body">
-        <img src="{%  static 'img/no-access.png' %}" alt="Image Description" style="height:200px;margin-left:130px;" class="img-fluid mb-3">
-        <p>You cannot access this feature until an administrator verifies your account details.</p>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+        <div class="modal-body">
+          <img src="{%  static 'img/no-access.png' %}" alt="Image Description" style="height:200px;margin-left:130px;"
+            class="img-fluid mb-3">
+          <p>You cannot access this feature until an administrator verifies your account details.</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+        </div>
       </div>
     </div>
   </div>
-</div>
 
-<!---modal ends -->
+  <!---modal ends -->
   <!-- plugins:js -->
   <script src="{%  static 'vendors/js/vendor.bundle.base.js' %}"></script>
   <!-- endinject -->

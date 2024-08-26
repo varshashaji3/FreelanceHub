@@ -38,8 +38,8 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         (STATUS_INACTIVE, 'Inactive'),
     ]
     status = models.CharField(max_length=50, choices=STATUS_CHOICES, default=STATUS_ACTIVE)
-    
-    joined = models.DateTimeField(default=timezone.now)
+    joined = models.DateTimeField(auto_now_add=True)
+
     ADMIN = 'admin'
     CLIENT = 'client'
     FREELANCER = 'freelancer'
