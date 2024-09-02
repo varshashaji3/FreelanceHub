@@ -1,9 +1,11 @@
 {% extends 'client/base.html'%}
 {% block 'client_content' %}
 {% load static %}
+{% load custom_filters %}
 
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.4/jquery.min.js"></script>
 <link rel="stylesheet" href="https://unpkg.com/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 
 <style>
   .error {
@@ -102,6 +104,105 @@
   }
 
 
+
+ .row1 .card-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    width:300px;
+    margin-top: 10px;
+}
+
+.row1 .card {
+    background-color: #fff;
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+    width: 100%;
+    max-width: 350px;
+    position: relative;
+}
+
+.row1 .card-body {
+    padding: 15px;
+    padding-bottom: 50px; /* Ensure space for the profile image */
+    position: relative;
+}
+
+.rating-section {
+    margin-bottom: 10px;
+}
+
+.star-rating i {
+    color: #FFD700;
+}
+
+.row1  h2 {
+    margin-top: 0;
+    font-size: 1.6em;
+    color: #b00a0a;
+}
+
+.row1 .card-body p {
+    margin: 10px 0 0;
+    font-size: 1em;
+    color: #555;
+}
+
+
+.review-date {
+    font-size: 0.9em;
+    color: #888;
+    position: absolute;
+    bottom: 15px;
+    right: 15px;
+}
+
+
+.row1 .card {
+  background-color: #fff;
+  border-radius: 10px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  width: 100%;
+  max-width: 350px;
+  position: relative;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.row1 .card:hover {
+  transform: scale(1.03);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+.row1 .card-body {
+  padding: 15px;
+  padding-bottom: 50px; /* Ensure space for the profile image */
+  position: relative;
+  transition: background-color 0.3s ease;
+}
+
+.row1 .card:hover .card-body {
+  background-color: #f9f9f9;
+}
+
+
+.reviewer-info {
+  display: flex;
+  align-items: center;
+  margin-top: 15px;
+  margin-bottom: -20px;
+}
+
+/* Style for the profile image */
+.profile-img {
+  width: 50px; /* Adjust size as needed */
+  height: 50px; /* Adjust size as needed */
+  border-radius: 50%;
+  margin-right: 15px; /* Space between image and text */
+}
+
+
 </style>
 
 <div class="row" style="background-color:white;padding:10px;border-radius:10px;">
@@ -122,7 +223,7 @@
         </div>
         <span class="profile">
           <h2>{{profile4.first_name}} {{profile4.last_name}}</h2>
-          
+
           <br>
           <p>{{profile4.bio_description}}</p>
 
@@ -176,22 +277,22 @@
             <div class="col-md-6">
               <p><strong>Name:</strong> {{ profile4.first_name }} {{ profile4.last_name }}</p>
               <p><strong>Aadhar:</strong> <a href="{{ freelancer.aadhaar_document.url }}">view aadhar</a></p>
-             
+
               <p><strong>Email:</strong> {{ profile3.email }}</p>
-              
+
 
             </div>
-            
+
             <div class="col-md-6">
-<p><strong>Phone:</strong> {{ profile4.phone_number }}</p>
-            <p><strong>Location:</strong> {{ profile4.location }}</p>
+              <p><strong>Phone:</strong> {{ profile4.phone_number }}</p>
+              <p><strong>Location:</strong> {{ profile4.location }}</p>
 
             </div>
 
           </div>
         </div>
       </div>
-      
+
       <!-- New Skills Section -->
       <br><br>
       <div class="card skills">
@@ -199,20 +300,56 @@
         <div class="card-body">
           <div class="row">
             <div class="col-md-12">
-                {% for skill in skills %}
-                  <span class="alert alert-warning" style="font-size:13px;margin-left:20px;padding:10px;">{{ skill }}</span>
-                {% endfor %}
+              {% for skill in skills %}
+              <span class="alert alert-warning" style="font-size:13px;margin-left:20px;padding:10px;">{{ skill }}</span>
+              {% endfor %}
             </div>
           </div>
         </div>
       </div>
       <!-- End of Skills Section -->
-      
+
     </div>
 
   </div>
+
 </div>
 
+<br>
+<div class="row row1" style="padding:10px;border-radius:10px;">
+  <h2>Reviews</h2>
+  
+  <section class="card-container">
+    {% if reviews %}
+    {% for detail in reviews %}
+      <article class="card">
+          <div class="card-body">
+              <p>{{ detail.review.review_text }}</p>
+              <div class="rating-section">
+                  <span class="star-rating">
+                      {% for i in 1|to:5 %}
+                          {% if i <= detail.review.overall_rating %}
+                              <i class="fas fa-star"></i> <!-- Full Star -->
+                          {% elif i == detail.review.overall_rating|floatformat:1|stringformat:".1"|slice:":-2" %}
+                              <i class="fas fa-star-half-alt"></i> <!-- Half Star -->
+                          {% else %}
+                              <i class="far fa-star"></i> <!-- Empty Star -->
+                          {% endif %}
+                      {% endfor %}
+                  </span>
+              </div>
+              <div class="reviewer-info">
+                  <img src="{{ detail.reviewer_image }}" alt="{{ detail.review.reviewer.first_name }}'s Profile Image" class="profile-img">
+                  <p>{{ detail.reviewer_name }}</p>
+              </div>
+          </div>
+      </article>
+    {% endfor %}
+    {% else %}
+      <p>No reviews available for this freelancer.</p>
+    {% endif %}
+</section>
+</div>
 
 
 

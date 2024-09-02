@@ -3,6 +3,15 @@
 {% load static %}
 {% load custom_filters %}
 
+<style>
+    .error {
+        color: red;
+        font-family: Comic Sans MS;
+        font-weight: bold;
+        font-size: 12px;
+    }
+
+</style>
 <div class="container mt-4" >
     <div class="row mb-4">
         <div class="col-12">
@@ -10,24 +19,25 @@
         </div>
     </div>
 
-    <div class="row mb-3" style="margin-right:-60px;">
-        <div class="col-12 text-right">
-            <a href="{% url 'client:add_new_project' %}" class="btn btn-primary add-project-btn">Add New Project</a>
-        </div>
-    </div>
+    
 
     <div class="row" style="margin-right:-60px;background-color:white;">
-        <div class="col-12" style="margin-top:40px;">
+        <div class="row mb-3" style="margin-left:800px;margin-top:30px;">
+            <div class="col-12 text-right">
+                <a href="{% url 'client:add_new_project' %}" class="btn btn-primary add-project-btn">Add New Project</a>
+            </div>
+        </div>
+        <div class="col-12" style="margin-top:10px;">
             <div class="table-responsive">
-                <table id="projectTable" class="table table-striped ">
-                    <thead>
+                <table id="projectTable" class="table table-hover table-bordered table-responsive-sm">
+                    <thead class="thead-dark">
                         <tr>
                             <th>Title</th>
                             <th>Description</th>
                             <th>Budget</th>
                             <th>Status</th>
-                            <th>Assigned To(Freelancer)</th>
-                            <th class="actions-column">Actions</th>
+                            <th>Assigned To (Freelancer)</th>
+                            <th class="actions-column text-center">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -48,26 +58,37 @@
                                 {% if project.id in freelancer_names %}
                                     {{ freelancer_names|get_item:project.id }}
                                 {% else %}
-                                    No freelancer assigned
+                                    <span class="text-muted">No freelancer assigned</span>
                                 {% endif %}
                             </td>
-                            <td class="actions-column">
-                                <div class="action-buttons">
+                            <td class="actions-column text-center">
+                                <div class="btn-group" role="group">
                                     <a href="{% url 'client:single_project_view' project.id %}" class="btn btn-sm btn-secondary" title="View Project"><i class="fa-solid fa-eye"></i></a>
                                     <a href="{% url 'client:edit_project' project.id %}" class="btn btn-sm btn-primary" title="Edit Project"><i class="fa-solid fa-edit"></i></a>
-                                    <a href="#" class="btn btn-sm btn-info github-icon" title="View GitHub Repository" data-project-id="{{ project.id }}"><i class="fa-brands fa-github"></i></a>
+                                    {% if project_repos|get_item:project.id %}
+                                    <a href="{% url 'client:view_repository' project_repos|get_item:project.id %}" title="View Repository" class="btn btn-sm btn-info view-repo-btn" data-project-id="{{ project.id }}" data-repo-id="{{ project_repos|get_item:project.id }}">
+                                        <i class="fa-solid fa-folder-open"></i>
+                                    </a>
+                                {% else %}
+                                    <a href="#" class="btn btn-sm btn-info github-icon" title="Create Repository" data-project-id="{{ project.id }}">
+                                        <i class="fa-brands fa-github"></i>
+                                    </a>
+                                {% endif %}
+                                    
+                                
                                 </div>
                             </td>
                         </tr>
                         {% endfor %}
                     </tbody>
                 </table>
+                
             </div>
         </div>
     </div>
 </div>
 
-<!-- GitHub Modal -->
+
 <div class="modal fade" id="githubModal" tabindex="-1" role="dialog" aria-labelledby="githubModalLabel" aria-hidden="true">
     <div class="modal-dialog" role="document">
         <div class="modal-content">
@@ -77,13 +98,14 @@
                     <span aria-hidden="true">&times;</span>
                 </button>
             </div>
-            <form method="post" action="{% url 'client:create_repository' %}">
+            <form method="post" action="{% url 'client:create_repository' %}" id="repoform">
                 {% csrf_token %}
                 <input type="hidden" id="projectId" name="project_id" value="">
                 <div class="modal-body">
                     <div class="form-group">
                         <label for="repoName">Repository Name:</label>
                         <input type="text" class="form-control" id="repoName" placeholder="Enter repository name" name="repoName">
+                        <br><span id="error_repoName" class="error"></span>
                     </div>
                     <!-- Add your GitHub repository content here -->
                 </div>
@@ -91,10 +113,56 @@
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
                     <button type="submit" class="btn btn-primary">Save</button>
                 </div>
+                <span id="repo_err" class="error"></span>
             </form>
         </div>
     </div>
 </div>
+
+<script>
+    $(document).ready(function () {
+
+        $("#repoName").keyup(function () {
+            check_repoName();
+        });
+    
+        var repoName_error = false;
+    
+        function check_repoName() {
+            var pattern = /^[a-zA-Z0-9_-]+( [a-zA-Z0-9_-]+)*$/;
+
+            var repoName = $("#repoName").val();
+            if (pattern.test(repoName) && repoName !== "") {
+                $("#error_repoName").hide();
+                $("#repoName").css("border", "2px solid green");
+                repoName_error = false;
+            } else {
+                $("#error_repoName").html("Repository Name should contain only letters, numbers, and spaces").show();
+                $("#repoName").css("border", "2px solid red");
+                repoName_error = true;
+            }
+        }
+    
+        $("#repoform").submit(function () {
+            repoName_error = false; // Reset error flag
+    
+            check_repoName(); // Validate repository name
+    
+            if (repoName_error) {
+                $("#repo_err").html("Please fill the form correctly.").show();
+                return false; 
+            } else {
+                $("#repo_err").hide(); 
+                return true; 
+                        }
+        });
+    
+    });
+    
+</script>
+
+
+
 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 

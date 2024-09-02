@@ -4,6 +4,11 @@ from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, Permis
 from django.db import models
 from django.utils import timezone
 
+from django.conf import settings
+
+from dateutil.relativedelta import relativedelta
+
+
 class CustomUserManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
         if not email:
@@ -115,3 +120,21 @@ class Notification(models.Model):
     message = models.CharField(max_length=255)
     is_read = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
+    
+    
+
+class SiteReview(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)  # The user who wrote the review
+    review_text = models.TextField()  
+    rating = models.PositiveIntegerField()  
+    created_at = models.DateTimeField(default=timezone.now)  
+
+    def __str__(self):
+        return f"Review by {self.user} on {self.created_at}"
+
+    def is_due_for_review(self, months=3):
+        """
+        Check if the review should be requested based on the given number of months.
+        """
+        threshold_date = self.created_at + relativedelta(months=months)
+        return timezone.now() >= threshold_date

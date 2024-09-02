@@ -2,6 +2,53 @@
 {% block 'content' %}
 {% load static %}
 
+{% load custom_filters %}
+
+
+<style>
+  
+    .star-rating i {
+        color: #FFD700;
+       
+      }
+
+.star-rating {
+    display: flex;
+    align-items: center;
+    direction: ltr;
+    font-size: 1.5em; /* Adjust size as needed */
+    margin-left:200px;
+    user-select: none; /* Prevent text selection */
+}
+
+/* Hide radio inputs */
+.star-rating input {
+    display: none;
+}
+
+/* Star appearance for checked inputs */
+.star-rating label {
+    color: #dcdcdc; /* Gray color for unfilled stars */
+    cursor: pointer;
+    transition: color 0.2s ease-in-out;
+}
+
+.star-rating input:checked ~ label {
+    color: #ffcc00; /* Gold color for filled stars */
+}
+
+.star-rating input:checked ~ label ~ label {
+    color: #dcdcdc; /* Gray color for stars that are not filled */
+}
+
+/* Star appearance for hover state */
+.star-rating label:hover,
+.star-rating label:hover ~ label {
+    color: #ffcc00; /* Gold color for stars on hover */
+}
+
+
+</style>
     <!-- Carousel Start -->
     <div class="container-fluid p-0 mb-5">
         <div id="header-carousel" class="carousel slide"  data-bs-ride="carousel">
@@ -373,7 +420,13 @@
     </div>
     <!-- Service End -->
 <br><br><br>
+
+
+
     <!-- Testimonial Start -->
+    
+    
+
     <div class="container-xxl py-5">
         <div class="container">
             <div class="text-center mx-auto wow fadeInUp" data-wow-delay="0.1s" style="max-width: 500px;">
@@ -382,50 +435,52 @@
             <div class="row g-5">
                 <div class="col-lg-3 d-none d-lg-block">
                     <div class="testimonial-left h-100">
-                        <img class="img-fluid animated pulse infinite" src="{% static 'img/testimonial-1.jpg' %}" alt="">
-                        <img class="img-fluid animated pulse infinite" src="{% static 'img/testimonial-2.jpg' %}" alt="">
-                        <img class="img-fluid animated pulse infinite" src="{% static 'img/testimonial-3.jpg' %}" alt="">
+                        <!-- Static images or leave as is -->
+                        <img class="img-fluid animated pulse infinite" src="{% static 'img/face1.jpg' %}" alt="">
+                        <img class="img-fluid animated pulse infinite" src="{% static 'img/face5.jpg' %}" alt="">
+                        <img class="img-fluid animated pulse infinite" src="{% static 'img/face6.jpg' %}" alt="">
                     </div>
                 </div>
                 <div class="col-lg-6 wow fadeIn" data-wow-delay="0.5s">
                     <div class="owl-carousel testimonial-carousel">
-                        <div class="testimonial-item text-center">
-                            <img class="img-fluid mx-auto mb-4" src="{% static 'img/testimonial-1.jpg' %}" alt="">
-                            <p class="fs-5">Dolores sed duo clita tempor justo dolor et stet lorem kasd labore dolore
-                                lorem ipsum. At lorem lorem magna ut et, nonumy et labore et tempor diam tempor erat.
-                            </p>
-                            <h5>Client Name</h5>
-                            <span>Profession</span>
-                        </div>
-                        <div class="testimonial-item text-center">
-                            <img class="img-fluid mx-auto mb-4" src="{% static 'img/testimonial-2.jpg' %}" alt="">
-                            <p class="fs-5">Dolores sed duo clita tempor justo dolor et stet lorem kasd labore dolore
-                                lorem ipsum. At lorem lorem magna ut et, nonumy et labore et tempor diam tempor erat.
-                            </p>
-                            <h5>Client Name</h5>
-                            <span>Profession</span>
-                        </div>
-                        <div class="testimonial-item text-center">
-                            <img class="img-fluid mx-auto mb-4" src="{% static 'img/testimonial-3.jpg' %}" alt="">
-                            <p class="fs-5">Dolores sed duo clita tempor justo dolor et stet lorem kasd labore dolore
-                                lorem ipsum. At lorem lorem magna ut et, nonumy et labore et tempor diam tempor erat.
-                            </p>
-                            <h5>Client Name</h5>
-                            <span>Profession</span>
-                        </div>
+                        {% for detail in review_details %}
+                            <div class="testimonial-item text-center">
+                                
+                                <img class="img-fluid mx-auto mb-4" src="{% if detail.user_info.profile_picture %}{{ detail.user_info.profile_picture }}{% else %}{% static 'img/default-user.jpg' %}{% endif %}" alt="">
+                                <h5>{{ detail.user_info.name }}</h5>
+                                <p class="fs-5">{{ detail.review.review_text }}</p>
+                                
+                                <span class="star-rating">
+                                    {% for i in 1|to:5 %}
+                                        {% if i <= detail.review.rating %}
+                                            <i class="fas fa-star"></i> <!-- Full Star -->
+                                        {% elif i == detail.review.rating|floatformat:1|stringformat:".1"|slice:":-2" %}
+                                            <i class="fas fa-star-half-alt"></i> <!-- Half Star -->
+                                        {% else %}
+                                            <i class="far fa-star"></i> <!-- Empty Star -->
+                                        {% endif %}
+                                    {% endfor %}
+                                </span>
+
+                            </div>
+                        {% empty %}
+                            <p>No reviews available.</p>
+                        {% endfor %}
                     </div>
                 </div>
                 <div class="col-lg-3 d-none d-lg-block">
                     <div class="testimonial-right h-100">
-                        <img class="img-fluid animated pulse infinite" src="{% static 'img/testimonial-1.jpg' %}" alt="">
-                        <img class="img-fluid animated pulse infinite" src="{% static 'img/testimonial-2.jpg' %}" alt="">
-                        <img class="img-fluid animated pulse infinite" src="{% static 'img/testimonial-3.jpg' %}" alt="">
+                        <!-- Static images or leave as is -->
+                        <img class="img-fluid animated pulse infinite" src="{% static 'img/face10.jpg' %}" alt="">
+                        <img class="img-fluid animated pulse infinite" src="{% static 'img/face16.jpg' %}" alt="">
+                        <img class="img-fluid animated pulse infinite" src="{% static 'img/face18.jpg' %}" alt="">
                     </div>
                 </div>
             </div>
         </div>
     </div>
     <!-- Testimonial End -->
+
 
 
 {% endblock %}

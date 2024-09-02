@@ -3,7 +3,7 @@ from django.contrib import admin
 from django.shortcuts import render
 from django.urls import include, path
 
-from core.views import   check_email,about, add_user_type, contact, email_verification, index, login, login_view, logout, register, register_view, reset_password, send_forget_password_mail, send_verification_mail, service,faqs
+from core.views import   check_email,about, add_user_type, contact, email_verification, index, login, login_view, logout, register, register_view, reset_password, send_forget_password_mail, send_verification_mail, service,faqs, site_review
 
 
 urlpatterns = [
@@ -25,7 +25,7 @@ urlpatterns = [
     path('reset_password/<token>/', reset_password,name="reset_password"),
     path('send_verification_mail/', send_verification_mail, name="send_verification_mail"),
     path('email_verification/<token>/', email_verification, name="email_verification"),
-
+    path('site-review/', site_review, name='site_review'),
     
   
 ]

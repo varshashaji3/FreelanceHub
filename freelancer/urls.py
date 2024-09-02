@@ -3,7 +3,7 @@ from django.contrib import admin
 from django.shortcuts import render
 from django.urls import include, path
 
-from freelancer.views import  add_url,add_note,add_file,view_repository,acc_deactivate, add_new_event, delete_event, edit_created_proposal, notification_mark_as_read, update_event, update_todo, view_created_proposals,proposal_detail1,proposal_detail2,download_proposal_pdf, generate_proposal,delete_todo,proposal_list,add_new_proposal,add_todo, calendar,AddProfileFreelancer, change_profile_image,freelancer_view,account_settings,change_password, single_project_view,update_profile,view_project,client_list,client_detail,todo
+from freelancer.views import  add_url,add_note,add_file, submit_user_review, tasks_list, update_freelancer_signature, upload_pdf, view_contract,view_repository,acc_deactivate, add_new_event, delete_event, edit_created_proposal, notification_mark_as_read, update_event, update_todo, view_created_proposals,proposal_detail1,proposal_detail2,download_proposal_pdf, generate_proposal,delete_todo,proposal_list,add_new_proposal,add_todo, calendar,AddProfileFreelancer, change_profile_image,freelancer_view,account_settings,change_password, single_project_view,update_profile,view_project,client_list,client_detail,todo
 
 urlpatterns = [
     path('freelancer_view/', freelancer_view,name="freelancer_view"),
@@ -14,6 +14,8 @@ urlpatterns = [
     path('update_profile/<int:uid>', update_profile, name='update_profile'),
     path('change_profile_image/<int:uid>', change_profile_image, name='change_profile_image'),
     
+    
+    path('tasks_list/', tasks_list, name='tasks_list'),
     path('client_list/', client_list, name='client_list'),
     path('client_detail/<int:cid>', client_detail, name='client_detail'),
    
@@ -55,4 +57,12 @@ urlpatterns = [
     path('add_url/<int:repo_id>', add_url, name='add_url'),
     
     path('add_note/<int:repo_id>', add_note, name='add_note'),
+    
+    path('update_freelancer_signature/',update_freelancer_signature, name='update_freelancer_signature'),
+    
+    path('view_contract/<int:cont_id>/',view_contract, name='view_contract'),
+    path('upload_pdf/', upload_pdf, name='upload_pdf'),
+    
+    
+    path('submit_user_review/', submit_user_review, name='submit_user_review'),
 ]

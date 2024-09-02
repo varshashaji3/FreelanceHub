@@ -1,4 +1,5 @@
 {% load static %}
+{% load custom_filters %}
 <!DOCTYPE html>
 <html lang="en">
 
@@ -111,6 +112,135 @@
       text-decoration: none;
       color: #0d3d70;
     }
+
+
+
+    
+
+
+    .modal {
+      
+      left: 0;
+      top: 0;
+      background-color: rgba(0, 0, 0, 0.5); 
+      
+    }
+
+  
+ 
+    .modal-content {
+      background-color: #fefefe; /* White background */
+      margin: 5% auto; /* Centered */
+      padding: 20px;
+      border: 1px solid #888; /* Light gray border */
+      width: 80%; /* Width of the modal */
+      max-width: 600px; /* Max width of the modal */
+      border-radius: 8px; /* Rounded corners */
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); /* Shadow effect */
+     
+    }
+    
+    /* Close Button */
+    .close-button {
+      color: #aaa; /* Gray color */
+      float: right; /* Right-align */
+      font-size: 28px; /* Large font size */
+      font-weight: bold; /* Bold text */
+      cursor: pointer; /* Pointer cursor */
+    }
+    
+    .close-button:hover,
+    .close-button:focus {
+      color: black; /* Darker color on hover/focus */
+      text-decoration: none; /* No underline */
+    }
+    
+    /* Modal Header */
+    .modal-content h2 {
+      margin: 0 0 10px; /* Margin at bottom */
+      font-size: 24px; /* Font size */
+      color: #333; /* Dark gray color */
+      text-align: center; /* Center-align text */
+    }
+    
+    /* Modal Image */
+    .modal-image {
+      display: block; /* Block-level element */
+      max-width: 100%; /* Responsive width */
+      height: 200px; /* Maintain aspect ratio */
+      margin: 0 auto; /* Center the image */
+    }
+    
+    /* Form Styles */
+    #reviewForm {
+      display: flex;
+      flex-direction: column; /* Stack elements vertically */
+      gap: 15px; /* Space between elements */
+    }
+    
+    /* Textarea */
+    #reviewForm textarea {
+      width: 100%; /* Full width */
+      height: 100px; /* Height */
+      padding: 10px; /* Padding */
+      border: 1px solid #ccc; /* Light border */
+      border-radius: 4px; /* Rounded corners */
+      resize: vertical; /* Allow vertical resizing */
+    }
+    
+   
+    
+
+    .star-rating {
+      display: flex;
+      flex-direction: row-reverse;
+      justify-content: center;
+      margin: 10px 0;
+  }
+  
+  .star-rating input[type="radio"] {
+      display: none;
+  }
+  
+  .star-rating label {
+      font-size: 2rem;
+      color: #ccc;
+      cursor: pointer;
+      transition: color 0.3s;
+      margin: 0 5px;
+  }
+  
+  .star-rating label:hover,
+  .star-rating label:hover ~ label {
+      color: #ffca08;
+  }
+  
+  .star-rating input[type="radio"]:checked ~ label {
+      color: #ffca08;
+  }
+
+
+    
+    
+    /* Submit Button */
+    #reviewForm button {
+      background-color: #4CAF50; /* Green background */
+      color: white; /* White text */
+      border: none; /* Remove border */
+      padding: 10px 20px; /* Padding */
+      text-align: center; /* Center text */
+      text-decoration: none; /* Remove underline */
+      display: inline-block; /* Inline-block */
+      font-size: 16px; /* Font size */
+      border-radius: 4px; /* Rounded corners */
+      cursor: pointer; /* Pointer cursor */
+    }
+    
+    #reviewForm button:hover {
+      background-color: #45a049; /* Darker green on hover */
+    }
+
+  
   </style>
 </head>
 
@@ -358,28 +488,173 @@
 
   <!---Modal -->
 
-  <div class="modal fade" id="verificationModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel"
-    aria-hidden="true">
-    <div class="modal-dialog" role="document">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title" id="verificationModalLabel" style="margin-left:100px;color:brown;font-size:20px;">
-            Account Verification Required</h5>
-          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-            <span aria-hidden="true">&times;</span>
-          </button>
-        </div>
+  
+
+ 
+  <script>
+    $(document).ready(function () {
+      {% if project_status and not project_status.client_review_given %}
+      $('#freelancerName').text('{{ project_status.freelancer_name }}');
+      $('#clientName').text('{{ project_status.client_name }}');
+      $('#projectId').val('{{ project_status.project_id }}');
+      $('#freelancerId').val('{{ project_status.freelancer_id }}');
+      $('#clientId').val('{{ project_status.client_id }}');
+      $('#title').text('{{ project_status.project_title }}');
+
+
+      $('#qualityOfWork').val(0);
+      $('#communication').val(0);
+      $('#adherenceToDeadlines').val(0);
+      $('#professionalism').val(0);
+      $('#problemSolvingAbility').val(0);
+      
+      $('#overallRating').text('{{ review.overall_rating|default:0 }}');
+      $('#reviewModal').modal('show');
+      
+{% endif %}
+    });
+  </script>
+
+
+<div class="modal fade" id="reviewModal" tabindex="-1" role="dialog" aria-labelledby="reviewModalLabel" aria-hidden="true">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="reviewModalLabel">Submit Review for Freelancer: <span id="freelancerName"></span></h5>
+        <br>
+        <p>Client: <span id="clientName"></span></p><br>
+        <p>Project Title: <span id="title"></span></p>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <form id="reviewForm" action="{% url 'client:submit_review' %}" method="post">
+        {% csrf_token %}
         <div class="modal-body">
-          <img src="{%  static 'img/no-access.png' %}" alt="Image Description" style="height:200px;margin-left:130px;"
-            class="img-fluid mb-3">
-          <p>You cannot access this feature until an administrator verifies your account details.</p>
+          {% if is_client %}
+          <!-- Additional fields for clients -->
+          <div class="form-group">
+            <label for="qualityOfWork">Quality of Work:</label>
+            <select class="form-control" id="qualityOfWork" name="quality_of_work">
+              <option value="1">1 - Poor</option>
+              <option value="2">2 - Fair</option>
+              <option value="3">3 - Good</option>
+              <option value="4">4 - Very Good</option>
+              <option value="5">5 - Excellent</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="communication">Communication:</label>
+            <select class="form-control" id="communication" name="communication">
+              <option value="1">1 - Poor</option>
+              <option value="2">2 - Fair</option>
+              <option value="3">3 - Good</option>
+              <option value="4">4 - Very Good</option>
+              <option value="5">5 - Excellent</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="adherenceToDeadlines">Adherence to Deadlines:</label>
+            <select class="form-control" id="adherenceToDeadlines" name="adherence_to_deadlines">
+              <option value="1">1 - Poor</option>
+              <option value="2">2 - Fair</option>
+              <option value="3">3 - Good</option>
+              <option value="4">4 - Very Good</option>
+              <option value="5">5 - Excellent</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="professionalism">Professionalism:</label>
+            <select class="form-control" id="professionalism" name="professionalism">
+              <option value="1">1 - Poor</option>
+              <option value="2">2 - Fair</option>
+              <option value="3">3 - Good</option>
+              <option value="4">4 - Very Good</option>
+              <option value="5">5 - Excellent</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="problemSolvingAbility">Problem Solving Ability:</label>
+            <select class="form-control" id="problemSolvingAbility" name="problem_solving_ability">
+              <option value="1">1 - Poor</option>
+              <option value="2">2 - Fair</option>
+              <option value="3">3 - Good</option>
+              <option value="4">4 - Very Good</option>
+              <option value="5">5 - Excellent</option>
+            </select>
+          </div>
+          {% endif %}
+          <div class="form-group">
+            <label for="review">Review:</label>
+            <textarea class="form-control" id="review" name="review" rows="3"></textarea>
+          </div>
+          <input type="hidden" id="projectId" name="project_id" value="">
+          <input type="hidden" id="freelancerId" name="freelancer_id" value="">
+          <input type="hidden" id="clientId" name="client_id" value="">
         </div>
+
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+          <button type="submit" class="btn btn-primary">Submit Review</button>
         </div>
-      </div>
+      </form>
     </div>
   </div>
+</div>
+
+
+<div id="siteReviewModal" class="modal">
+  <div class="modal-content">
+      <h2>We Value Your Feedback</h2>
+      <img src="{% static 'img/review.png' %}" alt="Feedback Image" class="modal-image">
+      <form id="reviewForm" method="post" action="{% url 'site_review' %}?next={{ request.path }}">
+          {% csrf_token %}
+          <textarea name="review_text" placeholder="Your review" required></textarea>
+          <p>Please rate your experience with FreelanceHub on a scale from 1 to 5</p>
+          <div class="star-rating">
+            <input type="radio" id="star5" name="rating" value="5">
+            <label for="star5" title="5 stars">&#9733;</label>
+            <input type="radio" id="star4" name="rating" value="4">
+            <label for="star4" title="4 stars">&#9733;</label>
+            <input type="radio" id="star3" name="rating" value="3">
+            <label for="star3" title="3 stars">&#9733;</label>
+            <input type="radio" id="star2" name="rating" value="2">
+            <label for="star2" title="2 stars">&#9733;</label>
+            <input type="radio" id="star1" name="rating" value="1">
+            <label for="star1" title="1 star">&#9733;</label>
+          </div>
+          
+        
+          <button type="submit">Submit Review</button>
+      </form>
+  </div>
+</div>
+
+
+
+<script>
+  $(document).ready(function () {
+    const reviewDue = "{{ review_due }}";
+    const modal = document.getElementById('siteReviewModal');
+    const closeButton = document.getElementById('.close-button');
+  
+
+    if (reviewDue === 'True') {
+      modal.style.display = 'block';
+    }
+  
+    closeButton.addEventListener('click', function () {
+      modal.style.display = 'none';
+    });
+  
+    window.addEventListener('click', function (event) {
+      if (event.target === modal) {
+        modal.style.display = 'none';
+      }
+    });
+});
+
+</script>
 
   <!---modal ends -->
   <!-- plugins:js -->

@@ -8,8 +8,8 @@ from django.urls import reverse
 from django.utils import timezone
 from django.shortcuts import render,redirect
 
-from client.models import Project
-from .models import EmailVerification, PasswordReset, CustomUser, Register
+from client.models import ClientProfile, Project, Review
+from .models import EmailVerification, Notification, PasswordReset, CustomUser, Register, SiteReview
 from django.core.mail import EmailMessage
 from django.contrib import messages
 from django.core.mail import send_mail
@@ -31,11 +31,48 @@ from django.http import JsonResponse
 def index(request):
     #CustomUser.objects.get(id=3).delete()
     close_expired_projects()
+    reviews = SiteReview.objects.all().order_by('-created_at')
+
     if request.user.is_authenticated or 'uid' in request.session:
-        uid=request.user
+        uid = request.user
         print(uid)
         return redirect_based_on_user_type(request, request.user)
-    return render(request,'index.html')
+    review_details = []
+    for review in reviews:
+        user = review.user
+        user_info = {}
+
+        if hasattr(user, 'register'): 
+            register = user.register
+            user_type = user.role 
+            
+            if user_type == 'freelancer':
+                user_info = {
+                    'name': f"{register.first_name} {register.last_name}",
+                    'profile_picture': register.profile_picture.url if register.profile_picture else None
+                }
+            elif user_type == 'client':
+                try:
+                    client_profile = ClientProfile.objects.get(user=user)
+                    if client_profile.client_type == 'Individual':
+                        user_info = {
+                            'name': f"{register.first_name} {register.last_name}",
+                            'profile_picture': register.profile_picture.url if register.profile_picture else None
+                        }
+                    else:
+                        user_info = {
+                            'name': client_profile.company_name,
+                            'profile_picture': register.profile_picture.url if register.profile_picture else None
+                        }
+                except ClientProfile.DoesNotExist:
+                    user_info = None
+        
+        review_details.append({
+            'review': review,
+            'user_info': user_info
+        })
+
+    return render(request, 'index.html', {'review_details': review_details})
 
 
 def check_email(request):
@@ -372,3 +409,26 @@ def email_verification(request, token):
 
 
 
+
+
+@login_required
+def site_review(request):
+    if request.method == 'POST':
+        review_text = request.POST.get('review_text')
+        rating = request.POST.get('rating')
+        user = request.user 
+
+        if review_text and rating:
+            SiteReview.objects.create(
+                user=user, 
+                review_text=review_text,
+                rating=rating
+            )
+            admin_user = CustomUser.objects.get(id=1)
+            Notification.objects.create(
+                user=admin_user,
+                message=f'New review submitted by {user.username}: {review_text} (Rating: {rating})'
+            )
+            next_url = request.POST.get('next', '/')
+            return redirect(next_url)
+        

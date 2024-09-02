@@ -5,7 +5,7 @@ from django.contrib import messages
 from django.shortcuts import redirect, render
 import razorpay
 
-from client.models import ClientProfile, FreelanceContract, PaymentInstallment, Project, SharedFile, SharedNote, SharedURL, Task
+from client.models import ClientProfile, FreelanceContract, PaymentInstallment, Project, Review, SharedFile, SharedNote, SharedURL, Task
 from core.decorators import nocache
 from core.models import CustomUser, Event, Notification, Register
 
@@ -28,52 +28,48 @@ from django.views.decorators.csrf import csrf_exempt
 @login_required
 @nocache
 def client_view(request):
-    if 'uid' not in request.session and not request.user.is_authenticated and request.user.role!='client':
+    if not request.user.is_authenticated or request.user.role != 'client':
         return redirect('login')
 
-    uid = request.session['uid']
-    logged_user=request.user
-    uid=request.user.id
+    logged_user = request.user
     current_date = datetime.date.today()
     one_week_later = current_date + datetime.timedelta(days=7)
 
     events = Event.objects.filter(user=logged_user, start_time__range=[current_date, one_week_later])
 
-    profile1 = CustomUser.objects.get(id=uid)
-    profile2=Register.objects.get(user_id=uid)
+    profile1 = CustomUser.objects.get(id=logged_user.id)
+    profile2 = Register.objects.get(user_id=logged_user.id)
     notifications = Notification.objects.filter(user=logged_user).order_by('-created_at')[:10]
+
     for event in events:
-        
         one_day_before = event.start_time.date() - datetime.timedelta(days=1)
         if one_day_before == current_date:
-            notification_message = f"Reminder: Upcoming event '{event.title}' tomorrow!"
             Notification.objects.get_or_create(
                 user=logged_user,
-                message=notification_message,
+                message=f"Reminder: Upcoming event '{event.title}' tomorrow!",
+                defaults={'is_read': False}
+            )
+        if event.start_time.date() == current_date:
+            Notification.objects.get_or_create(
+                user=logged_user,
+                message=f"Reminder: Event '{event.title}' is today!",
                 defaults={'is_read': False}
             )
 
-        if event.start_time.date() == current_date:
-            notification_message = f"Reminder: Event '{event.title}' is today!"
-            Notification.objects.get_or_create(
-                user=logged_user,
-                message=notification_message,
-                defaults={'is_read': False}
-            )
-            
-    client_projects = Project.objects.filter(user=request.user)
+    client_projects = Project.objects.filter(user=logged_user)
     project_progress_data = []
-    
+
+    # Project progress data
     for project in client_projects:
         tasks = Task.objects.filter(project=project)
         total_tasks = tasks.count()
         completed_tasks = tasks.filter(status='Completed').count()
+        progress_percentage = (completed_tasks / total_tasks) * 100 if total_tasks > 0 else 0.0
 
-        if total_tasks > 0:
-            progress_percentage = (completed_tasks / total_tasks) * 100
-        else:
-            progress_percentage = 0.0
-
+        if progress_percentage == 100:
+            project.project_status = 'Completed'
+            project.save()
+            
         project_progress_data.append({
             'project': project,
             'progress_percentage': progress_percentage,
@@ -81,29 +77,54 @@ def client_view(request):
             'completed_tasks': completed_tasks
         })
 
-
     total_projects = client_projects.count()
     completed_projects = client_projects.filter(project_status='Completed').count()
     not_completed_projects = total_projects - completed_projects
     
-    client_contracts = FreelanceContract.objects.filter(client=logged_user)
-    payment_installments = PaymentInstallment.objects.filter(contract__in=client_contracts)
+    client_contracts = FreelanceContract.objects.filter(client=logged_user).select_related('freelancer', 'project')
+    payment_installments = PaymentInstallment.objects.filter(contract__in=client_contracts).select_related('contract__project', 'contract__freelancer')
 
+    for installment in payment_installments:
+        due_date = installment.due_date
+        one_day_before_due = due_date - datetime.timedelta(days=1)
+        
+        if installment.status == 'Pending':
+            if one_day_before_due == current_date:
+                Notification.objects.get_or_create(
+                    user=logged_user,
+                    message=f"Reminder: Payment installment for project '{installment.contract.project.title}' is due tomorrow!",
+                    defaults={'is_read': False}
+                )
+            elif due_date == current_date:
+                Notification.objects.get_or_create(
+                    user=logged_user,
+                    message=f"Reminder: Payment installment for project '{installment.contract.project.title}' is due today!",
+                    defaults={'is_read': False}
+                )
 
-    if logged_user.is_authenticated and profile2 and not any([
-        profile2.phone_number or '',
-        profile2.profile_picture or '',
-        profile2.bio_description or '',
-        profile2.location or ''
-    ]):
-        return render(request,'Client/Add_profile.html',{'profile2':profile2,'profile1':profile1,'uid':uid,'notifications':notifications,'events':events})
-    return render(request,'Client/index.html',{'profile2':profile2,'profile1':profile1,'uid':uid,'notifications':notifications,'events':events,
-                'total_projects': total_projects,
+    if not profile2.phone_number and not profile2.profile_picture and not profile2.bio_description and not profile2.location:
+        return render(request, 'Client/Add_profile.html', {
+            'profile2': profile2,
+            'profile1': profile1,
+            'uid': logged_user.id,
+            'notifications': notifications,
+            'events': events
+        })
+
+    return render(request, 'Client/index.html', {
+        'profile2': profile2,
+        'profile1': profile1,
+        'uid': logged_user.id,
+        'notifications': notifications,
+        'events': events,
+        'total_projects': total_projects,
         'completed_projects': completed_projects,
-        'not_completed_projects': not_completed_projects, 
-        'project_progress_data': project_progress_data,   
-        'payment_installments':payment_installments,                     
-                })
+        'not_completed_projects': not_completed_projects,
+        'project_progress_data': project_progress_data,
+        'payment_installments': payment_installments
+    })
+
+
 
 
 
@@ -191,6 +212,7 @@ def verify_payment(request):
             installment = get_object_or_404(PaymentInstallment, razorpay_order_id=order_id)
             installment.status = 'paid'
             installment.razorpay_payment_id = payment_id
+            installment.paid_at=timezone.now().date()
             installment.save()
             
             return JsonResponse({'status': 'success'})
@@ -512,27 +534,41 @@ def freelancer_list(request):
         
         
 
-
-
-      
 @login_required
 @nocache
 def freelancer_detail(request, fid):
-    if 'uid' not in request.session and not request.user.is_authenticated and request.user.role!='client':
+    if 'uid' not in request.session and not request.user.is_authenticated and request.user.role != 'client':
         return redirect('login')
 
     uid = request.session['uid']
     profile1 = CustomUser.objects.get(id=uid)
     profile2 = Register.objects.get(user_id=uid)
     client = ClientProfile.objects.get(user_id=uid)
+    
     if profile1.permission:
-       
         profile3 = CustomUser.objects.get(id=fid)
         profile4 = Register.objects.get(user_id=fid)
         freelancer = FreelancerProfile.objects.get(user_id=fid)
         
         skills_list = [skill.strip() for skill in freelancer.skills.strip('[]').replace("'", "").split(',')]
         
+        reviews = Review.objects.filter(reviewee=profile3).order_by('-review_date')
+
+        review_details = []
+        for review in reviews:
+            reviewer_profile = Register.objects.get(user_id=review.reviewer.id)
+            
+            if review.reviewer.clientprofile.client_type == 'Individual':
+                reviewer_name = reviewer_profile.first_name + ' ' + reviewer_profile.last_name
+            else:
+                reviewer_name = review.reviewer.clientprofile.company_name
+            
+            review_details.append({
+                'review': review,
+                'reviewer_name': reviewer_name,
+                'reviewer_image': reviewer_profile.profile_picture.url if reviewer_profile.profile_picture else None,
+            })
+
         return render(request, 'client/SingleFreelancer.html', {
             'profile1': profile1,
             'profile2': profile2,
@@ -541,6 +577,7 @@ def freelancer_detail(request, fid):
             'profile3': profile3,
             'profile4': profile4,
             'skills': skills_list,  
+            "reviews": review_details,
         })
     else:
         return render(request, 'client/PermissionDenied.html', {
@@ -548,6 +585,7 @@ def freelancer_detail(request, fid):
             'profile2': profile2,
             'client': client,
         })
+
          
         
                 
@@ -797,6 +835,8 @@ def add_new_project(request):
 
         
 
+
+from django.utils.dateparse import parse_date
         
 @login_required
 @nocache
@@ -830,6 +870,7 @@ def edit_project(request, pid):
             end_date = request.POST.get('end_date')
             file_upload = request.FILES.get('file')
 
+            end_date = parse_date(end_date)
             project.title = title
             project.description = description
             project.budget = budget
@@ -837,7 +878,7 @@ def edit_project(request, pid):
             project.allow_bid = allow_bid
             project.end_date = end_date
             project.file_upload = file_upload
-
+            project.status='open'
             project.save()
             return redirect('client:project_list')
 
@@ -855,7 +896,8 @@ def edit_project(request, pid):
             'client': client
         })
 
-        
+    
+
 
 @login_required
 @nocache
@@ -870,6 +912,7 @@ def project_list(request):
     if profile1.permission:
         projects = Project.objects.filter(user_id=uid).select_related('freelancer')
         freelancer_names = {}
+        project_repos = {}
 
         for project in projects:
             if project.freelancer:
@@ -881,13 +924,24 @@ def project_list(request):
                     freelancer_names[project.id] = 'No name available'
             else:
                 freelancer_names[project.id] = 'No freelancer assigned'
+                
+            repository = Repository.objects.filter(project=project).first()
+            project_repos[project.id] = repository.id if repository else None
+
+        # Debugging information
+        print("Projects:", projects)
+        print("Freelancer Names:", freelancer_names)
+        print("Project Repos:", project_repos)
+
+
 
         return render(request, 'client/ProjectList.html', {
             'profile1': profile1,
             'profile2': profile2,
             'client': client,
             'projects': projects,
-            'freelancer_names': freelancer_names
+            'freelancer_names': freelancer_names,
+            'project_repos': project_repos,
         })
     else:
         return render(request, 'client/PermissionDenied.html', {
@@ -895,8 +949,7 @@ def project_list(request):
             'profile2': profile2,
             'client': client,
         })
-        
-        
+
         
 
 
@@ -973,6 +1026,14 @@ def update_proposal_status(request, pro_id):
                 project.project_status='In Progress'
                 project.status='closed'
                 project.start_date=timezone.now().date()
+                
+                gst_rate = 18 
+                gst_amount = project.budget * gst_rate / 100
+                total_including_gst = project.budget + gst_amount
+                
+                project.gst_amount = gst_amount
+                project.total_including_gst = total_including_gst
+                project.save()
                 project.save()
                 Notification.objects.create(
                     user=proposal.freelancer,
@@ -1065,16 +1126,23 @@ def create_repository(request):
             project = get_object_or_404(Project, id=project_id)
 
             if title:
-                # Check if a repository with the same name (case-insensitive) already exists
-                if Repository.objects.filter(project=project, name__iexact=title).exists():
+                if Repository.objects.filter(name__iexact=title).exists():
                     messages.error(request, 'A repository with this name already exists for this project.')
-                    return redirect('client:project_list')  # Or wherever you want to redirect after an error
+                    return redirect('client:project_list')  
 
                 repository = Repository.objects.create(
                     name=title,
                     project=project,
                     created_by=request.user
                 )
+                if repository:
+                    freelancer = project.freelancer 
+                    Notification.objects.get_or_create(
+                        user=freelancer,  
+                        message=f"A new repository '{title}' has been created for the project '{project.title}'.",
+                        is_read=False
+                    )
+
                 messages.success(request, 'Repository created successfully.')
                 return redirect('client:project_list')
         
@@ -1086,10 +1154,9 @@ def create_repository(request):
         })
         
  
-
 @login_required
 @nocache
-def view_repository(request,repo_id):
+def view_repository(request, repo_id):
     if 'uid' not in request.session and not request.user.is_authenticated and request.user.role != 'client':
         return redirect('login')
 
@@ -1104,20 +1171,23 @@ def view_repository(request,repo_id):
         freelancer_name = None
         freelancer_profile_picture = None
 
-        
         if project.freelancer_id:
             freelancer_register = Register.objects.get(user_id=project.freelancer_id)
             freelancer_name = f"{freelancer_register.first_name} {freelancer_register.last_name}"
             freelancer_profile_picture = freelancer_register.profile_picture if freelancer_register.profile_picture else None
 
         shared_files = SharedFile.objects.filter(repository=repository).values(
-        'file', 'uploaded_at', 'uploaded_by', 'description'
-    )
+            'file', 'uploaded_at', 'uploaded_by', 'description'
+        )
         shared_urls = SharedURL.objects.filter(repository=repository).values(
             'url', 'shared_at', 'shared_by', 'description'
         )
         notes = SharedNote.objects.filter(repository=repository).order_by('added_at')
-        tasks=Task.objects.filter(project=project)
+        tasks = Task.objects.filter(project=project)
+
+        proposals = Proposal.objects.filter(project=project,status='Accepted')
+        contracts = FreelanceContract.objects.filter(project=project)
+
         items = []
         
         for file in shared_files:
@@ -1140,17 +1210,61 @@ def view_repository(request,repo_id):
         
         items.sort(key=lambda x: x['date'])
     
-        return render(request,'client/SingleRepository.html',{'profile1': profile1,
+        return render(request, 'client/SingleRepository.html', {
+            'profile1': profile1,
             'profile2': profile2,
             'client': client,
-            "repository":repository,
             'repository': repository,
-        'items': items,
-        'notes':notes,
-        'tasks':tasks,
-        'freelancer_name': freelancer_name,
-        'freelancer_profile_picture': freelancer_profile_picture,
+            'items': items,
+            'notes': notes,
+            'tasks': tasks,
+            'freelancer_name': freelancer_name,
+            'freelancer_profile_picture': freelancer_profile_picture,
+            'proposals': proposals,
+            'contracts': contracts,
+            'project': project,
         })
+        
+    else:
+        return render(request, 'client/PermissionDenied.html', {
+            'profile1': profile1,
+            'profile2': profile2,
+            'client': client,
+        })
+
+
+
+
+
+
+
+@login_required
+@nocache
+def add_github_link(request,repo_id):
+    if 'uid' not in request.session and not request.user.is_authenticated and request.user.role != 'client':
+        return redirect('login')
+
+    uid = request.session['uid']
+    profile1 = CustomUser.objects.get(id=uid)
+    profile2 = Register.objects.get(user_id=uid)
+    client = ClientProfile.objects.get(user_id=uid)
+    
+    if profile1.permission:
+        repository = get_object_or_404(Repository, id=repo_id)
+        if request.method=='POST':
+            project_id = request.POST.get('project_id')  # Get the project_id from the hidden field
+            git_repo_link = request.POST.get('git_repo_link')
+            
+            if git_repo_link:
+                project = get_object_or_404(Project, id=project_id)
+                project.git_repo_link = git_repo_link
+                project.save()
+                messages.success(request, 'GitHub repository link updated successfully!')
+            else:
+                messages.error(request, 'Failed to update GitHub repository link.')
+
+                messages.success(request, 'Files added successfully.')
+            return redirect('client:view_repository', repo_id=repository.id)
         
     else:
         return render(request, 'client/PermissionDenied.html', {
@@ -1328,12 +1442,27 @@ def update_task_progress(request, repo_id):
     
     if profile1.permission:
         if request.method == "POST":
-            progress = request.POST.get('progress_percentage')
-            task_id=request.POST.get('task_id')
+            progress_percentage = request.POST.get('progress_percentage')
+            task_id = request.POST.get('task_id')
+
+            
+            progress = int(progress_percentage)
             task = Task.objects.get(id=task_id)
             task.progress_percentage = progress
+            
+            # Debugging output
+            print(f"Task ID: {task_id}")
+            print(f"New Progress: {progress}")
+
+            if progress >= 100:
+                task.status = 'Completed'
+            else:
+                task.status = 'In Progress'  # Assuming you want to set a different status for progress < 100
+            
             task.save()
+
             return redirect('client:view_repository', repo_id=repo_id) 
+
     else:
         return render(request, 'client/PermissionDenied.html', {
             'profile1': profile1,
@@ -1341,10 +1470,92 @@ def update_task_progress(request, repo_id):
             'client': client,
         })
 
-    return redirect('client:view_repository', repo_id=repo_id) 
+    return redirect('client:view_repository', repo_id=repo_id)
 
 
 
+
+
+
+
+
+
+@login_required
+@nocache
+def update_task_status(request, repo_id):
+    if not request.user.is_authenticated or request.user.role != 'client':
+        return redirect('login')
+
+    profile1 = CustomUser.objects.get(id=request.user.id)
+    profile2 = Register.objects.get(user_id=request.user.id)
+    client = ClientProfile.objects.get(user_id=request.user.id)
+    
+    if profile1.permission:
+        if request.method == "POST":
+           
+            task_id = request.POST.get('task_id')
+            new_status = request.POST.get('status')
+            
+            task = Task.objects.get(id=task_id)
+            task.status = new_status
+            if new_status== 'Completed':
+                task.progress_percentage = 100
+                
+            task.save()
+
+            return redirect('client:view_repository', repo_id=repo_id) 
+
+    else:
+        return render(request, 'client/PermissionDenied.html', {
+            'profile1': profile1,
+            'profile2': profile2,
+            'client': client,
+        })
+
+    return redirect('client:view_repository', repo_id=repo_id)
+
+
+
+
+
+
+@login_required
+@nocache
+def edit_task(request, repo_id):
+    if not request.user.is_authenticated or request.user.role != 'client':
+        return redirect('login')
+
+    profile1 = CustomUser.objects.get(id=request.user.id)
+    profile2 = Register.objects.get(user_id=request.user.id)
+    client = ClientProfile.objects.get(user_id=request.user.id)
+    
+    if profile1.permission:
+        if request.method == "POST":
+            task_id = request.POST.get('task_id')
+            title = request.POST.get('title')
+            description = request.POST.get('description')
+            start_date = request.POST.get('start_date')
+            due_date = request.POST.get('due_date')
+
+            task = get_object_or_404(Task, id=task_id)
+
+            task.title = title
+            task.description = description
+            task.start_date = start_date
+            task.due_date = due_date
+
+            task.save()
+
+            return redirect('client:view_repository', repo_id=repo_id) 
+
+    else:
+        return render(request, 'client/PermissionDenied.html', {
+            'profile1': profile1,
+            'profile2': profile2,
+            'client': client,
+        })
+
+    return redirect('client:view_repository', repo_id=repo_id)
 
 
 
@@ -1354,9 +1565,9 @@ def submit_contract(request, pro_id):
     if not request.user.is_authenticated or request.user.role != 'client':
         return redirect('login')
 
-    profile1 = CustomUser.objects.get(id=request.user.id)
-    profile2 = Register.objects.get(user_id=request.user.id)
-    client = ClientProfile.objects.get(user_id=request.user.id)
+    profile1 = get_object_or_404(CustomUser, id=request.user.id)
+    profile2 = get_object_or_404(Register, user_id=request.user.id)
+    client = get_object_or_404(ClientProfile, user_id=request.user.id)
     
     if profile1.permission:
         project = Project.objects.get(id=pro_id) 
@@ -1364,28 +1575,36 @@ def submit_contract(request, pro_id):
         freelancer_data = Register.objects.get(user_id=freelancer)
         freelancer_name = f"{freelancer_data.first_name} {freelancer_data.last_name}"
         proposal = Proposal.objects.get(project=project, freelancer=project.freelancer)
-        
-        if request.method == 'POST':
+
+        existing_contract = FreelanceContract.objects.filter(client=profile1, project=project).first()
+
+        if request.method == 'POST' and not existing_contract:
             client_instance = CustomUser.objects.get(id=request.POST.get('client_id'))
             freelancer_instance = CustomUser.objects.get(id=request.POST.get('freelancer_id'))
             signature = request.FILES.get('client_signature')
-            project_instance=Project.objects.get(id=request.POST.get('project_id'))
+            project_instance = Project.objects.get(id=request.POST.get('project_id'))
+
             contract = FreelanceContract(
                 client=client_instance,
                 freelancer=freelancer_instance,
-                project = project_instance,
+                project=project_instance,
                 client_signature=signature
             )
             contract.save()
 
             amounts = request.POST.getlist('installment_amount[]')
             due_dates = request.POST.getlist('installment_due_date[]')
-        
-            for amount, due_date in zip(amounts, due_dates):
-                PaymentInstallment.objects.create(contract=contract,amount=amount, due_date=due_date)
-                    
 
-            return redirect('client:client_view')
+            for amount, due_date in zip(amounts, due_dates):
+                PaymentInstallment.objects.create(contract=contract, amount=amount, due_date=due_date)
+
+            Notification.objects.create(
+                user=freelancer_instance,
+                message=f'You have received a new agreement for the project "{project.title}" from the client.'
+            )
+            return redirect('client:project_list')
+
+        payment_installments = PaymentInstallment.objects.filter(contract=existing_contract) if existing_contract else None
         
         return render(request, 'client/Agreement_template.html', {
             'profile1': profile1,
@@ -1394,7 +1613,9 @@ def submit_contract(request, pro_id):
             'project': project,
             'freelancer_name': freelancer_name,
             'proposal': proposal,
-            'freelancer': freelancer_data
+            'freelancer': freelancer_data,
+            'existing_contract': existing_contract,  # Pass existing contract to the template
+            'payment_installments': payment_installments,  # Pass payment installments to the template
         })
     else:
         return render(request, 'client/PermissionDenied.html', {
@@ -1403,3 +1624,38 @@ def submit_contract(request, pro_id):
             'client': client,
         })
 
+
+
+@login_required
+def submit_review(request):
+    if request.method == 'POST':
+        quality_of_work = float(request.POST.get('quality_of_work'))
+        communication = float(request.POST.get('communication'))
+        adherence_to_deadlines = float(request.POST.get('adherence_to_deadlines'))
+        professionalism = float(request.POST.get('professionalism'))
+        problem_solving_ability = float(request.POST.get('problem_solving_ability'))
+        review_text = request.POST.get('review')
+        reviewer_id = request.user.id
+        reviewee_id = int(request.POST.get('freelancer_id'))
+        project_id = int(request.POST.get('project_id'))
+
+        overall_rating = (quality_of_work + communication + adherence_to_deadlines + professionalism + problem_solving_ability) / 5
+
+        review = Review(
+            reviewer_id=reviewer_id,
+            reviewee_id=reviewee_id,
+            project_id=project_id,
+            quality_of_work=quality_of_work,
+            communication=communication,
+            adherence_to_deadlines=adherence_to_deadlines,
+            professionalism=professionalism,
+            problem_solving_ability=problem_solving_ability,
+            overall_rating=overall_rating,
+            review_text=review_text
+        )
+        review.save()
+        project = Project.objects.get(id=project_id)
+        if project.user.id == reviewer_id:
+            project.client_review_given = True
+            project.save()
+        return redirect('client:client_view')

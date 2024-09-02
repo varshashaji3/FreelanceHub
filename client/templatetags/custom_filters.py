@@ -5,3 +5,20 @@ register = template.Library()
 @register.filter
 def get_item(dictionary, key):
     return dictionary.get(key)
+
+@register.filter
+def to_int(value):
+    try:
+        return int(value)
+    except ValueError:
+        return 0
+    
+    
+@register.filter
+def to(value, arg):
+    return range(int(value), int(arg) + 1)
+
+
+@register.filter
+def range_filter(value):
+    return range(value)

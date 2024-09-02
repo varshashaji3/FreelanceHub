@@ -11,7 +11,7 @@ import os
 from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404, redirect, render
 
-from client.models import ClientProfile, Project,SharedFile, SharedNote,SharedURL,Repository, Task
+from client.models import ClientProfile, FreelanceContract, PaymentInstallment, Project, Review,SharedFile, SharedNote,SharedURL,Repository, Task
 from core.decorators import nocache
 from core.models import CustomUser, Event, Notification, Register
 
@@ -38,20 +38,20 @@ from io import BytesIO
 from xhtml2pdf import pisa
 from datetime import timedelta
 from django.utils import timezone
-
+from django.core.exceptions import ObjectDoesNotExist
 
 @login_required
 @nocache
 def freelancer_view(request):
-    if 'uid' not in request.session and not request.user.is_authenticated and request.user.role!='freelancer':
+    if 'uid' not in request.session and not request.user.is_authenticated and request.user.role != 'freelancer':
         return redirect('login')
         
     uid = request.session['uid']
-    logged_user=request.user
-    uid=request.user.id
-    profile2=Register.objects.get(user_id=uid)
+    logged_user = request.user
+    uid = request.user.id
+    profile2 = Register.objects.get(user_id=uid)
     todos = Todo.objects.filter(user_id=uid)
-    profile1=CustomUser.objects.get(id=uid)
+    profile1 = CustomUser.objects.get(id=uid)
     notifications = Notification.objects.filter(user=logged_user).order_by('-created_at')[:10]
 
     current_date = timezone.now().date()
@@ -61,6 +61,11 @@ def freelancer_view(request):
         user=logged_user,
         start_time__range=[current_date, one_week_later]
     ).order_by('start_time')
+
+    total_projects = Project.objects.filter(freelancer=logged_user).count()
+    completed_projects = Project.objects.filter(freelancer=logged_user, project_status='Completed').count()
+    not_completed_projects = total_projects - completed_projects
+
     for event in events:
         one_day_before = event.start_time.date() - timedelta(days=1)
         
@@ -79,21 +84,101 @@ def freelancer_view(request):
                 message=notification_message,
                 defaults={'is_read': False}
             )
+    freelancer_projects = Project.objects.filter(freelancer=logged_user)
+    project_progress_data = []
+
+    for project in freelancer_projects:
+        tasks = Task.objects.filter(project=project)
+        total_tasks = tasks.count()
+        completed_tasks = tasks.filter(status='Completed').count()
+        progress_percentage = (completed_tasks / total_tasks) * 100 if total_tasks > 0 else 0.0
+
+        if progress_percentage == 100:
+            project.project_status = 'Completed'
+            project.save()
+        
+        client_profile = ClientProfile.objects.get(user=project.user_id)
+        if client_profile.client_type == 'Individual':
+            register_instance = Register.objects.get(user=project.user_id)
+
+            first_name = register_instance.first_name
+            last_name = register_instance.last_name
+
+            client_name = f"{first_name} {last_name}"
+        else:
+            client_name = client_profile.company_name
+        project_progress_data.append({
+            'project': project,
+            'progress_percentage': progress_percentage,
+            'total_tasks': total_tasks,
+            'completed_tasks': completed_tasks,
+            'client_name': client_name  
+        })
+        
     if logged_user.is_authenticated and profile2 and not any([
         profile2.phone_number or '',
         profile2.profile_picture or '',
         profile2.bio_description or '',
         profile2.location or ''
     ]):
-        return render(request,'freelancer/Add_profile.html',{'profile1':profile1,'profile2':profile2,'uid':uid,'todos':todos,'notifications':notifications,'events': events})
-    return render(request,'freelancer/index.html',{'profile2':profile2,'profile1':profile1,'uid':uid,'todos':todos,'notifications':notifications,'events': events})
+        return render(request, 'freelancer/Add_profile.html', {
+            'profile1': profile1,
+            'profile2': profile2,
+            'uid': uid,
+            'todos': todos,
+            'notifications': notifications,
+            'events': events
+        })
+    
+    return render(request, 'freelancer/index.html', {
+        'profile2': profile2,
+        'profile1': profile1,
+        'uid': uid,
+        'todos': todos,
+        'notifications': notifications,
+        'events': events,
+        'total_projects': total_projects,
+        'completed_projects': completed_projects,
+        'not_completed_projects': not_completed_projects,
+        'project_progress_data': project_progress_data,
+    })
+
+
+
+    
+@login_required
+@nocache
+def tasks_list(request):
+    if 'uid' not in request.session:
+        return redirect('login')
+
+    uid = request.session['uid']
+    profile1 = CustomUser.objects.get(id=uid)
+    profile2 = Register.objects.get(user_id=uid)
+    freelancer = FreelancerProfile.objects.get(user_id=uid)
+
+    if profile1.permission:
+        
+        tasks = Task.objects.filter(project__freelancer=profile1).order_by('due_date')
+
+        return render(request, 'freelancer/tasks.html', {
+            'profile1': profile1,
+            'profile2': profile2,
+            'freelancer': freelancer,
+            'tasks': tasks,  
+        })
+    else:
+        return render(request, 'freelancer/PermissionDenied.html', {
+            'profile1': profile1,
+            'profile2': profile2,
+            'freelancer': freelancer,
+        })
+        
 
 
 @login_required
 @nocache
 def AddProfileFreelancer(request, uid):
-   
-
     if not request.user.is_authenticated:
         return redirect('login')
 
@@ -138,9 +223,10 @@ def AddProfileFreelancer(request, uid):
         if resume:
             profile.resume = resume
         if aadhaar:
-            profile.aadhaar_document = aadhaar
-        profile.skills=selected_skills
-        
+            face_image_bytes = extract_image_from_pdf(aadhaar)
+            if face_image_bytes:
+                profile.aadhaar_face_image.save('aadhaar_face_image.jpg', ContentFile(face_image_bytes))
+        profile.skills = selected_skills
         profile.professional_title = professional_titles
         profile.save()
 
@@ -149,12 +235,50 @@ def AddProfileFreelancer(request, uid):
     context = {
         'profile': profile,
         'uid': uid,
-        'todos':todos,
+        'todos': todos,
     }
 
     return render(request, 'freelancer/Add_profile.html', context)
 
 
+
+import fitz  # PyMuPDF
+import cv2
+import numpy as np
+from io import BytesIO
+from django.core.files.base import ContentFile
+
+def extract_image_from_pdf(pdf_file):
+    pdf_document = fitz.open(stream=pdf_file.read(), filetype='pdf')
+    
+    page = pdf_document.load_page(0)
+    images = page.get_images(full=True)
+    
+    if images:
+        xref = images[0][0] 
+        base_image = pdf_document.extract_image(xref)
+        image_bytes = base_image["image"]
+        
+        # Convert image bytes to a numpy array
+        image_array = np.asarray(bytearray(image_bytes), dtype=np.uint8)
+        image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
+        
+        # Load a pre-trained face detection model
+        face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+        
+        # Convert image to grayscale for face detection
+        gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        
+        # Detect faces
+        faces = face_cascade.detectMultiScale(gray_image, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
+        
+        if len(faces) > 0:
+            (x, y, w, h) = faces[0]
+            face_image = image[y:y+h, x:x+w]
+            _, buffer = cv2.imencode('.jpg', face_image)
+            return buffer.tobytes()
+        
+    return None
 
 
 @login_required
@@ -392,7 +516,6 @@ def client_list(request):
         
         
         
-        
 @login_required
 @nocache
 def client_detail(request, cid):
@@ -401,23 +524,40 @@ def client_detail(request, cid):
 
     uid = request.session['uid']
     profile1 = CustomUser.objects.get(id=uid)
-    profile2=Register.objects.get(user_id=uid)
-    freelancer=FreelancerProfile.objects.get(user_id=uid)
-    if profile1.permission:
-       
-        profile3 = CustomUser.objects.get(id=cid)
-        profile4=Register.objects.get(user_id=cid)
-        client=ClientProfile.objects.get(user_id=cid)
-        todos = Todo.objects.filter(user_id=uid)
+    profile2 = Register.objects.get(user_id=uid)
+    freelancer = FreelancerProfile.objects.get(user_id=uid)
     
+    if profile1.permission:
+        profile3 = CustomUser.objects.get(id=cid)
+        profile4 = Register.objects.get(user_id=cid)
+        client = ClientProfile.objects.get(user_id=cid)
+        todos = Todo.objects.filter(user_id=uid)
+        
+        reviews = Review.objects.filter(reviewee=profile3).order_by('-review_date')
+
+        review_details = []
+        for review in reviews:
+            
+            reviewer_profile = Register.objects.get(user_id=review.reviewer.id)
+            
+           
+            reviewer_name = reviewer_profile.first_name + ' ' + reviewer_profile.last_name
+          
+            review_details.append({
+                'review': review,
+                'reviewer_name': reviewer_name,
+                'reviewer_image': reviewer_profile.profile_picture.url if reviewer_profile.profile_picture else None,
+            })
+
         return render(request, 'freelancer/SingleClient.html', {
             'profile1': profile1,
             'profile2': profile2,
             'freelancer': freelancer,
-            'profile3':profile3,
-            'profile4':profile4,
-            'client':client,
-            'todos':todos,
+            'profile3': profile3,
+            'profile4': profile4,
+            'client': client,
+            'todos': todos,
+            'reviews': review_details,  # Include reviews in context
         })
     else:
         return render(request, 'freelancer/PermissionDenied.html', {
@@ -425,7 +565,7 @@ def client_detail(request, cid):
             'profile2': profile2,
             'freelancer': freelancer,
         })
-        
+
         
         
       
@@ -1058,6 +1198,8 @@ def proposal_detail2(request, prop_id):
     })
 
 
+        
+        
 
 @login_required
 @nocache
@@ -1080,11 +1222,21 @@ def view_created_proposals(request):
             project = proposal.project
             client_profile = get_object_or_404(ClientProfile, user_id=project.user_id)
             client_register = get_object_or_404(Register, user_id=project.user_id)
+            
+            try:
+                contract = FreelanceContract.objects.get(project=project)
+                installments = PaymentInstallment.objects.filter(contract=contract)
+            except FreelanceContract.DoesNotExist:
+                contract = None
+                installments = None
+            
             project_details.append({
                 'proposal': proposal,
                 'project': project,
                 'client_profile': client_profile,
-                'client_register': client_register
+                'client_register': client_register,
+                'contract': contract,
+                'installments': installments
             })
 
         return render(request, 'freelancer/proposals_created.html', {
@@ -1100,6 +1252,11 @@ def view_created_proposals(request):
             'profile2': profile2,
             'freelancer': freelancer
         })
+
+
+
+
+
 
 
 @login_required
@@ -1273,13 +1430,15 @@ def view_repository(request, repo_id):
         shared_urls = SharedURL.objects.filter(repository=repository).values(
             'url', 'shared_at', 'shared_by', 'description'
         )
-        
+        proposals = Proposal.objects.filter(project=project,status='Accepted')
+        contracts = FreelanceContract.objects.filter(project=project)
         items = []
         
         for file in shared_files:
             items.append({
                 'type': 'file',
-                'path': file['file'],
+                'url': file['file'],  # Use 'url' for the file URL
+                'path': file['file'].split('/')[-1],  # Extract the file name from the path
                 'date': file['uploaded_at'],
                 'uploaded_by': file['uploaded_by'],
                 'description': file['description']
@@ -1307,6 +1466,10 @@ def view_repository(request, repo_id):
             'tasks':tasks,
             'client_name': client_name,
             'client_profile_picture': client_profile_picture,
+            'proposals': proposals,
+            'contracts': contracts,
+            
+            'project': project,
         })
     else:
         return render(request, 'freelancer/PermissionDenied.html', {
@@ -1414,3 +1577,162 @@ def add_note(request, repo_id):
             'profile2': profile2,
             'freelancer': freelancer,
         })
+
+
+
+@login_required
+def update_freelancer_signature(request):
+    if not request.user.is_authenticated or request.user.role != 'freelancer':
+        return redirect('login')
+
+    uid = request.user.id
+    profile1 = CustomUser.objects.get(id=uid)
+    profile2 = Register.objects.get(user_id=uid)
+    freelancer = FreelancerProfile.objects.get(user_id=uid)
+    
+    if profile1.permission:
+        if request.method == 'POST':
+            contract_id=request.POST.get('contract')
+            contract = get_object_or_404(FreelanceContract, id=contract_id, freelancer=request.user)
+            file = request.FILES.get('freelancer_signature')
+            if file:
+                contract.freelancer_signature = file
+                contract.save()
+
+            messages.success(request, 'Signature added successfully.')
+            return redirect('freelancer:view_contract', cont_id=contract_id)
+    else:
+        return render(request, 'freelancer/PermissionDenied.html', {
+            'profile1': profile1,
+            'profile2': profile2,
+            'freelancer': freelancer,
+        })
+
+
+
+
+
+@login_required
+@nocache
+def view_contract(request, cont_id):
+    if 'uid' not in request.session:
+        return redirect('login')
+
+    uid = request.session['uid']
+    profile1 = CustomUser.objects.get(id=uid)
+    profile2 = Register.objects.get(user_id=uid)
+    freelancer = FreelancerProfile.objects.get(user_id=uid)
+
+    if profile1.permission:
+        contract = FreelanceContract.objects.filter(id=cont_id).first()
+        if contract:
+            payment_installments = PaymentInstallment.objects.filter(contract=contract)
+            client_profile = contract.project.user.clientprofile  
+            client_register = contract.project.user.register  
+            project_details = contract.project  
+
+            accepted_proposal = Proposal.objects.filter(project=project_details, status='accepted').first()
+
+            context = {
+                'profile1': profile1,
+                'profile2': profile2,
+                'freelancer': freelancer,
+                'detail': {
+                    'contract': contract,
+                    'project': project_details,
+                    'client_profile': client_profile,
+                    'client_register': client_register,
+                    'proposal': accepted_proposal,
+                    'installments': payment_installments,
+                }
+            }
+            return render(request, 'freelancer/ViewContract.html', context)
+    else:
+        return render(request, 'freelancer/PermissionDenied.html', {
+            'profile1': profile1,
+            'profile2': profile2,
+            'freelancer': freelancer,
+        })
+
+
+
+@csrf_exempt
+def upload_pdf(request):
+    if request.method == 'POST':
+        pdf_file = request.FILES.get('pdf')
+        contract_id = request.POST.get('contract_id')
+
+        if pdf_file and contract_id:
+            try:
+                contract = FreelanceContract.objects.get(id=contract_id)
+                
+                if contract.pdf_version:
+                    return JsonResponse({'status': 'exists', 'message': 'File already exists'}, status=400)
+                
+                contract.pdf_version.save(pdf_file.name, pdf_file)
+                contract.save()
+                return JsonResponse({'status': 'success'})
+            
+            except FreelanceContract.DoesNotExist:
+                return JsonResponse({'status': 'error', 'message': 'Contract not found'}, status=404)
+        
+        return JsonResponse({'status': 'error', 'message': 'Invalid file or contract ID'}, status=400)
+    
+    return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
+
+
+
+@login_required
+@nocache
+def submit_user_review(request):
+    if request.method == 'POST':
+        review_text = request.POST.get('review')
+        reviewer_id = request.user.id
+        client_id = request.POST.get('client_id')
+        project_id = int(request.POST.get('project_id'))
+        overall_rating = int(request.POST.get('overall_rating'))
+        client_id = int(client_id)
+        
+        # Debugging prints
+        print(f"Review Text: {review_text}")
+        print(f"Reviewer ID: {reviewer_id}")
+        print(f"Reviewee ID: {client_id}")
+        print(f"Project ID: {project_id}")
+        print(f"Overall Rating: {overall_rating}S")
+
+        # Fetch the related objects
+        try:
+            project = get_object_or_404(Project, id=project_id)
+            freelancer = get_object_or_404(CustomUser, id=reviewer_id)
+            client = get_object_or_404(CustomUser, id=client_id)
+        except Exception as e:
+            print(f"Error fetching data: {e}")
+            return HttpResponse(status=404, content=f"Error: {e}")
+
+        print(f"Project: {project}")
+        print(f"Freelancer: {freelancer}")
+        print(f"Client: {client}")
+
+        # Create and save the review
+        review = Review(
+            reviewer=freelancer,
+            reviewee=client,
+            project=project,
+            overall_rating=overall_rating,
+            review_text=review_text
+        )
+        review.save()
+
+        print("Review saved successfully.")
+
+        if project.freelancer and project.freelancer == freelancer:
+            project.freelancer_review_given = True
+            project.save()
+            print(f"Project updated with freelancer review: {project.freelancer_review_given}")
+        else:
+            print(f"Freelancer ID mismatch. Expected: {project.freelancer.id}, Found: {freelancer.id}")
+
+
+        return redirect('freelancer:freelancer_view')
+
+    return HttpResponse(status=405, content="Method Not Allowed")

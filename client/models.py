@@ -5,6 +5,8 @@ from django.conf import settings
 from django.utils import timezone
 from core.models import CustomUser
 
+from decimal import Decimal
+
 class ClientProfile(models.Model):
     CLIENT_TYPE_CHOICES = (
         ('Individual', 'Individual'),
@@ -49,10 +51,36 @@ class Project(models.Model):
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='client_projects')  
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='open')
     start_date = models.DateField(null=True, blank=True)
-    end_date = models.DateField(null=True, blank=True)
+    project_end_date = models.DateField(null=True, blank=True)
     project_status = models.CharField(max_length=50, default='Not Started')
     freelancer = models.ForeignKey(CustomUser, on_delete=models.SET_NULL, null=True, blank=True, related_name='freelancer_projects')
+    git_repo_link = models.URLField(max_length=200, blank=True, null=True)
 
+    gst_rate = models.DecimalField(max_digits=5, decimal_places=2, default=18.00)  # GST rate (e.g., 18%)
+    gst_amount = models.DecimalField(max_digits=15, decimal_places=2, default=0.00, editable=False)
+    total_including_gst = models.DecimalField(max_digits=15, decimal_places=2, default=0.00, editable=False)
+
+
+    client_review_given = models.BooleanField(default=False)
+    freelancer_review_given = models.BooleanField(default=False)
+    
+    
+    def save(self, *args, **kwargs):
+        today = timezone.now().date()
+        
+        if self.end_date and self.end_date <= today:
+            self.status = 'closed'
+        
+        if isinstance(self.budget, str):
+            self.budget = int(self.budget)
+        
+        budget_decimal = Decimal(self.budget)
+        gst_rate_decimal = Decimal(self.gst_rate)
+        
+        self.gst_amount = budget_decimal * (gst_rate_decimal / Decimal('100'))
+        self.total_including_gst = budget_decimal + self.gst_amount
+        
+        super().save(*args, **kwargs)
 
 
 
@@ -110,6 +138,8 @@ class Task(models.Model):
             self.status = 'In Progress'
         super().save(*args, **kwargs)
         
+    
+        
         
         
 
@@ -123,6 +153,8 @@ class FreelanceContract(models.Model):
     client_signature = models.ImageField(upload_to='signatures/client/', null=True, blank=True)
     freelancer_signature = models.ImageField(upload_to='signatures/freelancer/', null=True, blank=True)
     contract_date = models.DateField(auto_now_add=True)
+
+    pdf_version = models.FileField(upload_to='contracts/', null=True, blank=True)
 
     def __str__(self):
         return f'Contract {self.id} for Project {self.project_id}'
@@ -140,6 +172,49 @@ class PaymentInstallment(models.Model):
     
     razorpay_order_id = models.CharField(max_length=255, null=True, blank=True)
     razorpay_payment_id = models.CharField(max_length=255, null=True, blank=True)
-
+    paid_at=models.DateField(null=True, blank=True)
     def __str__(self):
         return f'Installment {self.id} for Contract {self.contract.id}'
+    
+    
+    
+    
+    
+
+from django.core.validators import MinValueValidator, MaxValueValidator
+
+class Review(models.Model):
+    project = models.ForeignKey('client.Project', on_delete=models.CASCADE, related_name='reviews')
+    reviewer = models.ForeignKey('core.CustomUser', on_delete=models.CASCADE, related_name='reviews_given')
+    reviewee = models.ForeignKey('core.CustomUser', on_delete=models.CASCADE, related_name='reviews_received')
+    review_text = models.TextField()
+    overall_rating = models.FloatField(
+        validators=[MinValueValidator(0), MaxValueValidator(5)],
+        default=0
+    )
+    quality_of_work = models.FloatField(
+        validators=[MinValueValidator(0), MaxValueValidator(5)],
+        null=True, blank=True,
+        default=0
+    )
+    communication = models.FloatField(
+        validators=[MinValueValidator(0), MaxValueValidator(5)],
+        null=True, blank=True,
+        default=0
+    )
+    adherence_to_deadlines = models.FloatField(
+        validators=[MinValueValidator(0), MaxValueValidator(5)],
+        null=True, blank=True,
+        default=0
+    )
+    professionalism = models.FloatField(
+        validators=[MinValueValidator(0), MaxValueValidator(5)],
+        null=True, blank=True,
+        default=0
+    )
+    problem_solving_ability = models.FloatField(
+        validators=[MinValueValidator(0), MaxValueValidator(5)],
+        null=True, blank=True,
+        default=0
+    )
+    review_date = models.DateTimeField(auto_now_add=True)

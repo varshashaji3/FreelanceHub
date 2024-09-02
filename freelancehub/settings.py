@@ -90,11 +90,18 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'core.context_processors.unread_notifications',
-                'core.context_processors.repository_list', 
+                'core.context_processors.repository_list',
+                'core.context_processors.project_status' ,
+                'core.context_processors.review_due',
+                
             ],
         },
     },
 ]
+
+
+# 'core.context_processors.project_status' ,
+
 
 WSGI_APPLICATION = 'freelancehub.wsgi.application'
 
@@ -195,7 +202,7 @@ LOGIN_REDIRECT_URL = 'login'
 LOGIN_URL='login'
 LOGOUT_REDIRECT_URL = 'login_view'
 
-# Additional settings for email verification and sign up
+
 ACCOUNT_EMAIL_REQUIRED = True
 ACCOUNT_EMAIL_VERIFICATION = 'mandatory'
 ACCOUNT_AUTHENTICATION_METHOD = 'email'

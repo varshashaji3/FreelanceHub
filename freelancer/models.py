@@ -23,7 +23,9 @@ class FreelancerProfile(models.Model):
     resume = models.FileField(upload_to='resumes/', blank=True, null=True)
     aadhaar_document = models.FileField(upload_to='aadhaar/', null=True, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
-
+    aadhaar_face_image = models.ImageField(upload_to='aadhaar/faces/', null=True, blank=True)  # Cropped face from Aadhar
+    verification_status = models.CharField(max_length=20, choices=[('pending', 'Pending'), ('verified', 'Verified'), ('failed', 'Failed')], default='pending')
+    verification_attempts = models.IntegerField(default=0)
 
 class Todo(models.Model):
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)

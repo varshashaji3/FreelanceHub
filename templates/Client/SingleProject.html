@@ -84,6 +84,17 @@
         text-decoration: underline;
     }
     
+    /*#dc3545*/
+    .buttons{
+        background-color: transparent;  
+        
+        border: none;
+        
+    }
+    .buttons:hover{
+        background-color: transparent;
+    }
+    
 </style>
 
 <div class="row" style="background-color:white;padding:10px;border-radius:10px;">
@@ -133,11 +144,12 @@
                     <td>{{ proposal.budget }}</td>
                     <td>{{ proposal.status }}</td>
                     <td style="display: flex; align-items: center;">
-                        <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#proposalModal{{ proposal.id }}">
-                            View
+                        <button type="button" class="btn btn-primary buttons" data-toggle="modal" data-target="#proposalModal{{ proposal.id }}" style="color: #dc3545;">
+                            <i class="fas fa-eye"></i>
                         </button>
-                        <button type="button" class="btn btn-success agreement-button" data-href="{% url 'client:submit_contract' project.id %}" disabled>Agreement</button>
-
+                        <button type="button" class="btn btn-success agreement-button buttons" data-href="{% url 'client:submit_contract' project.id %}" disabled style="color:green">
+                            <i class="fas fa-check"></i>
+                        </button>
                     </td>
                     <td>
                         {% if proposal.status == 'Pending' %}

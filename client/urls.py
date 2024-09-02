@@ -3,7 +3,7 @@ from django.contrib import admin
 from django.shortcuts import render
 from django.urls import include, path
 
-from client.views import  verify_payment,payment_success,make_payment, submit_contract,add_task, add_url,add_note,add_file, create_repository,acc_deactivate,lock_proposal, notification_mark_as_read, toggle_project_status,edit_project,delete_event,update_event,add_event,update_proposal_status,freelancer_detail,calendar,AddProfileClient, client_view,account_settings,change_password, project_list, single_project_view,update_profile,change_profile_image,add_new_project,freelancer_list, update_task_progress, view_repository
+from client.views import  add_github_link,edit_task, submit_review, update_task_status, verify_payment,payment_success,make_payment, submit_contract,add_task, add_url,add_note,add_file, create_repository,acc_deactivate,lock_proposal, notification_mark_as_read, toggle_project_status,edit_project,delete_event,update_event,add_event,update_proposal_status,freelancer_detail,calendar,AddProfileClient, client_view,account_settings,change_password, project_list, single_project_view,update_profile,change_profile_image,add_new_project,freelancer_list, update_task_progress, view_repository
 
 def welcome(request):
     return render(request,'welcome.html')
@@ -54,9 +54,9 @@ urlpatterns = [
     path('add_task/<int:repo_id>', add_task, name='add_task'),
     
     path('update_task_progress/<int:repo_id>', update_task_progress, name='update_task_progress'),
-    
-    
-    
+    path('update_task_status/<int:repo_id>/', update_task_status, name='update_task_status'),
+    path('edit_task/<int:repo_id>/', edit_task, name='edit_task'),
+    path('add_github_link/<int:repo_id>/', add_github_link, name='add_github_link'),
     
     path('submit_contract/<int:pro_id>', submit_contract, name='submit_contract'),
     
@@ -68,4 +68,9 @@ urlpatterns = [
     path('verify_payment/', verify_payment, name='verify_payment'),
     
     path('payment_success/', payment_success, name='payment_success'),
+    
+    
+    
+    
+    path('submit_review/', submit_review, name='submit_review'),
 ]
