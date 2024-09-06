@@ -1,11 +1,12 @@
 
 
 import datetime
+import os
 from django.contrib import messages
 from django.shortcuts import redirect, render
 import razorpay
 
-from client.models import ClientProfile, FreelanceContract, PaymentInstallment, Project, Review, SharedFile, SharedNote, SharedURL, Task
+from client.models import ClientProfile, FreelanceContract, PaymentInstallment, Project, Review, SharedFile, SharedNote, SharedURL, Task, ChatRoom, Message,Complaint  # Add Message here
 from core.decorators import nocache
 from core.models import CustomUser, Event, Notification, Register
 
@@ -39,6 +40,8 @@ def client_view(request):
 
     profile1 = CustomUser.objects.get(id=logged_user.id)
     profile2 = Register.objects.get(user_id=logged_user.id)
+    
+    client, created = ClientProfile.objects.get_or_create(user_id=logged_user.id)
     notifications = Notification.objects.filter(user=logged_user).order_by('-created_at')[:10]
 
     for event in events:
@@ -114,6 +117,7 @@ def client_view(request):
     return render(request, 'Client/index.html', {
         'profile2': profile2,
         'profile1': profile1,
+        'client':client,
         'uid': logged_user.id,
         'notifications': notifications,
         'events': events,
@@ -123,6 +127,307 @@ def client_view(request):
         'project_progress_data': project_progress_data,
         'payment_installments': payment_installments
     })
+
+
+
+# @login_required
+# @nocache
+# def client_view(request):
+#     if not request.user.is_authenticated or request.user.role != 'client':
+#         return redirect('login')
+
+#     logged_user = request.user
+#     current_date = datetime.date.today()
+#     one_week_later = current_date + datetime.timedelta(days=7)
+
+#     events = Event.objects.filter(user=logged_user, start_time__range=[current_date, one_week_later])
+
+#     profile1 = CustomUser.objects.get(id=logged_user.id)
+#     profile2 = Register.objects.get(user_id=logged_user.id)
+    
+#     client, created = ClientProfile.objects.get_or_create(user_id=logged_user.id)
+#     notifications = Notification.objects.filter(user=logged_user).order_by('-created_at')[:10]
+
+#     for event in events:
+#         one_day_before = event.start_time.date() - datetime.timedelta(days=1)
+#         if one_day_before == current_date:
+#             Notification.objects.get_or_create(
+#                 user=logged_user,
+#                 message=f"Reminder: Upcoming event '{event.title}' tomorrow!",
+#                 defaults={'is_read': False}
+#             )
+#         if event.start_time.date() == current_date:
+#             Notification.objects.get_or_create(
+#                 user=logged_user,
+#                 message=f"Reminder: Event '{event.title}' is today!",
+#                 defaults={'is_read': False}
+#             )
+
+#     client_projects = Project.objects.filter(user=logged_user)
+#     project_progress_data = []
+
+#     # Project progress data
+#     for project in client_projects:
+#         tasks = Task.objects.filter(project=project)
+#         total_tasks = tasks.count()
+#         completed_tasks = tasks.filter(status='Completed').count()
+#         progress_percentage = (completed_tasks / total_tasks) * 100 if total_tasks > 0 else 0.0
+
+#         if progress_percentage == 100:
+#             project.project_status = 'Completed'
+#             project.save()
+
+#             # Fetch proposal related to the project
+#             try:
+#                 proposal = Proposal.objects.get(project=project)
+                
+#                 # Calculate ProposedDeadline and ActualCompletion based on proposal
+#                 proposed_deadline_days = (proposal.proposed_deadline - proposal.start_date).days
+#                 actual_completion_days = (project.end_time - proposal.start_date).days
+
+#                 # Determine if the project was completed on time
+#                 completed_on_time = actual_completion_days <= proposed_deadline_days
+#             except Proposal.DoesNotExist:
+#                 proposed_deadline_days = None
+#                 actual_completion_days = None
+#                 completed_on_time = False
+
+#             # Fetch work_type from FreelanceProfile
+#             try:
+#                 freelance_profile = FreelancerProfile.objects.get(user=project.freelancer)
+#                 work_type = freelance_profile.work_type
+#             except FreelancerProfile.DoesNotExist:
+#                 work_type = None
+
+#             # Add to Prediction table
+#             Prediction.objects.create(
+#                 project_id=project.project_id,
+#                 budget=project.budget,
+#                 proposed_deadline=proposed_deadline_days,
+#                 actual_completion=actual_completion_days,
+#                 freelancer_id=project.freelancer.id,
+#                 experience=project.freelancer.experience,
+#                 category=project.category,
+#                 complexity=project.complexity,
+#                 work_type=work_type,
+#                 completed_on_time=completed_on_time
+#             )
+
+#         project_progress_data.append({
+#             'project': project,
+#             'progress_percentage': progress_percentage,
+#             'total_tasks': total_tasks,
+#             'completed_tasks': completed_tasks
+#         })
+
+#     total_projects = client_projects.count()
+#     completed_projects = client_projects.filter(project_status='Completed').count()
+#     not_completed_projects = total_projects - completed_projects
+    
+#     client_contracts = FreelanceContract.objects.filter(client=logged_user).select_related('freelancer', 'project')
+#     payment_installments = PaymentInstallment.objects.filter(contract__in=client_contracts).select_related('contract__project', 'contract__freelancer')
+
+#     for installment in payment_installments:
+#         due_date = installment.due_date
+#         one_day_before_due = due_date - datetime.timedelta(days=1)
+        
+#         if installment.status == 'Pending':
+#             if one_day_before_due == current_date:
+#                 Notification.objects.get_or_create(
+#                     user=logged_user,
+#                     message=f"Reminder: Payment installment for project '{installment.contract.project.title}' is due tomorrow!",
+#                     defaults={'is_read': False}
+#                 )
+#             elif due_date == current_date:
+#                 Notification.objects.get_or_create(
+#                     user=logged_user,
+#                     message=f"Reminder: Payment installment for project '{installment.contract.project.title}' is due today!",
+#                     defaults={'is_read': False}
+#                 )
+
+#     if not profile2.phone_number and not profile2.profile_picture and not profile2.bio_description and not profile2.location:
+#         return render(request, 'Client/Add_profile.html', {
+#             'profile2': profile2,
+#             'profile1': profile1,
+#             'uid': logged_user.id,
+#             'notifications': notifications,
+#             'events': events
+#         })
+
+#     return render(request, 'Client/index.html', {
+#         'profile2': profile2,
+#         'profile1': profile1,
+#         'client': client,
+#         'uid': logged_user.id,
+#         'notifications': notifications,
+#         'events': events,
+#         'total_projects': total_projects,
+#         'completed_projects': completed_projects,
+#         'not_completed_projects': not_completed_projects,
+#         'project_progress_data': project_progress_data,
+#         'payment_installments': payment_installments
+#     })
+
+
+
+
+
+
+import joblib
+import pandas as pd
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib.auth.decorators import login_required
+
+from django.http import HttpResponseServerError
+
+
+
+def convert_to_days(date_input):
+    if pd.isna(date_input):
+        return None
+    
+    if isinstance(date_input, datetime.date):
+        proposed_date = date_input
+    elif isinstance(date_input, str):
+        try:
+            proposed_date = datetime.strptime(date_input, '%Y-%m-%d').date()
+        except ValueError:
+            return None
+    else:
+        return None
+    
+    days_remaining = (proposed_date - datetime.date.today()).days
+    return days_remaining
+
+
+import numpy as np 
+@login_required
+def single_project_view(request, pid):
+    if 'uid' not in request.session or not request.user.is_authenticated or request.user.role != 'client':
+        return redirect('login')
+
+    uid = request.session['uid']
+    try:
+        profile1 = CustomUser.objects.get(id=uid)
+        profile2 = Register.objects.get(user_id=uid)
+        client = ClientProfile.objects.get(user_id=uid)
+    except (CustomUser.DoesNotExist, Register.DoesNotExist, ClientProfile.DoesNotExist):
+        return redirect('login')
+
+    if profile1.permission:
+        try:
+            project = get_object_or_404(Project, id=pid)
+            proposals = Proposal.objects.filter(project_id=project)
+            freelancer_ids = proposals.values_list('freelancer_id', flat=True)
+            freelancer_profiles = FreelancerProfile.objects.filter(user_id__in=freelancer_ids)
+
+            new_data = [
+                {
+                    'ProposedDeadline': convert_to_days(proposal.deadline),
+                    'FreelancerID': proposal.freelancer_id,
+                    'Category': project.category,
+                    'Complexity': project.scope,
+                }
+                for proposal in proposals
+            ]
+
+            # Convert new data to DataFrame
+            new_df = pd.DataFrame(new_data)
+
+            # Define expected columns and check for their presence
+            expected_columns = ['ProposedDeadline', 'FreelancerID', 'Category', 'Complexity']
+            missing_columns = [col for col in expected_columns if col not in new_df.columns]
+            
+            if missing_columns:
+                return render(request, 'client/Error.html', {
+                    'error_message': f"Missing columns: {', '.join(missing_columns)}"
+                })
+
+            new_df = new_df[expected_columns]
+
+            # Load model, scaler, and label encoders
+            model_path = os.path.join(settings.BASE_DIR, 'freelancehub', 'models', 'final_model.pkl')
+            scaler_path = os.path.join(settings.BASE_DIR, 'freelancehub', 'models', 'final_scaler.pkl')
+            le_path = os.path.join(settings.BASE_DIR, 'freelancehub', 'models', 'final_label_encoders.pkl')
+
+            try:
+                model = joblib.load(model_path)
+                scaler = joblib.load(scaler_path)
+                label_encoders = joblib.load(le_path)
+            except FileNotFoundError as e:
+                return render(request, 'client/ModelFileNotFound.html', {
+                    'error_message': f"Error loading model files: {str(e)}"
+                })
+
+            # Encode categorical variables
+            for col in ['Category', 'Complexity']:
+                if col in new_df.columns:
+                    new_df[col] = label_encoders[col].transform(new_df[col])
+                else:
+                    return render(request, 'client/Error.html', {
+                        'error_message': f"Column {col} is missing in the data."
+                    })
+
+            # Handle missing values
+            new_df.fillna(0, inplace=True)
+
+            # Feature scaling
+            X_new = scaler.transform(new_df)
+
+            # Make predictions
+            predictions = model.predict(X_new)
+            probabilities = model.predict_proba(X_new)
+
+            if probabilities.shape[1] == 1:
+                probabilities = np.hstack([1 - probabilities, probabilities])
+            print(predictions)
+            print(probabilities)
+            prediction_results = [
+                {
+                    'freelancer_id': freelancer_ids[i],
+                    'prediction': 'Will Complete On Time' if pred == 1 else 'Will Not Complete On Time',
+                    'prob_class_0': prob[0] * 100,
+                    'prob_class_1': prob[1] * 100
+                }
+                for i, (pred, prob) in enumerate(zip(predictions, probabilities))
+            ]
+
+            # Group prediction results by freelancer ID
+            prediction_map = {}
+            for result in prediction_results:
+                fid = result['freelancer_id']
+                if fid not in prediction_map:
+                    prediction_map[fid] = []
+                prediction_map[fid].append(result)
+
+            # Store prediction results in session
+            request.session['proposal_predictions'] = prediction_map
+
+            additional_files = ProposalFile.objects.filter(proposal__in=proposals)
+
+            return render(request, 'client/SingleProject.html', {
+                'profile1': profile1,
+                'profile2': profile2,
+                'client': client,
+                'project': project,
+                'proposals': proposals,
+                'reg_details': Register.objects.filter(user_id__in=freelancer_ids),
+                'freelancer_profiles': freelancer_profiles,
+                'additional_files': additional_files,
+                'prediction_map': prediction_map,
+            })
+        except Exception as e:
+            return render(request, 'client/Error.html', {
+                'error_message': f"An unexpected error occurred: {str(e)}"
+            })
+    else:
+        return render(request, 'client/PermissionDenied.html', {
+            'profile1': profile1,
+            'profile2': profile2,
+            'client': client,
+        })
+
+
 
 
 
@@ -953,44 +1258,52 @@ def project_list(request):
         
 
 
-@login_required
-@nocache
-def single_project_view(request,pid):
-    if 'uid' not in request.session and not request.user.is_authenticated and request.user.role!='client':
-        return redirect('login')
+# @login_required
+# @nocache
+# def single_project_view(request,pid):
+#     if 'uid' not in request.session and not request.user.is_authenticated and request.user.role!='client':
+#         return redirect('login')
 
-    uid = request.session['uid']
-    profile1 = CustomUser.objects.get(id=uid)
-    profile2=Register.objects.get(user_id=uid)
-    client=ClientProfile.objects.get(user_id=uid)
-    if profile1.permission:
-        project = get_object_or_404(Project, id=pid)
-        proposals = Proposal.objects.filter(project_id=project)
+#     uid = request.session['uid']
+#     profile1 = CustomUser.objects.get(id=uid)
+#     profile2=Register.objects.get(user_id=uid)
+#     client=ClientProfile.objects.get(user_id=uid)
+#     if profile1.permission:
+#         project = get_object_or_404(Project, id=pid)
+#         proposals = Proposal.objects.filter(project_id=project)
         
-        freelancer_ids = proposals.values_list('freelancer__id', flat=True)
-        reg_details = Register.objects.filter(user_id__in=freelancer_ids)
-        freelancer_profiles = FreelancerProfile.objects.filter(user_id__in=freelancer_ids)
+#         freelancer_ids = proposals.values_list('freelancer__id', flat=True)
+#         reg_details = Register.objects.filter(user_id__in=freelancer_ids)
+#         freelancer_profiles = FreelancerProfile.objects.filter(user_id__in=freelancer_ids)
         
-        for profile in freelancer_profiles:
-            profile.skills = profile.skills.strip('[]').replace("'", "").split(', ')
+#         for profile in freelancer_profiles:
+#             profile.skills = profile.skills.strip('[]').replace("'", "").split(', ')
         
-        additional_files = ProposalFile.objects.filter(proposal__in=proposals)
+#         additional_files = ProposalFile.objects.filter(proposal__in=proposals)
 
-        return render(request, 'client/SingleProject.html', {
-            'profile1': profile1,
-            'profile2': profile2,
-            'client': client,
-            'project': project,
-            'proposals': proposals,
-            'reg_details': reg_details,
-            'freelancer_profiles': freelancer_profiles,
-            'additional_files': additional_files,
-        })
+#         return render(request, 'client/SingleProject.html', {
+#             'profile1': profile1,
+#             'profile2': profile2,
+#             'client': client,
+#             'project': project,
+#             'proposals': proposals,
+#             'reg_details': reg_details,
+#             'freelancer_profiles': freelancer_profiles,
+#             'additional_files': additional_files,
+#         })
         
-    else:
-        return render(request, 'client/PermissionDenied.html',{'profile1': profile1,
-            'profile2': profile2,
-            'client': client,})      
+#     else:
+#         return render(request, 'client/PermissionDenied.html',{'profile1': profile1,
+#             'profile2': profile2,
+#             'client': client,})      
+
+
+
+
+
+
+
+
         
         
 @login_required
@@ -1019,7 +1332,6 @@ def update_proposal_status(request, pro_id):
             proposal.status = new_status
             proposal.save()
 
-            
             if new_status == 'Accepted':
                 project.freelancer = proposal.freelancer
                 project.budget = proposal.budget
@@ -1034,11 +1346,29 @@ def update_proposal_status(request, pro_id):
                 project.gst_amount = gst_amount
                 project.total_including_gst = total_including_gst
                 project.save()
-                project.save()
+                
                 Notification.objects.create(
                     user=proposal.freelancer,
                     message=f'Congratulations! Your proposal for project "{project.title}" has been accepted.'
                 )
+                
+                # Create chatroom logic
+                chatroom = ChatRoom.objects.create(
+                project=project
+                )
+                chatroom.participants.add(proposal.freelancer, project.user)  # Add freelancer and client as participants
+                            
+                # Notifications for chatroom creation
+                Notification.objects.create(
+                    user=proposal.freelancer,
+                    message=f'A chatroom has been created for project "{project.title}".'
+                )
+                Notification.objects.create(
+                    user=project.user,  # Assuming the client is the project owner
+                    message=f'A chatroom has been created for your project "{project.title}".'
+                )
+
+                
                 
                 Proposal.objects.filter(project=project).exclude(id=pro_id).update(status='Rejected')
                 rejected_proposals = Proposal.objects.filter(project=project, status='Rejected')
@@ -1659,3 +1989,232 @@ def submit_review(request):
             project.client_review_given = True
             project.save()
         return redirect('client:client_view')
+
+
+
+@login_required
+@nocache
+def chat_view(request):
+    if not request.user.is_authenticated or request.user.role != 'client':
+        return redirect('login')
+
+    profile1 = get_object_or_404(CustomUser, id=request.user.id)
+    profile2 = get_object_or_404(Register, user_id=request.user.id)
+    client = get_object_or_404(ClientProfile, user_id=request.user.id)
+    
+    if profile1.permission:
+        # Fetch all chat rooms related to the client
+        chat_rooms = ChatRoom.objects.filter(participants=client.user_id).prefetch_related('participants')
+
+        # Fetch freelancer details for each chat room
+        freelancers = []
+        for chat in chat_rooms:
+            # Fetch freelancers excluding the client
+            for participant in chat.participants.exclude(id=client.user_id):
+                freelancer_profile = FreelancerProfile.objects.get(user=participant)
+                freelancer_register = Register.objects.get(user_id=participant.id)
+                freelancers.append({
+                    'user': participant,
+                    'profile': freelancer_profile,
+                    'register': freelancer_register,
+                    'chat_room_id': chat.id  # Pass the chat room ID
+                })  # Store user, profile, register details, and chat room ID
+        
+        return render(request, 'client/chat.html', {
+            'profile1': profile1,
+            'profile2': profile2,
+            'client': client,
+            'chat_rooms': chat_rooms,
+            'freelancers': freelancers,
+        })
+    else:
+        return render(request, 'client/PermissionDenied.html', {
+            'profile1': profile1,
+            'profile2': profile2,
+            'client': client,
+        })
+        
+        
+        
+@login_required
+def send_message(request):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            chat_room_id = data.get('chat_room_id')
+            content = data.get('content')
+
+            # Validate inputs
+            if not chat_room_id or not content:
+                return JsonResponse({'success': False, 'error': 'Missing chat_room_id or content'}, status=400)
+
+            # Fetch the chat room
+            try:
+                chat_room = ChatRoom.objects.get(id=chat_room_id)
+            except ChatRoom.DoesNotExist:
+                return JsonResponse({'success': False, 'error': 'Chat room does not exist'}, status=404)
+
+            # Create and save the message
+            message = Message.objects.create(
+                chat_room=chat_room,
+                content=content,
+                sender=request.user
+            )
+
+            return JsonResponse({'success': True, 'message': message.content, 'sender': message.sender.username, 'timestamp': message.timestamp.isoformat()}, status=200)
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)}, status=400)
+    return JsonResponse({'success': False, 'error': 'Invalid request'}, status=400)
+
+
+@csrf_exempt
+def fetch_messages(request):
+    if request.method == 'POST':
+        data = json.loads(request.body)
+        chat_room_id = data.get('chat_room_id')
+
+        # Fetch messages for the given chat room
+        messages = Message.objects.filter(chat_room_id=chat_room_id).order_by('timestamp')
+
+        # Prepare messages for response
+        messages_list = []
+        for message in messages:
+            print(f"Message ID: {message.id}, Content: {message.content}, Image: {message.image}, File: {message.file}")  # Debugging line
+
+            msg_data = {
+                'content': message.content if message.content else '',  # Ensure content is not None
+                'type': 'sent' if message.sender == request.user else 'received',
+                'image': message.image.url if message.image and hasattr(message.image, 'url') else None,  # Check if image exists
+                'file': message.file.url if message.file and hasattr(message.file, 'url') else None,    # Check if file exists
+            }
+            messages_list.append(msg_data)
+
+        print(messages_list)  # Debugging line to check the messages list
+
+        return JsonResponse({'success': True, 'messages': messages_list})
+
+    return JsonResponse({'success': False, 'error': 'Invalid request method.'})
+
+
+
+
+from django.core.files.storage import default_storage
+from .models import Message  # Import your Message model
+
+@csrf_exempt
+def send_file(request):
+    if request.method == 'POST' and request.FILES.get('file'):
+        chat_room_id = request.POST.get('chat_room_id')
+        uploaded_file = request.FILES['file']
+        
+        # Determine the type of file and save accordingly
+        try:
+            if uploaded_file.content_type.startswith('image/'):
+                # Save as an image
+                message = Message(
+                    image=uploaded_file,
+                    sender=request.user,
+                    chat_room_id=chat_room_id
+                )
+            else:
+                # Save as a regular file
+                message = Message(
+                    file=uploaded_file,
+                    sender=request.user,
+                    chat_room_id=chat_room_id
+                )
+
+            message.save()  # Save the message with the file
+
+            return JsonResponse({'success': True, 'message': 'File uploaded successfully.'})
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': f'File saving error: {str(e)}'})
+    
+    return JsonResponse({'success': False, 'error': 'Invalid request.'})
+
+
+
+
+@login_required
+@nocache
+def add_complaint(request):
+    if not request.user.is_authenticated or request.user.role != 'client':
+        return redirect('login')
+
+    profile1 = get_object_or_404(CustomUser, id=request.user.id)
+    profile2 = get_object_or_404(Register, user_id=request.user.id)
+    client = get_object_or_404(ClientProfile, user_id=request.user.id)
+    
+    if profile1.permission:
+        projects = Project.objects.filter(user=profile1)
+        freelancer_ids = projects.values_list('freelancer', flat=True).distinct()
+        freelancers = CustomUser.objects.filter(id__in=freelancer_ids)
+        freelancer_registers = Register.objects.filter(user__in=freelancers)
+        if request.method == 'POST':
+            complaint_type = request.POST.get('complaint_type')
+            subject = request.POST.get('subject')
+            complainee_id = request.POST.get('complainee')  # This may be empty if not applicable
+            description = request.POST.get('description')
+
+            # Validate fields
+            if not complaint_type or not subject or not description:
+                messages.error(request, 'Please fill out all required fields.')
+            else:
+                complaint = Complaint(
+                    user=profile1,
+                    complaint_type=complaint_type,
+                    subject=subject,
+                    description=description
+                )
+                
+                # Set the complainee if complaint is about freelancer or client
+                if complaint_type in ['Freelancer', 'Client']:
+                    complainee = CustomUser.objects.filter(id=complainee_id).first()
+                    if complainee:
+                        complaint.complainee = complainee
+                    else:
+                        messages.error(request, 'Invalid complainee ID.')
+                
+                complaint.save()
+                messages.success(request, 'Complaint submitted successfully.')
+                return redirect('client:client_view') 
+        return render(request, 'client/AddComplaint.html', {
+            'profile1': profile1,
+            'profile2': profile2,
+            'client': client,
+            'freelancer_registers': freelancer_registers,
+        })
+    else:
+        return render(request, 'client/PermissionDenied.html', {
+            'profile1': profile1,
+            'profile2': profile2,
+            'client': client,
+        })
+        
+        
+        
+        
+@login_required
+def view_complaints(request):
+    if not request.user.is_authenticated or request.user.role != 'client':
+        return redirect('login')
+
+    profile1 = get_object_or_404(CustomUser, id=request.user.id)
+    profile2 = get_object_or_404(Register, user_id=request.user.id)
+    client = get_object_or_404(ClientProfile, user_id=request.user.id)
+    
+    if profile1.permission:
+        complaints = Complaint.objects.filter(user=profile1)
+        return render(request, 'client/Complaints.html', {
+            'profile1': profile1,
+            'profile2': profile2,
+            'client': client,
+            'complaints': complaints,
+        })
+    else:
+        return render(request, 'client/PermissionDenied.html', {
+            'profile1': profile1,
+            'profile2': profile2,
+            'client': client,
+        })
+        

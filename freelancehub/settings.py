@@ -93,6 +93,7 @@ TEMPLATES = [
                 'core.context_processors.repository_list',
                 'core.context_processors.project_status' ,
                 'core.context_processors.review_due',
+                'core.context_processors.prediction_processor', 
                 
             ],
         },

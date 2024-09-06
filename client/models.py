@@ -4,7 +4,6 @@ from django.db import models
 from django.conf import settings
 from django.utils import timezone
 from core.models import CustomUser
-
 from decimal import Decimal
 
 class ClientProfile(models.Model):
@@ -28,11 +27,10 @@ class ClientProfile(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
     
     
-
 class Project(models.Model):
     STATUS_CHOICES = (
-        ('open', 'open'),
-        ('closed', 'closed'),
+        ('open', 'Open'),
+        ('closed', 'Closed'),
     )
     
     PROGRESS_CHOICES = (
@@ -40,6 +38,13 @@ class Project(models.Model):
         ('In Progress', 'In Progress'),
         ('Completed', 'Completed'),
     )
+    
+    SCOPE_CHOICES = (
+        ('low', 'Low'),
+        ('medium', 'Medium'),
+        ('high', 'High'),
+    )
+
     title = models.CharField(max_length=255)
     description = models.TextField()
     budget = models.IntegerField()
@@ -60,16 +65,12 @@ class Project(models.Model):
     gst_amount = models.DecimalField(max_digits=15, decimal_places=2, default=0.00, editable=False)
     total_including_gst = models.DecimalField(max_digits=15, decimal_places=2, default=0.00, editable=False)
 
-
     client_review_given = models.BooleanField(default=False)
     freelancer_review_given = models.BooleanField(default=False)
     
-    
+    scope = models.CharField(max_length=10, choices=SCOPE_CHOICES, default='medium')
+
     def save(self, *args, **kwargs):
-        today = timezone.now().date()
-        
-        if self.end_date and self.end_date <= today:
-            self.status = 'closed'
         
         if isinstance(self.budget, str):
             self.budget = int(self.budget)
@@ -81,6 +82,9 @@ class Project(models.Model):
         self.total_including_gst = budget_decimal + self.gst_amount
         
         super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.title
 
 
 
@@ -218,3 +222,67 @@ class Review(models.Model):
         default=0
     )
     review_date = models.DateTimeField(auto_now_add=True)
+    
+    
+    
+    
+
+    
+    
+    
+    
+
+class ChatRoom(models.Model):
+    participants = models.ManyToManyField('core.CustomUser', related_name='chat_rooms')
+    project = models.ForeignKey('client.Project', on_delete=models.CASCADE, related_name='chat_rooms')
+
+    def __str__(self):
+        return f"Chat Room {self.id} for Project {self.project.id}"
+
+    
+    
+class Message(models.Model):
+    chat_room = models.ForeignKey(ChatRoom, on_delete=models.CASCADE, related_name='messages')
+    sender = models.ForeignKey('core.CustomUser', on_delete=models.CASCADE, related_name='sent_messages')
+    
+    # Fields for different types of content
+    content = models.TextField(null=True, blank=True)  # Text content
+    image = models.ImageField(upload_to='chat_images/', null=True, blank=True)  # Image content
+    file = models.FileField(upload_to='chat_files/', null=True, blank=True)  # File content
+    
+    # Timestamp for the message
+    timestamp = models.DateTimeField(auto_now_add=True)
+    
+    def __str__(self):
+        return f"Message from {self.sender.username} in {self.chat_room} at {self.timestamp}"
+
+    def has_content(self):
+        return bool(self.content or self.image or self.file)
+    
+    
+    
+    
+    
+    
+class Complaint(models.Model):
+    COMPLAINT_TYPE_CHOICES = [
+        ('Client', 'Complaint about Client'),
+        ('Freelancer', 'Complaint about Freelancer'),
+        ('Site Issue', 'Site Issue'),
+    ]
+    STATUS_CHOICES = [
+        ('Pending', 'Pending'),
+        ('Resolved', 'Resolved'),
+    ]
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='complaints')  # Complainant
+    complainee = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='received_complaints')  # Complainee (only for Client and Freelancer complaints)
+    complaint_type = models.CharField(max_length=20, choices=COMPLAINT_TYPE_CHOICES)
+    subject = models.CharField(max_length=100)  # Added field for subject
+    description = models.TextField()
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='Pending')
+    date_filed = models.DateTimeField(auto_now_add=True)
+    resolution = models.TextField(null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.subject} - {self.complaint_type} Complaint by {self.user}"

@@ -28,6 +28,8 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
 
+  
+
 <style>
   toastr{
     z-index:1000;
@@ -130,9 +132,11 @@
             <p>Hi ,Admin</p>
           </li>
           <li class="nav-item nav-profile dropdown">
+            {% if profile.profile_picture %}
             <a class="nav-link dropdown-toggle" href="#" data-toggle="dropdown" id="profileDropdown">
               <img src="{{  profile.profile_picture.url }}" alt="profile"/>
             </a>
+            {% endif %}
             <div class="dropdown-menu dropdown-menu-right navbar-dropdown" aria-labelledby="profileDropdown">
               
               <a class="dropdown-item">
@@ -203,6 +207,16 @@
             </div>
           </li>
 
+        
+
+          <li class="nav-item">
+            <a class="nav-link" href="{% url 'administrator:complaints' %}">
+              <i class="icon-grid menu-icon"></i>
+              <span class="menu-title">Complaints</span>
+            </a>
+          </li>
+
+
           <li class="nav-item">
             <a class="nav-link" data-toggle="collapse" href="#work" aria-expanded="false" aria-controls="ui-basic">
               <i class="fas fa-users menu-icon"></i>
@@ -213,8 +227,16 @@
               <ul class="nav flex-column sub-menu">
                
                 <li class="nav-item"> <a class="nav-link" href="{% url 'administrator:user_list' %}">View Users</a></li>
+                <li class="nav-item"> <a class="nav-link" href="{% url 'administrator:allusers' %}">All  Users</a></li>
+                
               </ul>
             </div>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="{% url 'administrator:projects' %}">
+              <i class="icon-grid menu-icon"></i>
+              <span class="menu-title">Projects</span>
+            </a>
           </li>
           <li class="nav-item">
             <a class="nav-link" href="{% url 'administrator:reviews' %}">

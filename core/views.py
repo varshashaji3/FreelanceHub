@@ -29,7 +29,6 @@ from django.http import JsonResponse
 
 
 def index(request):
-    #CustomUser.objects.get(id=3).delete()
     close_expired_projects()
     reviews = SiteReview.objects.all().order_by('-created_at')
 

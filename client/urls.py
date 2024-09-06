@@ -3,7 +3,7 @@ from django.contrib import admin
 from django.shortcuts import render
 from django.urls import include, path
 
-from client.views import  add_github_link,edit_task, submit_review, update_task_status, verify_payment,payment_success,make_payment, submit_contract,add_task, add_url,add_note,add_file, create_repository,acc_deactivate,lock_proposal, notification_mark_as_read, toggle_project_status,edit_project,delete_event,update_event,add_event,update_proposal_status,freelancer_detail,calendar,AddProfileClient, client_view,account_settings,change_password, project_list, single_project_view,update_profile,change_profile_image,add_new_project,freelancer_list, update_task_progress, view_repository
+from client.views import  view_complaints,add_complaint,send_file,fetch_messages,send_message,chat_view,add_github_link,edit_task, submit_review, update_task_status, verify_payment,payment_success,make_payment, submit_contract,add_task, add_url,add_note,add_file, create_repository,acc_deactivate,lock_proposal, notification_mark_as_read, toggle_project_status,edit_project,delete_event,update_event,add_event,update_proposal_status,freelancer_detail,calendar,AddProfileClient, client_view,account_settings,change_password, project_list, single_project_view,update_profile,change_profile_image,add_new_project,freelancer_list, update_task_progress, view_repository
 
 def welcome(request):
     return render(request,'welcome.html')
@@ -68,9 +68,16 @@ urlpatterns = [
     path('verify_payment/', verify_payment, name='verify_payment'),
     
     path('payment_success/', payment_success, name='payment_success'),
-    
-    
-    
-    
     path('submit_review/', submit_review, name='submit_review'),
+    
+    
+    path('chat_view/', chat_view, name='chat_view'),
+    path('send-message/', send_message, name='send_message'),
+    path('fetch-messages/', fetch_messages, name='fetch_messages'),
+    path('send_file/', send_file, name='send_file'),
+    
+    
+    path('add_complaint/', add_complaint, name='add_complaint'),
+    
+    path('view_complaints/', view_complaints, name='view_complaints'),
 ]

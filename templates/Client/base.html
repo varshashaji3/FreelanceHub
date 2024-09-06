@@ -313,9 +313,15 @@
           </li>
 
 
+          {% if client.client_type == 'Individual' %}
           <li class="nav-item nav-search d-none d-lg-block">
             <span>Hi,{{ profile2.first_name }}</span>
           </li>
+          {% else %}
+          <li class="nav-item nav-search d-none d-lg-block">
+            <span>Hi,{{ client.company_name }}</span>
+          </li>
+          {% endif %}
           <li class="nav-item nav-profile dropdown">
             <a class="nav-link dropdown-toggle" href="#" data-toggle="dropdown" id="profileDropdown">
               <img src="{{ profile2.profile_picture.url }}" alt="profile" />
@@ -462,6 +468,26 @@
               <i class="far fa-calendar-alt menu-icon menu-icon"></i>
               <span class="menu-title">Calendar</span>
             </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="{% url 'client:chat_view' %}">
+              <i class="fas fa-comments menu-icon"></i> <!-- Changed icon class -->
+              <span class="menu-title">Chat</span>
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" data-toggle="collapse" href="#complaints" aria-expanded="false" aria-controls="ui-basic">
+              <i class="fas fa-tasks menu-icon"></i>
+              <span class="menu-title">Complaints</span>
+              <i class="menu-arrow"></i>
+            </a>
+            <div class="collapse" id="complaints">
+              <ul class="nav flex-column sub-menu">
+                <li class="nav-item"> <a class="nav-link" href="{% url 'client:view_complaints' %}">My Complaints</a></li>
+                <li class="nav-item"> <a class="nav-link" href="{% url 'client:add_complaint' %}">Add Complaint</a>
+                </li>
+              </ul>
+            </div>
           </li>
           <li class="nav-item">
             <a class="nav-link" href="{% url 'logout'%}">

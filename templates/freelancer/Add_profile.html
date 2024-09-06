@@ -63,6 +63,7 @@
             $("#adhar").change(function () {
                 check_aadhaar();
             });
+            $("input[name='work_type']").on('change', check_work_type);
 
             var professional_title_error = false;
             var skills_error = false;
@@ -82,6 +83,7 @@
             var url_error = false;
             var bio_error = false;
             var image_error = false;
+            var work_type_error = false;
 
             function check_name() {
                 var pattern = /^[a-zA-Z ]*$/;
@@ -139,7 +141,7 @@
             }
 
             function check_bio() {
-                var pattern = /^(?!.*\d{3})(?=.*[a-zA-Z])[a-zA-Z0-9 .,!?\n]*$/;
+                var pattern = /^(?!.*\d{3})(?=.*[a-zA-Z])[a-zA-Z0-9 .,!?\n/'-]*$/;
                 var bio = $("#bio_description").val();
                 if (pattern.test(bio) && bio !== "") {
                     $("#error_bio").hide();
@@ -263,7 +265,16 @@
                 }
             }
 
-
+            function check_work_type() {
+                var isChecked = $("input[name='work_type']:checked").length > 0;
+                if (isChecked) {
+                    $("#error_work_type").hide();
+                    work_type_error = false;
+                } else {
+                    $("#error_work_type").html("At least one work type must be selected").show();
+                    work_type_error = true;
+                }
+            }
 
             $("#profile_form").submit(function () {
                 fname_error = false;
@@ -274,6 +285,7 @@
                 bio_error = false;
                 image_error = false;
                 location_error = false;
+                work_type_error=false;
                 check_name();
                 check_lname();
                 check_email();
@@ -304,14 +316,16 @@
                 check_education();
                 check_resume();
                 check_aadhaar();
-                if (fname_error === false && lname_error === false && phone_error === false && url_error === false && bio_error === false && image_error === false && location_error === false &&
-                    professional_title_error === false && skills_error === false && experience_level_error === false && portfolio_link_error === false && education_error === false && resume_error === false && aadhaar_error === false) {
-                    $("#profile_err").hide();
-                    return true;
-                } else {
-                    $("#profile_err").html("Please fill the form correctly.").show();
-                    return false;
-                }
+                check_work_type(); // Add this line
+    
+    if (fname_error === false && lname_error === false && phone_error === false && url_error === false && bio_error === false && image_error === false && location_error === false &&
+        professional_title_error === false && skills_error === false && experience_level_error === false && portfolio_link_error === false && education_error === false && resume_error === false && aadhaar_error === false && work_type_error === false) {
+        $("#profile_err").hide();
+        return true;
+    } else {
+        $("#profile_err").html("Please fill the form correctly.").show();
+        return false;
+    }
             });
         });
     </script>
@@ -499,7 +513,18 @@
                                 </div>
                             </div>
 
-
+                            <div class="col-12 col-md-6">
+                                <div class="form-floating mb-3">
+                                    <select class="form-select" id="work_type" name="work_type" required>
+                                        <option value="" selected>Select your work type</option>
+                                        <option value="Full-time">Full-time</option>
+                                        <option value="Part-time">Part-time</option>
+                                    </select>
+                                    <label for="work_type" class="form-label">Work Type</label>
+                                    <span id="error_work_type" class="error"></span>
+                                </div>
+                            </div>
+                    
                             <div class="col-12 col-md-12">
                                 <div class="form-floating mb-3">
                                     <div class="form-group mb-3">

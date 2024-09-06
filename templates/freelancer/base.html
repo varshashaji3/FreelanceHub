@@ -467,6 +467,26 @@
             </a>
           </li>
           <li class="nav-item">
+            <a class="nav-link" href="{% url 'freelancer:chat_view' %}">
+              <i class="fas fa-comments menu-icon"></i> <!-- Changed icon class -->
+              <span class="menu-title">Chat</span>
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" data-toggle="collapse" href="#complaints" aria-expanded="false" aria-controls="ui-basic">
+              <i class="fas fa-tasks menu-icon"></i>
+              <span class="menu-title">Complaints</span>
+              <i class="menu-arrow"></i>
+            </a>
+            <div class="collapse" id="complaints">
+              <ul class="nav flex-column sub-menu">
+                <li class="nav-item"> <a class="nav-link" href="">My Complaints</a></li>
+                <li class="nav-item"> <a class="nav-link" href="{% url 'freelancer:add_complaint' %}">Add Complaint</a>
+                </li>
+              </ul>
+            </div>
+          </li>
+          <li class="nav-item">
             <a class="nav-link" href="{% url 'logout'%}">
               <i class="icon-paper menu-icon"></i>
               <span class="menu-title">Logout</span>

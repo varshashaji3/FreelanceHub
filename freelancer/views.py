@@ -11,7 +11,7 @@ import os
 from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404, redirect, render
 
-from client.models import ClientProfile, FreelanceContract, PaymentInstallment, Project, Review,SharedFile, SharedNote,SharedURL,Repository, Task
+from client.models import Message,ClientProfile, FreelanceContract, PaymentInstallment, Project, Review,SharedFile, SharedNote,SharedURL,Repository, Task,Complaint
 from core.decorators import nocache
 from core.models import CustomUser, Event, Notification, Register
 
@@ -33,7 +33,7 @@ from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
 from django.utils.html import strip_tags
 from django.conf import settings
-
+import json
 from io import BytesIO
 from xhtml2pdf import pisa
 from datetime import timedelta
@@ -202,6 +202,7 @@ def AddProfileFreelancer(request, uid):
         resume = request.FILES.get('resume')
         aadhaar = request.FILES.get('aadhaar')
         selected_skills = request.POST.getlist('skills')
+        work=request.POST.get('work_type')
 
         register, _ = Register.objects.get_or_create(user=user)
         register.first_name = first_name
@@ -223,11 +224,10 @@ def AddProfileFreelancer(request, uid):
         if resume:
             profile.resume = resume
         if aadhaar:
-            face_image_bytes = extract_image_from_pdf(aadhaar)
-            if face_image_bytes:
-                profile.aadhaar_face_image.save('aadhaar_face_image.jpg', ContentFile(face_image_bytes))
+            profile.aadhaar_document=aadhaar
         profile.skills = selected_skills
         profile.professional_title = professional_titles
+        profile.work_type=work
         profile.save()
 
         return redirect('freelancer:freelancer_view')
@@ -1082,7 +1082,10 @@ def generate_proposal(request,pid):
         
         if request.method == 'POST':
             description = request.POST.get('proposal_description')
-            budget = request.POST.get('proposal_budget')
+            if project.allow_bid:
+                budget = request.POST.get('proposal_budget')
+            else:
+                budget = project.budget
             end_date = request.POST.get('proposal_deadline')
             
             proposal = Proposal(
@@ -1736,3 +1739,234 @@ def submit_user_review(request):
         return redirect('freelancer:freelancer_view')
 
     return HttpResponse(status=405, content="Method Not Allowed")
+
+
+
+
+
+
+
+
+
+
+
+
+from client.models import ChatRoom 
+
+@login_required
+@nocache
+def chat_view(request):
+    if 'uid' not in request.session:
+        return redirect('login')
+
+    uid = request.session['uid']
+    profile1 = CustomUser.objects.get(id=uid)
+    profile2 = Register.objects.get(user_id=uid)
+    freelancer = FreelancerProfile.objects.get(user_id=uid)
+
+    if profile1.permission: 
+        
+        # Fetch chat rooms associated with the freelancer
+        chat_rooms = ChatRoom.objects.filter(participants=freelancer.user_id).prefetch_related('participants')
+
+        # Debugging: Check if chat_rooms are fetched
+        print(f"Chat Rooms: {chat_rooms}")  # Debugging line
+
+        # Fetch client details for each chat room
+        clients = []
+        for chat in chat_rooms:
+            # Exclude the freelancer from the participants to get only clients
+            for participant in chat.participants.exclude(id=freelancer.user_id):
+                client_profile = ClientProfile.objects.get(user=participant)
+                client_register = Register.objects.get(user_id=participant.id)
+                clients.append({
+                    'user': participant,
+                    'profile': client_profile,
+                    'register': client_register,
+                    'chat_room_id': chat.id
+                })  # Store user, profile, and register details
+        
+        # Debugging: Check if clients are being populated
+        print(f"Clients: {clients}")  # Debugging line
+        
+        return render(request, 'freelancer/chat.html', {
+            'profile1': profile1,
+            'profile2': profile2,
+            'freelancer': freelancer,
+            'chat_rooms': chat_rooms,
+            'clients': clients,  
+            # Ensure clients are passed to the template
+        })
+    else:
+        return render(request, 'freelancer/PermissionDenied.html', {
+            'profile1': profile1,
+            'profile2': profile2,
+            'freelancer': freelancer,
+        })
+        
+        
+        
+        
+   
+@login_required
+def send_message(request):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            chat_room_id = data.get('chat_room_id')
+            content = data.get('content')
+
+            # Validate inputs
+            if not chat_room_id or not content:
+                return JsonResponse({'success': False, 'error': 'Missing chat_room_id or content'}, status=400)
+
+            # Fetch the chat room
+            try:
+                chat_room = ChatRoom.objects.get(id=chat_room_id)
+            except ChatRoom.DoesNotExist:
+                return JsonResponse({'success': False, 'error': 'Chat room does not exist'}, status=404)
+
+            # Create and save the message
+            message = Message.objects.create(
+                chat_room=chat_room,
+                content=content,
+                sender=request.user
+            )
+
+            return JsonResponse({'success': True, 'message': message.content, 'sender': message.sender.username, 'timestamp': message.timestamp.isoformat()}, status=200)
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)}, status=400)
+    return JsonResponse({'success': False, 'error': 'Invalid request'}, status=400)
+
+
+
+
+
+
+
+
+@csrf_exempt
+def fetch_messages(request):
+    if request.method == 'POST':
+        data = json.loads(request.body)
+        chat_room_id = data.get('chat_room_id')
+
+        # Fetch messages for the given chat room
+        messages = Message.objects.filter(chat_room_id=chat_room_id).order_by('timestamp')
+
+        # Prepare messages for response
+        messages_list = []
+        for message in messages:
+            print(f"Message ID: {message.id}, Content: {message.content}, Image: {message.image}, File: {message.file}")  # Debugging line
+
+            msg_data = {
+                'content': message.content if message.content else '',  # Ensure content is not None
+                'type': 'sent' if message.sender == request.user else 'received',
+                'image': message.image.url if message.image and hasattr(message.image, 'url') else None,  # Check if image exists
+                'file': message.file.url if message.file and hasattr(message.file, 'url') else None,    # Check if file exists
+            }
+            messages_list.append(msg_data)
+
+        print(messages_list)  # Debugging line to check the messages list
+
+        return JsonResponse({'success': True, 'messages': messages_list})
+
+    return JsonResponse({'success': False, 'error': 'Invalid request method.'})
+
+
+
+
+from django.core.files.storage import default_storage
+from client.models import Message  # Import your Message model
+
+@csrf_exempt
+def send_file(request):
+    if request.method == 'POST' and request.FILES.get('file'):
+        chat_room_id = request.POST.get('chat_room_id')
+        uploaded_file = request.FILES['file']
+        
+        # Determine the type of file and save accordingly
+        try:
+            if uploaded_file.content_type.startswith('image/'):
+                # Save as an image
+                message = Message(
+                    image=uploaded_file,
+                    sender=request.user,
+                    chat_room_id=chat_room_id
+                )
+            else:
+                # Save as a regular file
+                message = Message(
+                    file=uploaded_file,
+                    sender=request.user,
+                    chat_room_id=chat_room_id
+                )
+
+            message.save()  # Save the message with the file
+
+            return JsonResponse({'success': True, 'message': 'File uploaded successfully.'})
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': f'File saving error: {str(e)}'})
+    
+    return JsonResponse({'success': False, 'error': 'Invalid request.'})
+
+
+
+@login_required
+@nocache
+def add_complaint(request):
+    if 'uid' not in request.session:
+        return redirect('login')
+
+    uid = request.session['uid']
+    profile1 = CustomUser.objects.get(id=uid)
+    profile2 = Register.objects.get(user_id=uid)
+    freelancer = FreelancerProfile.objects.get(user_id=uid)
+
+    
+    if profile1.permission:
+        projects = Project.objects.filter(freelancer=profile1)
+        client_ids = projects.values_list('user', flat=True).distinct()
+        clients = CustomUser.objects.filter(id__in=client_ids)
+        client_registers = Register.objects.filter(user__in=clients)
+        if request.method == 'POST':
+            complaint_type = request.POST.get('complaint_type')
+            subject = request.POST.get('subject')
+            complainee_id = request.POST.get('client')  # This may be empty if not applicable
+            description = request.POST.get('description')
+
+            # Validate fields
+            if not complaint_type or not subject or not description:
+                messages.error(request, 'Please fill out all required fields.')
+            else:
+                complaint = Complaint(
+                    user=profile1,
+                    complaint_type=complaint_type,
+                    subject=subject,
+                    description=description
+                )
+                
+                # Set the complainee if complaint is about freelancer or client
+                if complaint_type in ['Freelancer', 'Client']:
+                    complainee=CustomUser.objects.get(id=complainee_id)
+                    if complainee_id:
+                        complaint.complainee = complainee
+                    else:
+                        messages.error(request, 'Invalid complainee ID.')
+                
+                complaint.save()
+                messages.success(request, 'Complaint submitted successfully.')
+                return redirect('client:client_view') 
+        return render(request, 'freelancer/AddComplaint.html', {
+            'profile1': profile1,
+            'profile2': profile2,
+            'freelancer': freelancer,
+            'freelancer_registers': Register.objects.filter(user=profile1),
+            'client_registers': client_registers,  # Pass client details to the template
+        })
+    else:
+        return render(request, 'freelance/PermissionDenied.html', {
+            'profile1': profile1,
+            'profile2': profile2,
+            'freelancer': freelancer,
+        })

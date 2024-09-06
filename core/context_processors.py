@@ -97,3 +97,18 @@ def review_due(request):
             else:
                 return {'review_due': False}
     return {'review_due': False}
+
+
+# your_app/context_processors.py
+def prediction_processor(request):
+    if not request.user.is_authenticated:
+        return {}
+
+    try:
+        return {
+            'proposal_predictions': request.session.get('proposal_predictions', {})
+        }
+    except Exception as e:
+        return {
+            'error_message': f"An unexpected error occurred: {str(e)}"
+        }

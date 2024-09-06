@@ -170,11 +170,22 @@
             </div>
 
             <!-- Proposal Budget -->
-            <div class="mb-4">
-                <label for="proposal_budget" class="form-label">Proposal Budget:</label>
-                <input type="text" id="proposal_budget" name="proposal_budget" class="form-control" placeholder="Enter budget">
-                <span id="error_budget" class="text-danger"></span> <!-- Error span for budget -->
-            </div>
+           <!-- Proposal Budget -->
+           {% if project.allow_bid %}
+           <div class="mb-4">
+               <label for="proposal_budget" class="form-label">Proposal Budget:</label>
+               <input type="text" id="proposal_budget" name="proposal_budget" class="form-control" placeholder="Enter budget">
+               <span id="error_budget" class="text-danger"></span> <!-- Error span for budget -->
+           </div>
+           {% else %}
+           <div class="mb-4">
+               <label for="proposal_budget" class="form-label">Proposal Budget:</label>
+               <input type="text" id="proposal_budget" name="proposal_budget" class="form-control" value="{{ project.budget }}" disabled>
+               <input type="hidden" id="proposal_budget" name="proposal_budget" value="{{ project.budget }}">
+           </div>
+           {% endif %}
+           
+
 
             <!-- Proposal Deadline -->
             <div class="mb-4">

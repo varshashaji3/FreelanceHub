@@ -1,4 +1,3 @@
-
 from datetime import timedelta
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
@@ -60,6 +59,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     permission = models.BooleanField(default=False)
     email_verified = models.BooleanField(default=False)
     google=models.BooleanField(default=False)
+    complaint_count = models.PositiveIntegerField(default=0)
     objects = CustomUserManager()
 
     USERNAME_FIELD = 'email'  
@@ -75,9 +75,9 @@ class Register(models.Model):
     user = models.OneToOneField(CustomUser, on_delete=models.CASCADE)
     first_name = models.CharField(max_length=150, blank=True, null=True)
     last_name = models.CharField(max_length=150, blank=True, null=True)
-    phone_number = models.CharField(max_length=20, blank=True, null=True)
+    phone_number = models.CharField(max_length=10, blank=True, null=True)
     profile_picture = models.ImageField(upload_to='profile_pictures/', blank=True, null=True)
-    bio_description = models.CharField(max_length=255, blank=True, null=True)
+    bio_description = models.TextField(blank=True, null=True)
     location = models.CharField(max_length=255, blank=True, null=True)
     linkedin = models.URLField(max_length=255, blank=True, null=True)
     instagram = models.URLField(max_length=255, blank=True, null=True)
@@ -138,3 +138,8 @@ class SiteReview(models.Model):
         """
         threshold_date = self.created_at + relativedelta(months=months)
         return timezone.now() >= threshold_date
+    
+    
+    
+    
+    

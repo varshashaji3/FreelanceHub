@@ -1,5 +1,54 @@
 {% extends 'Admin/base.html'%}
 {% block 'admin_content' %}
+{% load static %}
+<style>
+  .info-card {
+    position: relative;
+    background: white;
+    padding: 10px;
+    border-radius: 15px;
+    text-align: center;
+    color: black;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    transition: transform 0.3s, box-shadow 0.3s;
+  }
+
+  .info-card:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  }
+
+  .info-card h5 {
+    margin-bottom: 10px;
+  }
+
+  .info-card img {
+    width: 80px;
+    height: 80px;
+    margin-bottom: 15px;
+  }
+
+  .info-card a {
+    text-decoration: none;
+    color: inherit;
+  }
+
+  .info-card .count {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    color: black;
+    border-radius: 50%;
+    padding: 1px;
+    font-size: 1.2rem;
+    font-weight: bold;
+    width: 50px;
+    height: 50px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+</style>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <div class="row" style="background-color:white;padding:30px;border-radius:10px;display:flex;align-items:center;">
   <div class="col-md-12 grid-margin">
@@ -14,7 +63,45 @@
   </div>
 </div>
 
-<br>
+
+
+<br><br>
+
+<div class="row" style="display: flex; justify-content: space-between; align-items: stretch; gap: 20px; flex-wrap: wrap;">
+
+  <!-- Total Users Card -->
+  <a href="{% url 'administrator:allusers' %}" class="col-md-3 info-card" style="flex: 1;">
+    <img src="{% static 'img/group.png' %}" alt="Users">
+    <h5 class="card-title">Total Users</h5>
+    <div class="count">{{ user_count }}</div>
+  </a>
+
+  <!-- Total Projects Card -->
+  <a href="{% url 'administrator:projects' %}" class="col-md-3 info-card" style="flex: 1;">
+    <img src="{% static 'img/project.png' %}" alt="Projects">
+    <h5 class="card-title">Total Projects</h5>
+    <div class="count">{{ posted_count }}</div>
+  </a>
+
+  <!-- Complaints Card -->
+  <a href="{% url 'administrator:complaints' %}" class="col-md-3 info-card" style="flex: 1;">
+    <img src="{% static 'img/paper.png' %}" alt="Complaints">
+    <h5 class="card-title">Complaints</h5>
+    <div class="count">{{ total_complaint }}</div>
+  </a>
+
+  <!-- Messages Card -->
+  <a href="/admin/messages" class="col-md-3 info-card" style="flex: 1;">
+    <img src="{% static 'img/message1.png' %}" alt="Messages">
+    <h5 class="card-title">Messages</h5>
+    <div class="count">{{ total_messages }}</div>
+  </a>
+
+</div>
+
+<br><br>
+
+
 <div class="row" >
   <div class="col-md-6 grid-margin stretch-card">
     <div class="card">

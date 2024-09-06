@@ -1,4 +1,3 @@
-
 {% extends 'Client/base.html'%}
 {% block 'client_content' %}
 {% load static %}
@@ -40,6 +39,10 @@
       check_end_date();
   });
 
+  $("#scope").change(function () {
+      check_scope();
+  });
+
 
     var title_error = false;
     var description_error = false;
@@ -48,9 +51,10 @@
     var budget_error = false;
     var category_error = false;
     var end_date_error = false;
+    var scope_error = false;
 
     function check_title() {
-      var pattern = /^[a-zA-Z ]*$/;
+      var pattern = /^[a-zA-Z-/ ]*$/;
       var title = $("#title").val();
       if (pattern.test(title) && title !== "") {
         $("#error_title").hide();
@@ -66,7 +70,7 @@
     
 
     function check_description() {
-      var pattern = /^(?!.*\d{3})(?=.*[a-zA-Z])[a-zA-Z0-9 .,'!""?\n]*$/;
+      var pattern = /^(?!.*\d{3})(?=.*[a-zA-Z])[a-zA-Z0-9 -.,_'!""/?\n]*$/;
       var description = $("#description").val();
       if (pattern.test(description) && description !== "") {
         $("#error_des").hide();
@@ -140,6 +144,28 @@
     }
 }
     
+  function check_scope() {
+    var scope = $("#scope").val();
+    if (scope === "high") {
+        $("#error_scope").html("High scope projects require more time and resources. Are you sure you want to proceed?").show();
+        $("#scope").css("border", "2px solid red");
+        scope_error = true;
+    } else if (scope === "medium") {
+        $("#error_scope").html("Medium scope projects are balanced in terms of time and resources. Are you sure you want to proceed?").show();
+        $("#scope").css("border", "2px solid orange");
+        scope_error = false;
+    } else if (scope === "low") {
+        $("#error_scope").html("Low scope projects require less time and resources. Are you sure you want to proceed?").show();
+        $("#scope").css("border", "2px solid green");
+        scope_error = false;
+    } else {
+        $("#error_scope").html("Please select a scope").show();
+        $("#scope").css("border", "2px solid red");
+        scope_error = true;
+    }
+}
+
+    
   $("#project_form").submit(function () {
    
     title_error = false;
@@ -148,6 +174,7 @@
     budget_error = false;
     category_error = false;
     end_date_error = false;
+    scope_error = false;
 
 
     
@@ -157,8 +184,9 @@
     check_budget();
     check_category();
     check_end_date();
+    check_scope();
 
-    if (title_error || description_error || file_error || budget_error || category_error || end_date_error) {
+    if (title_error || description_error || file_error || budget_error || category_error || end_date_error || scope_error) {
         $("#project_err").html("Please fill the form correctly.").show();
         return false; 
     } else {
@@ -302,6 +330,8 @@
 
     margin-top: -160px;
   }
+
+  
 </style>
 
 
@@ -377,6 +407,29 @@
                     </div>
                 </div>
         
+                <!-- Scope of Project -->
+                <div class="col-12 col-md-6 position-relative">
+                    <div class="form-floating mb-3">
+                        <select class="form-control" id="scope" name="scope" required>
+                            <option value="">Select Scope</option>
+                            <option value="high">High</option>
+                            <option value="medium">Medium</option>
+                            <option value="low">Low</option>
+                        </select>
+                        <label for="scope" class="form-label">Scope of Project</label>
+                        <br><span id="error_scope" class="error"></span>
+                    </div>
+                    <span class="info-icon" style="cursor: pointer; background-color: rgb(224, 199, 13); padding-left: 5px;padding-right:5px;
+                    padding-top:-8px; border-radius: 50%; display: inline-block; position: absolute; height:15px;right: -10px; top: 20%; transform: translateY(-50%); color: #fff; font-size: 10px;" onmouseover="showInfo()" onmouseout="hideInfo()">
+                        &#33; <!-- Exclamation mark icon -->
+                    </span>
+                    <div id="info-content" style="display:none; position:absolute; right: -50px; top: 60%; background-color: white; border: 1px solid #ccc; padding: 10px; border-radius: 5px; z-index: 1000;font-size:10px;">
+                        <strong style="color: red;">High Complexity:</strong> Projects that are large in scope, have multiple components, involve advanced technologies, or have significant customizations and integrations.<br><br>
+                        <strong style="color: orange;">Medium Complexity:</strong> Projects with moderate scope, some level of customization, and a manageable number of components or requirements.<br><br>
+                        <strong style="color: green;">Low Complexity:</strong> Projects with a simple scope, minimal customizations, and straightforward requirements.
+                    </div>
+                </div>
+        
                 <!-- Additional File Upload -->
                 <div class="col-12">
                     <div class="form-floating mb-3">
@@ -411,6 +464,15 @@
 
 <script src="{% static 'js/jquery.min.js' %}"></script>
 <script src="https://unpkg.com/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+    function showInfo() {
+        document.getElementById('info-content').style.display = 'block';
+    }
+    function hideInfo() {
+        document.getElementById('info-content').style.display = 'none';
+    }
+</script>
 
 
 {% endblock %}

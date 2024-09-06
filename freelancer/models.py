@@ -7,11 +7,15 @@ from core.models import CustomUser
     
 from ckeditor.fields import RichTextField
 from django.utils import timezone
-
 class FreelancerProfile(models.Model):
     STATUS_CHOICES = [
         ('active', 'Active'),
         ('inactive', 'Inactive'),
+    ]
+
+    WORK_TYPE_CHOICES = [
+        ('full_time', 'Full-time'),
+        ('part_time', 'Part-time'),
     ]
 
     user = models.OneToOneField(CustomUser, on_delete=models.CASCADE)
@@ -23,9 +27,10 @@ class FreelancerProfile(models.Model):
     resume = models.FileField(upload_to='resumes/', blank=True, null=True)
     aadhaar_document = models.FileField(upload_to='aadhaar/', null=True, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
-    aadhaar_face_image = models.ImageField(upload_to='aadhaar/faces/', null=True, blank=True)  # Cropped face from Aadhar
-    verification_status = models.CharField(max_length=20, choices=[('pending', 'Pending'), ('verified', 'Verified'), ('failed', 'Failed')], default='pending')
-    verification_attempts = models.IntegerField(default=0)
+    work_type = models.CharField(max_length=10, choices=WORK_TYPE_CHOICES, default='part_time')
+
+    def __str__(self):
+        return f"{self.user.username}'s Profile"
 
 class Todo(models.Model):
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)

@@ -1,0 +1,112 @@
+{% extends 'client/base.html' %}
+{% block 'client_content' %}
+{% load static %}
+
+<!-- Load necessary CSS and JS libraries -->
+<link rel="stylesheet" href="https://unpkg.com/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+<link href="https://cdn.jsdelivr.net/npm/fullcalendar@5.10.1/main.min.css" rel="stylesheet" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.10.1/main.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
+
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+    body {
+        font-family: 'Roboto', sans-serif;
+    }
+    .container {
+        margin-top: 20px;
+    }
+    .btn-add {
+        margin-bottom: 15px;
+        float: right;
+    }
+    table.dataTable {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 20px;
+    }
+    table.dataTable thead th {
+        background-color: #4B49AC;
+        color: white;
+        text-align: center;
+    }
+    table.dataTable tbody tr:nth-child(even) {
+        background-color: #f2f2f2;
+    }
+    table.dataTable tbody td {
+        text-align: center;
+    }
+    table.dataTable tbody td, table.dataTable thead th {
+        padding: 12px;
+        border: 1px solid #ddd;
+    }
+    .dataTables_wrapper .dataTables_paginate .paginate_button {
+        padding: 5px ;
+        margin: 0 2px;
+        border-radius: 3px;
+    }
+    .btn-add{
+        background-color: #4B49AC;
+    }
+</style>
+<div class="row" style="margin-right:-30px;background-color:white;">
+    
+<div class="container">
+    <h2 class="text-center mb-4">Your Complaints</h2>
+    
+    <!-- Button to add new complaint -->
+    <a href="{% url 'client:add_complaint' %}" class="btn btn-primary btn-add">Add New Complaint</a>
+    <br><br><br>
+    <!-- DataTable for displaying complaints -->
+    <table id="complaintsTable" class="display table table-striped table-bordered">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Type</th>
+                <th>Subject</th>
+                <th>Description</th>
+                <th>Date Created</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for complaint in complaints %}
+            <tr>
+                <td>{{ complaint.id }}</td>
+                {% if complaint.complaint_type == 'Freelancer' %}
+                <td>Complaint About Freelancer</td>
+                {% else %}
+                <td>{{ complaint.complaint_type }}</td>
+                {% endif %}
+                <td>{{ complaint.subject }}</td>
+                <td>{{ complaint.description }}</td>
+                <td>{{ complaint.date_filed }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+</div>
+
+<!-- Include DataTables JS -->
+<script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
+
+<script>
+    $(document).ready(function() {
+        $('#complaintsTable').DataTable({
+            "paging": true,
+            "searching": true,
+            "ordering": true,
+            "info": true,
+            "pageLength": 10, // Number of records per page
+            "language": {
+                "search": "Filter records:"
+            }
+        });
+    });
+</script>
+
+{% endblock %}
