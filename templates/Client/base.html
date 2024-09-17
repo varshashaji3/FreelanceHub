@@ -483,8 +483,11 @@
             </a>
             <div class="collapse" id="complaints">
               <ul class="nav flex-column sub-menu">
-                <li class="nav-item"> <a class="nav-link" href="{% url 'client:view_complaints' %}">My Complaints</a></li>
-                <li class="nav-item"> <a class="nav-link" href="{% url 'client:add_complaint' %}">Add Complaint</a>
+                
+                <li class="nav-item"> <a class="nav-link" href="{% url 'client:add_complaint' %}">Add Complaint</a></li>
+                <li class="nav-item"> <a class="nav-link" href="{% url 'client:view_complaints' %}">Submitted</a></li>
+                <li class="nav-item">
+                  <a class="nav-link" href="">Received</a>
                 </li>
               </ul>
             </div>

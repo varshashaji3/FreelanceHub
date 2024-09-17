@@ -300,132 +300,132 @@ def convert_to_days(date_input):
     return days_remaining
 
 
-import numpy as np 
-@login_required
-def single_project_view(request, pid):
-    if 'uid' not in request.session or not request.user.is_authenticated or request.user.role != 'client':
-        return redirect('login')
+# import numpy as np 
+# @login_required
+# def single_project_view(request, pid):
+#     if 'uid' not in request.session or not request.user.is_authenticated or request.user.role != 'client':
+#         return redirect('login')
 
-    uid = request.session['uid']
-    try:
-        profile1 = CustomUser.objects.get(id=uid)
-        profile2 = Register.objects.get(user_id=uid)
-        client = ClientProfile.objects.get(user_id=uid)
-    except (CustomUser.DoesNotExist, Register.DoesNotExist, ClientProfile.DoesNotExist):
-        return redirect('login')
+#     uid = request.session['uid']
+#     try:
+#         profile1 = CustomUser.objects.get(id=uid)
+#         profile2 = Register.objects.get(user_id=uid)
+#         client = ClientProfile.objects.get(user_id=uid)
+#     except (CustomUser.DoesNotExist, Register.DoesNotExist, ClientProfile.DoesNotExist):
+#         return redirect('login')
 
-    if profile1.permission:
-        try:
-            project = get_object_or_404(Project, id=pid)
-            proposals = Proposal.objects.filter(project_id=project)
-            freelancer_ids = proposals.values_list('freelancer_id', flat=True)
-            freelancer_profiles = FreelancerProfile.objects.filter(user_id__in=freelancer_ids)
+#     if profile1.permission:
+#         try:
+#             project = get_object_or_404(Project, id=pid)
+#             proposals = Proposal.objects.filter(project_id=project)
+#             freelancer_ids = proposals.values_list('freelancer_id', flat=True)
+#             freelancer_profiles = FreelancerProfile.objects.filter(user_id__in=freelancer_ids)
 
-            new_data = [
-                {
-                    'ProposedDeadline': convert_to_days(proposal.deadline),
-                    'FreelancerID': proposal.freelancer_id,
-                    'Category': project.category,
-                    'Complexity': project.scope,
-                }
-                for proposal in proposals
-            ]
+#             new_data = [
+#                 {
+#                     'ProposedDeadline': convert_to_days(proposal.deadline),
+#                     'FreelancerID': proposal.freelancer_id,
+#                     'Category': project.category,
+#                     'Complexity': project.scope,
+#                 }
+#                 for proposal in proposals
+#             ]
 
-            # Convert new data to DataFrame
-            new_df = pd.DataFrame(new_data)
+#             # Convert new data to DataFrame
+#             new_df = pd.DataFrame(new_data)
 
-            # Define expected columns and check for their presence
-            expected_columns = ['ProposedDeadline', 'FreelancerID', 'Category', 'Complexity']
-            missing_columns = [col for col in expected_columns if col not in new_df.columns]
+#             # Define expected columns and check for their presence
+#             expected_columns = ['ProposedDeadline', 'FreelancerID', 'Category', 'Complexity']
+#             missing_columns = [col for col in expected_columns if col not in new_df.columns]
             
-            if missing_columns:
-                return render(request, 'client/Error.html', {
-                    'error_message': f"Missing columns: {', '.join(missing_columns)}"
-                })
+#             if missing_columns:
+#                 return render(request, 'client/Error.html', {
+#                     'error_message': f"Missing columns: {', '.join(missing_columns)}"
+#                 })
 
-            new_df = new_df[expected_columns]
+#             new_df = new_df[expected_columns]
 
-            # Load model, scaler, and label encoders
-            model_path = os.path.join(settings.BASE_DIR, 'freelancehub', 'models', 'final_model.pkl')
-            scaler_path = os.path.join(settings.BASE_DIR, 'freelancehub', 'models', 'final_scaler.pkl')
-            le_path = os.path.join(settings.BASE_DIR, 'freelancehub', 'models', 'final_label_encoders.pkl')
+#             # Load model, scaler, and label encoders
+#             model_path = os.path.join(settings.BASE_DIR, 'freelancehub', 'models', 'final_model.pkl')
+#             scaler_path = os.path.join(settings.BASE_DIR, 'freelancehub', 'models', 'final_scaler.pkl')
+#             le_path = os.path.join(settings.BASE_DIR, 'freelancehub', 'models', 'final_label_encoders.pkl')
 
-            try:
-                model = joblib.load(model_path)
-                scaler = joblib.load(scaler_path)
-                label_encoders = joblib.load(le_path)
-            except FileNotFoundError as e:
-                return render(request, 'client/ModelFileNotFound.html', {
-                    'error_message': f"Error loading model files: {str(e)}"
-                })
+#             try:
+#                 model = joblib.load(model_path)
+#                 scaler = joblib.load(scaler_path)
+#                 label_encoders = joblib.load(le_path)
+#             except FileNotFoundError as e:
+#                 return render(request, 'client/ModelFileNotFound.html', {
+#                     'error_message': f"Error loading model files: {str(e)}"
+#                 })
 
-            # Encode categorical variables
-            for col in ['Category', 'Complexity']:
-                if col in new_df.columns:
-                    new_df[col] = label_encoders[col].transform(new_df[col])
-                else:
-                    return render(request, 'client/Error.html', {
-                        'error_message': f"Column {col} is missing in the data."
-                    })
+#             # Encode categorical variables
+#             for col in ['Category', 'Complexity']:
+#                 if col in new_df.columns:
+#                     new_df[col] = label_encoders[col].transform(new_df[col])
+#                 else:
+#                     return render(request, 'client/Error.html', {
+#                         'error_message': f"Column {col} is missing in the data."
+#                     })
 
-            # Handle missing values
-            new_df.fillna(0, inplace=True)
+#             # Handle missing values
+#             new_df.fillna(0, inplace=True)
 
-            # Feature scaling
-            X_new = scaler.transform(new_df)
+#             # Feature scaling
+#             X_new = scaler.transform(new_df)
 
-            # Make predictions
-            predictions = model.predict(X_new)
-            probabilities = model.predict_proba(X_new)
+#             # Make predictions
+#             predictions = model.predict(X_new)
+#             probabilities = model.predict_proba(X_new)
 
-            if probabilities.shape[1] == 1:
-                probabilities = np.hstack([1 - probabilities, probabilities])
-            print(predictions)
-            print(probabilities)
-            prediction_results = [
-                {
-                    'freelancer_id': freelancer_ids[i],
-                    'prediction': 'Will Complete On Time' if pred == 1 else 'Will Not Complete On Time',
-                    'prob_class_0': prob[0] * 100,
-                    'prob_class_1': prob[1] * 100
-                }
-                for i, (pred, prob) in enumerate(zip(predictions, probabilities))
-            ]
+#             if probabilities.shape[1] == 1:
+#                 probabilities = np.hstack([1 - probabilities, probabilities])
+#             print(predictions)
+#             print(probabilities)
+#             prediction_results = [
+#                 {
+#                     'freelancer_id': freelancer_ids[i],
+#                     'prediction': 'Will Complete On Time' if pred == 1 else 'Will Not Complete On Time',
+#                     'prob_class_0': prob[0] * 100,
+#                     'prob_class_1': prob[1] * 100
+#                 }
+#                 for i, (pred, prob) in enumerate(zip(predictions, probabilities))
+#             ]
 
-            # Group prediction results by freelancer ID
-            prediction_map = {}
-            for result in prediction_results:
-                fid = result['freelancer_id']
-                if fid not in prediction_map:
-                    prediction_map[fid] = []
-                prediction_map[fid].append(result)
+#             # Group prediction results by freelancer ID
+#             prediction_map = {}
+#             for result in prediction_results:
+#                 fid = result['freelancer_id']
+#                 if fid not in prediction_map:
+#                     prediction_map[fid] = []
+#                 prediction_map[fid].append(result)
 
-            # Store prediction results in session
-            request.session['proposal_predictions'] = prediction_map
+#             # Store prediction results in session
+#             request.session['proposal_predictions'] = prediction_map
 
-            additional_files = ProposalFile.objects.filter(proposal__in=proposals)
+#             additional_files = ProposalFile.objects.filter(proposal__in=proposals)
 
-            return render(request, 'client/SingleProject.html', {
-                'profile1': profile1,
-                'profile2': profile2,
-                'client': client,
-                'project': project,
-                'proposals': proposals,
-                'reg_details': Register.objects.filter(user_id__in=freelancer_ids),
-                'freelancer_profiles': freelancer_profiles,
-                'additional_files': additional_files,
-                'prediction_map': prediction_map,
-            })
-        except Exception as e:
-            return render(request, 'client/Error.html', {
-                'error_message': f"An unexpected error occurred: {str(e)}"
-            })
-    else:
-        return render(request, 'client/PermissionDenied.html', {
-            'profile1': profile1,
-            'profile2': profile2,
-            'client': client,
-        })
+#             return render(request, 'client/SingleProject.html', {
+#                 'profile1': profile1,
+#                 'profile2': profile2,
+#                 'client': client,
+#                 'project': project,
+#                 'proposals': proposals,
+#                 'reg_details': Register.objects.filter(user_id__in=freelancer_ids),
+#                 'freelancer_profiles': freelancer_profiles,
+#                 'additional_files': additional_files,
+#                 'prediction_map': prediction_map,
+#             })
+#         except Exception as e:
+#             return render(request, 'client/Error.html', {
+#                 'error_message': f"An unexpected error occurred: {str(e)}"
+#             })
+#     else:
+#         return render(request, 'client/PermissionDenied.html', {
+#             'profile1': profile1,
+#             'profile2': profile2,
+#             'client': client,
+#         })
 
 
 
@@ -1258,44 +1258,44 @@ def project_list(request):
         
 
 
-# @login_required
-# @nocache
-# def single_project_view(request,pid):
-#     if 'uid' not in request.session and not request.user.is_authenticated and request.user.role!='client':
-#         return redirect('login')
+@login_required
+@nocache
+def single_project_view(request,pid):
+    if 'uid' not in request.session and not request.user.is_authenticated and request.user.role!='client':
+        return redirect('login')
 
-#     uid = request.session['uid']
-#     profile1 = CustomUser.objects.get(id=uid)
-#     profile2=Register.objects.get(user_id=uid)
-#     client=ClientProfile.objects.get(user_id=uid)
-#     if profile1.permission:
-#         project = get_object_or_404(Project, id=pid)
-#         proposals = Proposal.objects.filter(project_id=project)
+    uid = request.session['uid']
+    profile1 = CustomUser.objects.get(id=uid)
+    profile2=Register.objects.get(user_id=uid)
+    client=ClientProfile.objects.get(user_id=uid)
+    if profile1.permission:
+        project = get_object_or_404(Project, id=pid)
+        proposals = Proposal.objects.filter(project_id=project)
         
-#         freelancer_ids = proposals.values_list('freelancer__id', flat=True)
-#         reg_details = Register.objects.filter(user_id__in=freelancer_ids)
-#         freelancer_profiles = FreelancerProfile.objects.filter(user_id__in=freelancer_ids)
+        freelancer_ids = proposals.values_list('freelancer__id', flat=True)
+        reg_details = Register.objects.filter(user_id__in=freelancer_ids)
+        freelancer_profiles = FreelancerProfile.objects.filter(user_id__in=freelancer_ids)
         
-#         for profile in freelancer_profiles:
-#             profile.skills = profile.skills.strip('[]').replace("'", "").split(', ')
+        for profile in freelancer_profiles:
+            profile.skills = profile.skills.strip('[]').replace("'", "").split(', ')
         
-#         additional_files = ProposalFile.objects.filter(proposal__in=proposals)
+        additional_files = ProposalFile.objects.filter(proposal__in=proposals)
 
-#         return render(request, 'client/SingleProject.html', {
-#             'profile1': profile1,
-#             'profile2': profile2,
-#             'client': client,
-#             'project': project,
-#             'proposals': proposals,
-#             'reg_details': reg_details,
-#             'freelancer_profiles': freelancer_profiles,
-#             'additional_files': additional_files,
-#         })
+        return render(request, 'client/SingleProject.html', {
+            'profile1': profile1,
+            'profile2': profile2,
+            'client': client,
+            'project': project,
+            'proposals': proposals,
+            'reg_details': reg_details,
+            'freelancer_profiles': freelancer_profiles,
+            'additional_files': additional_files,
+        })
         
-#     else:
-#         return render(request, 'client/PermissionDenied.html',{'profile1': profile1,
-#             'profile2': profile2,
-#             'client': client,})      
+    else:
+        return render(request, 'client/PermissionDenied.html',{'profile1': profile1,
+            'profile2': profile2,
+            'client': client,})      
 
 
 
