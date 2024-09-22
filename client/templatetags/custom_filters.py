@@ -25,3 +25,7 @@ def to(value, arg):
 @register.filter
 def range_filter(value):
     return range(value)
+
+@register.filter
+def to(value, current_year):
+    return range(value, current_year + 1)

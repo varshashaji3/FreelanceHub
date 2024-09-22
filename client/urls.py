@@ -3,7 +3,7 @@ from django.contrib import admin
 from django.shortcuts import render
 from django.urls import include, path
 
-from client.views import  view_complaints,add_complaint,send_file,fetch_messages,send_message,chat_view,add_github_link,edit_task, submit_review, update_task_status, verify_payment,payment_success,make_payment, submit_contract,add_task, add_url,add_note,add_file, create_repository,acc_deactivate,lock_proposal, notification_mark_as_read, toggle_project_status,edit_project,delete_event,update_event,add_event,update_proposal_status,freelancer_detail,calendar,AddProfileClient, client_view,account_settings,change_password, project_list, single_project_view,update_profile,change_profile_image,add_new_project,freelancer_list, update_task_progress, view_repository
+from client.views import  export_projects_excel,export_projects_pdf,update_complaint_status,update_solution,view_complaints_recieved,view_complaints,add_complaint,send_file,fetch_messages,send_message,chat_view,add_github_link,edit_task, submit_review, update_task_status, verify_payment,payment_success,make_payment, submit_contract,add_task, add_url,add_note,add_file, create_repository,acc_deactivate,lock_proposal, notification_mark_as_read, toggle_project_status,edit_project,delete_event,update_event,add_event,update_proposal_status,freelancer_detail,calendar,AddProfileClient, client_view,account_settings,change_password, project_list, single_project_view,update_profile,change_profile_image,add_new_project,freelancer_list, update_task_progress, view_repository
 
 def welcome(request):
     return render(request,'welcome.html')
@@ -80,4 +80,13 @@ urlpatterns = [
     path('add_complaint/', add_complaint, name='add_complaint'),
     
     path('view_complaints/', view_complaints, name='view_complaints'),
+    
+    path('view_complaints_recieved/', view_complaints_recieved, name='view_complaints_recieved'),
+    
+    path('update_solution/', update_solution, name='update_solution'),
+      path('update-complaint-status/', update_complaint_status, name='update_complaint_status'),
+      
+      
+    path('export_projects_pdf/', export_projects_pdf, name='export_projects_pdf'),
+    path('export_projects_excel/', export_projects_excel, name='export_projects_excel'),
 ]

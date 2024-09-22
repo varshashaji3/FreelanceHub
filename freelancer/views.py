@@ -17,8 +17,8 @@ from core.models import CustomUser, Event, Notification, Register
 
 from django.contrib.auth.decorators import login_required
 
-from freelancer.models import FreelancerProfile, Proposal, ProposalFile, Todo
-
+from freelancer.models import FreelancerProfile, Proposal, ProposalFile, Todo,Document
+from administrator.models import Template
 from django.contrib import messages
 from django.db.models import Q
 
@@ -765,7 +765,7 @@ def todo(request):
 
 @login_required
 @nocache
-def add_todo(request,user_id):
+def add_todo(request):
     if 'uid' not in request.session:
         return redirect('login')
 
@@ -1948,13 +1948,27 @@ def add_complaint(request):
                 
                 # Set the complainee if complaint is about freelancer or client
                 if complaint_type in ['Freelancer', 'Client']:
-                    complainee=CustomUser.objects.get(id=complainee_id)
+                    complainee = CustomUser.objects.get(id=complainee_id)
                     if complainee_id:
                         complaint.complainee = complainee
                     else:
                         messages.error(request, 'Invalid complainee ID.')
                 
                 complaint.save()
+                
+                # Notify the complainee about the complaint
+                if complaint_type in ['Freelancer', 'Client']:
+                    complainee = CustomUser.objects.get(id=complainee_id)
+                    if complainee_id:
+                        complaint.complainee = complainee
+                        Notification.objects.create(
+                            user=complainee,
+                            message=f"A complaint has been filed against you. Please respond within 30 days.",
+                            is_read=False
+                        )
+                    else:
+                        messages.error(request, 'Invalid complainee ID.')
+                
                 messages.success(request, 'Complaint submitted successfully.')
                 return redirect('client:client_view') 
         return render(request, 'freelancer/AddComplaint.html', {
@@ -1970,3 +1984,354 @@ def add_complaint(request):
             'profile2': profile2,
             'freelancer': freelancer,
         })
+        
+def template_list(request):
+    if 'uid' not in request.session:
+        return redirect('login')
+
+    uid = request.session['uid']
+    profile1 = CustomUser.objects.get(id=uid)
+    profile2=Register.objects.get(user_id=uid)
+    freelancer=FreelancerProfile.objects.get(user_id=uid)
+    
+    if profile1.permission==True:
+        templates = Template.objects.all()  # Fetch all templates from the database
+        return render(request, 'freelancer/PortfolioTemplates.html', {'templates': templates,'profile1':profile1,'profile2':profile2,'freelancer':freelancer})
+    else:
+        return render(request, 'freelancer/PermissionDenied.html',{'profile1':profile1,'profile2':profile2,'freelancer':freelancer})
+        
+    
+    
+from .utils import extract_text_from_pdf, parse_achievements,process_resume_text, parse_skills,parse_projects,parse_contact,parse_education,parse_experience,parse_internships
+
+from django.http import HttpResponse
+from django.shortcuts import render, redirect
+from django.core.files.storage import default_storage
+from django.core.files.base import ContentFile
+from PyPDF2 import PdfReader
+import io
+from django.template import loader
+from django.template import loader
+from django.conf import settings
+from django.template import loader
+from io import BytesIO
+from django.conf import settings
+import os
+def process_resume(request, document_id):
+    document = get_object_or_404(Document, id=document_id)
+    user = request.user
+    user_details = Register.objects.get(user=user)
+    name = f"{user_details.first_name} {user_details.last_name}"
+    bio = user_details.bio_description
+    profile_picture = user_details.profile_picture
+
+    if not document.resume_file:
+        return HttpResponse("Resume file not found", status=404)
+
+    try:
+        file_path = document.resume_file.path  # Get the file path
+        with open(file_path, 'rb') as pdf_file:
+            pdf_stream = BytesIO(pdf_file.read())
+            resume_text = extract_text_from_pdf(pdf_stream)
+    except Exception as e:
+        return HttpResponse(f"Error processing PDF: {e}", status=500)
+
+    # Extract resume information
+    extracted_info = process_resume_text(resume_text)
+
+    # Parse sub-details (experience, education, internships, skills, etc.)
+    extracted_info['Experience'] = parse_experience(extracted_info.get('Experience', ''))
+    extracted_info['Education'] = parse_education(extracted_info.get('Education', ''))
+    extracted_info['Internships'] = parse_internships(extracted_info.get('Internships', ''))
+    extracted_info['Projects'] = parse_projects(extracted_info.get('Projects', ''))
+    extracted_info['Technical'] = parse_skills(extracted_info.get('Technical Skills', ''))
+    extracted_info['Personal'] = parse_skills(extracted_info.get('Personal Skills', ''))
+    extracted_info['Contact'] = parse_contact(extracted_info.get('Contact', ''))
+    extracted_info['Achievements'] = parse_achievements(extracted_info.get('Achievements', ''))
+
+    context = {
+        'resume_data': extracted_info,
+        'portfolio': document,
+        'name': name,
+        'bio': bio,
+        'picture': profile_picture,
+        'user': user,
+        'user_details': user_details,
+        'doc_id': document_id,
+    }
+
+    selected_template_path = os.path.join(settings.MEDIA_ROOT, document.template.file.name)
+
+    try:
+        template = loader.get_template(selected_template_path)
+        rendered_html = template.render(context, request)
+
+        # Save the rendered HTML as a file
+        html_file_name = f'resume_{document_id}.html'
+        html_file_path = os.path.join(settings.MEDIA_ROOT, 'portfolios', html_file_name)
+        os.makedirs(os.path.dirname(html_file_path), exist_ok=True)
+
+        with open(html_file_path, 'w', encoding='utf-8') as html_file:
+            html_file.write(rendered_html)
+
+        # Save the file path to the model
+        document.portfolio_file = f'portfolios/{html_file_name}'
+        document.save()
+
+        # Return the rendered HTML without download prompt
+        return HttpResponse(rendered_html, content_type='text/html')  # Specify content type
+    except Exception as e:
+        return HttpResponse(f"Error loading template: {e}", status=500)
+
+
+
+
+
+
+def upload_resume(request):
+    if request.method == 'POST':
+        if 'resume' in request.FILES and 'template_id' in request.POST:
+            resume_file = request.FILES['resume']
+            template_id = request.POST['template_id']
+
+            # Ensure the template exists
+            try:
+                template = Template.objects.get(id=template_id)
+            except Template.DoesNotExist:
+                return HttpResponse("Template not found", status=404)
+
+            # Save the resume file
+            document = Document.objects.create(
+                user=request.user,
+                resume_file=resume_file,
+                template=template
+            )
+
+            # Redirect to a new URL to process the resume
+            return redirect('freelancer:process_resume', document_id=document.id)
+
+    return redirect("freelancer:template_list")
+
+
+from django.http import FileResponse, HttpResponse
+def download_resume(request, document_id):
+    document = get_object_or_404(Document, id=document_id)
+
+    # Check if the resume HTML file exists
+    if document.portfolio_file:
+        file_path = os.path.join(settings.MEDIA_ROOT, document.portfolio_file.name)
+        if os.path.exists(file_path):
+            # Return the file as a response for download
+            response = FileResponse(open(file_path, 'rb'), as_attachment=True, filename=os.path.basename(file_path))
+            return response
+        else:
+            return HttpResponse("File not found", status=404)
+    else:
+        return HttpResponse("Resume HTML file not found", status=404)
+    
+    
+    
+
+def my_portfolios(request):
+    
+    if 'uid' not in request.session:
+        return redirect('login')
+
+    uid = request.session['uid']
+    profile1 = CustomUser.objects.get(id=uid)
+    profile2=Register.objects.get(user_id=uid)
+    freelancer=FreelancerProfile.objects.get(user_id=uid)
+    
+    if profile1.permission:
+        portfolios = Document.objects.filter(user=uid)  # Fetch all documents created by the user
+        return render(request,'freelancer/MyPortfolios.html', {'portfolios': portfolios,'profile1':profile1,'profile2':profile2,'freelancer':freelancer})
+    else:
+        return render(request, 'freelancer/PermissionDenied.html',{'profile1':profile1,'profile2':profile2,'freelancer':freelancer})
+    
+    
+
+def preview_template(request, template_id):
+    template = get_object_or_404(Template, id=template_id)
+    
+    # Update the path to fetch from media/templates folder
+    template_path = os.path.join(settings.MEDIA_ROOT, template.file.name)
+
+    if os.path.exists(template_path):
+        # Default context values
+        context = {
+            'name': 'John Doe',
+            'doc_id': None,
+            'resume_data': {
+                'Technical': ['HTML', 'CSS', 'JavaScript', 'Bootstrap'],
+                'Education': [
+                    {
+                        'degree': 'Bachelor of Science in Computer Science',
+                        'institution': 'XYZ University',
+                        'university_board': 'XYZ Board',
+                        'description': 'Graduated with honors, focusing on web development and software engineering.'
+                    },
+                    {
+                        'degree': 'Certification in Web Development',
+                        'institution': 'ABC Academy',
+                        'university_board': '',
+                        'description': 'Completed a comprehensive web development course.'
+                    }
+                ],
+                'Experience': [
+                    {
+                        'job_title': 'Frontend Developer',
+                        'company_name': 'ABC Corp',
+                        'start_date': 'July 2022',
+                        'end_date': 'Present',
+                        'description': 'Developing and maintaining the front end of the company website.'
+                    },
+                    {
+                        'job_title': 'Intern',
+                        'company_name': 'DEF Tech',
+                        'start_date': 'Jan 2022',
+                        'end_date': 'June 2022',
+                        'description': 'Assisted in the development of web applications.'
+                    }
+                ],
+                'Projects': [
+                    'Website design for a small business with a focus on user experience.',
+                    'E-commerce platform with secure payment integration and responsive design.',
+                    'Mobile app development for a social networking platform.'
+                ],
+                'Contact': {
+                    'address': 'New York, USA',
+                    'email': 'johndoe@example.com',
+                    'phone': '+123 456 7890',
+                    'linkedin': 'linkedin.com/in/johndoe'
+                },
+                 'Achievements': [
+                    'Awarded Employee of the Month at ABC Corp for outstanding performance.',
+                    'Completed a marathon in under 4 hours.',
+                    'Volunteered at a local animal shelter for over 100 hours.'
+                ]
+            },
+            'picture1': 'https://i.postimg.cc/fRyHvvBm/top-view-workspace-with-copy-space-laptop.jpg',
+            'bio': "I'm a passionate web developer with experience in building modern, responsive websites and web applications. I have a strong understanding of HTML, CSS, JavaScript, and frameworks like Bootstrap."
+        }
+
+        # Render the template using the full path
+        return render(request, template_path, context)
+    else:
+        return HttpResponse("File not found", status=404)
+    
+    
+
+
+       
+@login_required
+def view_complaints(request):
+    if not request.user.is_authenticated or request.user.role != 'freelancer':
+        return redirect('login')
+
+    profile1 = get_object_or_404(CustomUser, id=request.user.id)
+    profile2 = get_object_or_404(Register, user_id=request.user.id)
+    freelancer = get_object_or_404(FreelancerProfile, user_id=request.user.id)
+    
+    if profile1.permission:
+        complaints = Complaint.objects.filter(user=profile1)
+        return render(request, 'freelancer/Complaints.html', {
+            'profile1': profile1,
+            'profile2': profile2,
+            'freelancer': freelancer,
+            'complaints': complaints,
+        })
+    else:
+        return render(request, 'freelancer/PermissionDenied.html', {
+            'profile1': profile1,
+            'profile2': profile2,
+            'freelancer': freelancer,
+        })
+        
+        
+   
+@login_required
+def view_complaints_recieved(request):
+    if not request.user.is_authenticated or request.user.role != 'freelancer':
+        return redirect('login')
+
+    profile1 = get_object_or_404(CustomUser, id=request.user.id)
+    profile2 = get_object_or_404(Register, user_id=request.user.id)
+    freelancer = get_object_or_404(FreelancerProfile, user_id=request.user.id)
+    
+    if profile1.permission:
+        complaints = Complaint.objects.filter(complainee=profile1)
+        return render(request, 'freelancer/RecievedComplaints.html', {
+            'profile1': profile1,
+            'profile2': profile2,
+            'freelancer': freelancer,
+            'complaints': complaints,
+        })
+    else:
+        return render(request, 'freelancer/PermissionDenied.html', {
+            'profile1': profile1,
+            'profile2': profile2,
+            'freelancer': freelancer,
+        })
+
+
+def update_solution(request):
+    if request.method == 'POST':
+        complaint_id = request.POST.get('complaint_id')
+        solution = request.POST.get('solution')
+        
+        # Update the complaint's solution
+        complaint = Complaint.objects.get(id=complaint_id)
+        complaint.resolution = solution
+        complaint.resolution_status = 'Pending'  # Set resolution status to Pending
+        complaint.save()
+        
+        # Notify the person who filed the complaint
+        Notification.objects.create(
+            user=complaint.user,  # Assuming 'user' is the person who filed the complaint
+            message=f"Your complaint has been updated. Resolution: {solution}",
+            is_read=False
+        )
+        
+        return redirect("freelancer:view_complaints_recieved")
+    return redirect("freelancer:view_complaints_recieved")
+
+
+
+def update_complaint_status(request):
+    if request.method == 'POST':
+        complaint_id = request.POST.get('complaint_id')
+        satisfaction_status = request.POST.get('satisfaction_status')
+
+        # Update the complaint status in the database
+        try:
+            complaint = Complaint.objects.get(id=complaint_id)
+            # Update the status based on satisfaction
+            if satisfaction_status == 'Satisfactory':
+                complaint.resolution_status = "Satisfactory"
+                complaint.status = 'Resolved'
+                
+                # Notify the user that the complaint is resolved
+                Notification.objects.create(
+                    user=complaint.complainee,  # Notify the accused
+                    message=f"Your complaint has been resolved satisfactorily.",
+                    is_read=False
+                )
+                
+            elif satisfaction_status == 'Unsatisfactory':
+                complaint.resolution_status = "Unsatisfactory"
+                complaint.status = 'Pending'
+                
+                # Notify the user that the solution is unsatisfactory
+                Notification.objects.create(
+                    user=complaint.complainee,  # Notify the accused
+                    message=f"Your complaint resolution is unsatisfactory.",
+                    is_read=False
+                )
+                
+            complaint.satisfaction_status = satisfaction_status  # Store satisfaction status
+            complaint.save()
+            return JsonResponse({'success': True})
+        except Complaint.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Complaint not found.'})
+
+    return JsonResponse({'success': False, 'error': 'Invalid request.'})

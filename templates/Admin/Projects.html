@@ -1,6 +1,17 @@
 {% extends 'Admin/base.html' %}
 {% block 'admin_content' %}
 {% load static %}
+<!-- Include DataTables CSS and JS from CDN -->
+<link rel="stylesheet" href="https://cdn.datatables.net/1.11.5/css/jquery.dataTables.min.css">
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
+
+<script>
+    $(document).ready(function() {
+        $('.user-list-table').DataTable(); // Initialize DataTable
+    });
+</script>
+
 <style>
     .user-list-table {
         width: 100%;
@@ -75,8 +86,9 @@
 
 
 </style>
-
-<h2>Projects</h2>
+<div class="row" style="background-color:white;padding:10px;border-radius:10px;">
+    <h3 align="center" style="margin:1% auto;color:#ff0057">Projects</h3>
+</div><br>
 
 <div class="export-button-container">
     <div class="dropdown">

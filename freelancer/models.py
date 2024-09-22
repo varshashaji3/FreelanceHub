@@ -71,3 +71,17 @@ class ProposalFile(models.Model):
     proposal = models.ForeignKey(Proposal, on_delete=models.CASCADE, related_name='files')
     file = models.FileField(upload_to='proposal_files/')
     uploaded_at = models.DateTimeField(auto_now_add=True)
+
+
+from administrator.models import Template
+
+class Document(models.Model):
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
+    resume_file = models.FileField(upload_to='resume/', null=True, blank=True)
+    portfolio_file = models.FileField(upload_to='portfolios/', null=True, blank=True)
+    template = models.ForeignKey(Template, on_delete=models.SET_NULL, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    cover_image = models.ImageField(upload_to='cover_images/', null=True, blank=True) 
+    
+    def __str__(self):
+        return f"{self.user.username} - {self.template.name if self.template else 'No Template'} - {self.id}"

@@ -27,8 +27,6 @@ def admin_view(request):
         return redirect('login_view')
     
     uid = request.user.id
-    user = CustomUser.objects.get(id=uid)
-    profile = Register.objects.get(user_id=uid)
     
     user_count=CustomUser.objects.filter(is_superuser=False).count()
     client_count = CustomUser.objects.filter(role='client').count()
@@ -52,9 +50,13 @@ def admin_view(request):
     in_progress_count = Project.objects.filter(project_status='In Progress').count()
     total_complaints=Complaint.objects.all().count()
     
+    total_reviews = SiteReview.objects.count()  # Count of site reviews
+
+    # Calculate average rating for site reviews
+    from django.db.models import Avg
+    average_rating = SiteReview.objects.aggregate(Avg('rating'))['rating__avg'] or 0  # Default to 0 if no reviews
+
     return render(request, 'Admin/index.html', {
-        'user1': user,
-        'profile': profile,
         'months': months,
         'client_counts': client_counts,
         'freelancer_counts': freelancer_counts,
@@ -64,6 +66,8 @@ def admin_view(request):
         'in_progress_count': in_progress_count,
         'user_count': user_count,
         'total_complaint': total_complaints,  # Add total complaints count to context
+        'total_reviews': total_reviews,  # Add total reviews count to context
+        'average_rating': average_rating,  # Add average rating to context
     })
 
 
@@ -213,6 +217,76 @@ def change_profile_image(request,uid):
     return render(request, 'Admin/profile.html',{'profile1':profile1,'profile2':profile2})  
 
 
+
+import os
+def preview_template(request, template_id):
+    template = get_object_or_404(Template, id=template_id)
+    
+    # Update the path to fetch from media/templates folder
+    template_path = os.path.join(settings.MEDIA_ROOT, template.file.name)
+
+    if os.path.exists(template_path):
+        # Default context values
+        context = {
+            'name': 'John Doe',
+            'doc_id': None,
+            'resume_data': {
+                'Technical': ['HTML', 'CSS', 'JavaScript', 'Bootstrap'],
+                'Education': [
+                    {
+                        'degree': 'Bachelor of Science in Computer Science',
+                        'institution': 'XYZ University',
+                        'university_board': 'XYZ Board',
+                        'description': 'Graduated with honors, focusing on web development and software engineering.'
+                    },
+                    {
+                        'degree': 'Certification in Web Development',
+                        'institution': 'ABC Academy',
+                        'university_board': '',
+                        'description': 'Completed a comprehensive web development course.'
+                    }
+                ],
+                'Experience': [
+                    {
+                        'job_title': 'Frontend Developer',
+                        'company_name': 'ABC Corp',
+                        'start_date': 'July 2022',
+                        'end_date': 'Present',
+                        'description': 'Developing and maintaining the front end of the company website.'
+                    },
+                    {
+                        'job_title': 'Intern',
+                        'company_name': 'DEF Tech',
+                        'start_date': 'Jan 2022',
+                        'end_date': 'June 2022',
+                        'description': 'Assisted in the development of web applications.'
+                    }
+                ],
+                'Projects': [
+                    'Website design for a small business with a focus on user experience.',
+                    'E-commerce platform with secure payment integration and responsive design.',
+                    'Mobile app development for a social networking platform.'
+                ],
+                'Contact': {
+                    'address': 'New York, USA',
+                    'email': 'johndoe@example.com',
+                    'phone': '+123 456 7890',
+                    'linkedin': 'linkedin.com/in/johndoe'
+                },
+                'Achievements': [
+                    'Awarded Employee of the Month at ABC Corp for outstanding performance.',
+                    'Completed a marathon in under 4 hours.',
+                    'Volunteered at a local animal shelter for over 100 hours.'
+                ]
+            },
+            'picture1': 'https://i.postimg.cc/fRyHvvBm/top-view-workspace-with-copy-space-laptop.jpg',
+            'bio': "I'm a passionate web developer with experience in building modern, responsive websites and web applications. I have a strong understanding of HTML, CSS, JavaScript, and frameworks like Bootstrap."
+        }
+
+        # Render the template using the full path
+        return render(request, template_path, context)
+    else:
+        return HttpResponse("File not found", status=404)
 
 
 
@@ -412,11 +486,11 @@ def reviews(request):
 
 
 
-
+from datetime import datetime
 def allusers(request):
     # Fetch all non-admin users
     users_list = CustomUser.objects.filter(is_superuser=False)
-    
+    current_year = datetime.now().year
     user_details = []
     for user in users_list:
         # Fetch related information from Register table
@@ -456,6 +530,7 @@ def allusers(request):
 
     context = {
         'users': page_obj,
+        'current_year': current_year
     }
     
     return render(request, 'admin/allusers.html', context)
@@ -463,41 +538,37 @@ def allusers(request):
 
 
 
-
-import openpyxl
+# views.py
 from django.http import HttpResponse
+from core.models import CustomUser, Register  # Assuming you have these models
+import openpyxl
+from xhtml2pdf import pisa
+from io import BytesIO
+
+@login_required
+@nocache
 def export_users_to_excel(request):
-    # Fetch all non-admin users
-    users_list = CustomUser.objects.filter(is_superuser=False)
+    year = request.GET.get('year', None)
+    
+    # Filter users based on the year if provided
+    if year:
+        users_list = CustomUser.objects.filter(joined__year=year)
+    else:
+        users_list = CustomUser.objects.all()
+
     # Create an Excel workbook and worksheet
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = 'User List'
 
     # Define headers
-    headers = ['#', 'Name/Company', 'Email', 'User Type', 'Status', 'Date Joined', 'Last Login', 'Phone Number']
+    headers = ['#', 'Name/Company', 'Email', 'User Type', 'Status', 'Date Joined', 'Phone Number']
     ws.append(headers)
 
     # Add data rows
     for idx, user in enumerate(users_list, start=1):
-        # Fetch related information from Register table
         register_info = Register.objects.filter(user=user).first()
-        
-        # Prepare user data
-        if user.role.lower() == 'freelancer':
-            # Combine first_name and last_name for freelancers
-            name = f"{register_info.first_name} {register_info.last_name}" if register_info else None
-        elif user.role.lower() == 'client':
-            profile = ClientProfile.objects.filter(user=user).first()
-            if profile:
-                if profile.client_type == 'Individual':
-                    name = f"{register_info.first_name} {register_info.last_name}" if register_info else None
-                elif profile.client_type == 'Company':
-                    name = profile.company_name if profile.company_name else None
-            else:
-                name = None
-        else:
-            name = None
+        name = f"{register_info.first_name} {register_info.last_name}" if register_info else None
 
         row = [
             idx,
@@ -506,7 +577,6 @@ def export_users_to_excel(request):
             user.role,
             user.status,
             user.joined.strftime("%Y-%m-%d") if user.joined else None,
-            user.last_login.strftime("%Y-%m-%d") if user.last_login else None,
             register_info.phone_number if register_info else None
         ]
         ws.append(row)
@@ -519,33 +589,22 @@ def export_users_to_excel(request):
     return response
 
 
-
-from xhtml2pdf import pisa
-from io import BytesIO
+@login_required
+@nocache
 def export_users_to_pdf(request):
-    # Fetch all non-admin users
-    users_list = CustomUser.objects.filter(is_superuser=False)
+    year = request.GET.get('year', None)
+    
+    # Filter users based on the year if provided
+    if year:
+        users_list = CustomUser.objects.filter(joined__year=year)
+    else:
+        users_list = CustomUser.objects.all()
 
     # Prepare user details
     user_details = []
     for user in users_list:
         register_info = Register.objects.filter(user=user).first()
-        
-        if user.role.lower() == 'freelancer':
-            name = f"{register_info.first_name} {register_info.last_name}" if register_info else None
-        elif user.role.lower() == 'client':
-            profile = ClientProfile.objects.filter(user=user).first()
-            if profile:
-                if profile.client_type == 'Individual':
-                    name = f"{register_info.first_name} {register_info.last_name}" if register_info else None
-                elif profile.client_type == 'Company':
-                    name = profile.company_name if profile.company_name else None
-                else:
-                    name = None
-            else:
-                name = None
-        else:
-            name = None
+        name = f"{register_info.first_name} {register_info.last_name}" if register_info else None
 
         user_details.append({
             'index': len(user_details) + 1,
@@ -554,7 +613,6 @@ def export_users_to_pdf(request):
             'role': user.role,
             'status': user.status,
             'joined': user.joined.strftime("%Y-%m-%d") if user.joined else None,
-            'last_login': user.last_login.strftime("%Y-%m-%d") if user.last_login else None,
             'phone_number': register_info.phone_number if register_info else None
         })
 
@@ -574,6 +632,19 @@ def export_users_to_pdf(request):
     return response
 
 
+@login_required
+@nocache
+def export_users(request):
+    year = request.GET.get('year', None)
+    
+    # Check the export format
+    export_format = request.GET.get('format', None)
+    if export_format == 'excel':
+        return export_users_to_excel(request)  # Function to handle Excel export
+    elif export_format == 'pdf':
+        return export_users_to_pdf(request)  # Function to handle PDF export
+    else:
+        return HttpResponse("Invalid format", status=400)  # Handle invalid format
 
 
 def complaints(request):
@@ -584,6 +655,8 @@ def complaints(request):
     }
     
     return render(request, 'admin/complaints.html', context)
+
+
 
 
 
@@ -749,3 +822,52 @@ def export_projects_pdf(request):
     response = HttpResponse(result.getvalue(), content_type='application/pdf')
     response['Content-Disposition'] = 'attachment; filename="projects_report.pdf"'
     return response
+
+from django.shortcuts import render, redirect
+from .models import Template
+
+def add_template(request):
+    if request.method == 'POST':
+        name = request.POST['template_name']
+        file = request.FILES['template_file']
+        file2 = request.FILES['cover_image']
+        Template.objects.create(name=name, file=file,cover_image=file2)
+        return redirect('administrator:template_list')  # Replace 'success_url' with your desired redirect URL
+
+    return render(request, 'Admin/AddTemplate.html')
+
+
+def template_list(request):
+    templates = Template.objects.all()  # Fetch all templates from the database
+    return render(request, 'Admin/Templates.html', {'templates': templates})
+
+@login_required
+@nocache
+def site_complaints(request):
+    site_complaints_list = Complaint.objects.filter(complaint_type='Site Issue')  # Assuming 'Site' is a type of complaint
+
+    context = {
+        'complaints': site_complaints_list,
+    }
+    
+    return render(request, 'admin/site_complaints.html', context)  # Create a corresponding template for this view
+
+
+def update_solution(request):
+    if request.method == 'POST':
+        complaint_id = request.POST.get('complaint_id')
+        solution = request.POST.get('solution')
+        
+        # Update the complaint's solution
+        complaint = Complaint.objects.get(id=complaint_id)
+        complaint.resolution = solution
+        complaint.resolution_status = 'Pending'  # Set resolution status to Pending
+        complaint.save()
+        
+        return redirect("administrator:site_complaints")
+    return redirect("administrator:site_complaints")
+
+
+
+
+

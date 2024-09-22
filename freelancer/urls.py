@@ -3,7 +3,7 @@ from django.contrib import admin
 from django.shortcuts import render
 from django.urls import include, path
 
-from freelancer.views import  add_complaint,send_file,fetch_messages,send_message,chat_view,add_url,add_note,add_file, submit_user_review, tasks_list, update_freelancer_signature, upload_pdf, view_contract,view_repository,acc_deactivate, add_new_event, delete_event, edit_created_proposal, notification_mark_as_read, update_event, update_todo, view_created_proposals,proposal_detail1,proposal_detail2,download_proposal_pdf, generate_proposal,delete_todo,proposal_list,add_new_proposal,add_todo, calendar,AddProfileFreelancer, change_profile_image,freelancer_view,account_settings,change_password, single_project_view,update_profile,view_project,client_list,client_detail,todo
+from freelancer.views import  update_complaint_status,update_solution,view_complaints_recieved,view_complaints,preview_template,my_portfolios,download_resume,process_resume,upload_resume,template_list,add_complaint,send_file,fetch_messages,send_message,chat_view,add_url,add_note,add_file, submit_user_review, tasks_list, update_freelancer_signature, upload_pdf, view_contract,view_repository,acc_deactivate, add_new_event, delete_event, edit_created_proposal, notification_mark_as_read, update_event, update_todo, view_created_proposals,proposal_detail1,proposal_detail2,download_proposal_pdf, generate_proposal,delete_todo,proposal_list,add_new_proposal,add_todo, calendar,AddProfileFreelancer, change_profile_image,freelancer_view,account_settings,change_password, single_project_view,update_profile,view_project,client_list,client_detail,todo
 
 urlpatterns = [
     path('freelancer_view/', freelancer_view,name="freelancer_view"),
@@ -78,4 +78,21 @@ urlpatterns = [
     
     
     path('add_complaint/', add_complaint, name='add_complaint'),
+    
+    
+    
+    
+   path('template_list/', template_list, name='template_list'),
+   path('upload_resume/', upload_resume, name='upload_resume'),
+    path('process_resume/<int:document_id>/',process_resume, name='process_resume'),
+    path('download_resume/<int:document_id>/', download_resume, name='download_resume'),
+    path('my_portfolios/', my_portfolios, name='my_portfolios'),
+    path('preview_template/<int:template_id>/', preview_template, name='preview_template'),
+    
+    path('view_complaints/', view_complaints, name='view_complaints'),
+    
+    path('view_complaints_recieved/', view_complaints_recieved, name='view_complaints_recieved'),
+    
+    path('update_solution/', update_solution, name='update_solution'),
+     path('update-complaint-status/', update_complaint_status, name='update_complaint_status'),
 ]

@@ -1,5 +1,3 @@
-
-
 """
 Django settings for FreelanceHub project.
 
@@ -81,7 +79,8 @@ CSRF_TRUSTED_ORIGINS = ['http://127.0.0.1:8000']
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [os.path.join(BASE_DIR,'templates')],
+        'DIRS': [os.path.join(BASE_DIR, 'templates'),
+            os.path.join(BASE_DIR, 'media/templates'),],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -94,7 +93,8 @@ TEMPLATES = [
                 'core.context_processors.project_status' ,
                 'core.context_processors.review_due',
                 'core.context_processors.prediction_processor', 
-                
+                'administrator.context_processors.user_profile',
+                'client.context_processors.client_context',
             ],
         },
     },
@@ -213,3 +213,9 @@ ACCOUNT_USER_MODEL_USERNAME_FIELD = None
 
 RAZORPAY_KEY_ID = 'rzp_test_1vZK3GexmGW5zt'
 RAZORPAY_KEY_SECRET = 'eIKYygydEQ5iicHT2N6gaVuC'
+
+
+
+# settings.py
+FILE_UPLOAD_MAX_MEMORY_SIZE = 10485760  # 10 MB (adjust as needed)
+

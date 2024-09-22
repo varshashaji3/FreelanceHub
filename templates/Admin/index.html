@@ -91,10 +91,10 @@
   </a>
 
   <!-- Messages Card -->
-  <a href="/admin/messages" class="col-md-3 info-card" style="flex: 1;">
-    <img src="{% static 'img/message1.png' %}" alt="Messages">
-    <h5 class="card-title">Messages</h5>
-    <div class="count">{{ total_messages }}</div>
+  <a href="{% url 'administrator:reviews' %}" class="col-md-3 info-card" style="flex: 1;">
+    <img src="{% static 'img/web1.png' %}" alt="Messages">
+    <h5 class="card-title">Reviews</h5>
+    <div class="count">{{ total_reviews }}</div>
   </a>
 
 </div>
@@ -148,6 +148,27 @@
   </div>
 
 
+  
+<div class="row" >
+  <div class="col-md-6 grid-margin stretch-card">
+    <div class="card">
+      <div class="card-body">
+        <p class="card-title">Average Rating for Site Reviews</p>
+        <p class="font-weight-500">This chart shows the overall rating of site.
+        </p>
+        </div>
+        <canvas id="averageRatingChart" width="400" height="200"></canvas>
+          
+      </div><div>
+       
+    </div>
+    </div>
+    </div>
+    
+  </div>
+  </div>
+
+  
   <script>
     const ctx = document.getElementById('userChart').getContext('2d');
     const userChart = new Chart(ctx, {
@@ -212,4 +233,33 @@
     });
   </script>
 
+  <script>
+    const ctxRate = document.getElementById('averageRatingChart').getContext('2d');
+    const averageRating = {{ average_rating|default:0 }}; // Pass the average rating from the context
+
+    const averageRatingChart = new Chart(ctxRate, {
+        type: 'bar', // You can change this to 'line', 'pie', etc.
+        data: {
+            labels: ['Average Rating'], // Label for the chart
+            datasets: [{
+                label: 'Average Rating',
+                data: [averageRating], // Data for the chart
+                backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                borderColor: 'rgba(75, 192, 192, 1)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'Rating'
+                    }
+                }
+            }
+        }
+    });
+</script>
 {% endblock %}

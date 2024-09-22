@@ -22,9 +22,19 @@
     
 
     <div class="row" style="margin-right:-60px;background-color:white;">
-        <div class="row mb-3" style="margin-left:800px;margin-top:30px;">
-            <div class="col-12 text-right">
+        <div class="row mb-3" style="margin-left:700px;margin-top:30px;">
+            <div class="col-12 ">
                 <a href="{% url 'client:add_new_project' %}" class="btn btn-primary add-project-btn">Add New Project</a>
+                <!-- New Export Dropdown -->
+                <div class="btn-group">
+                    <button type="button" class="btn btn-secondary dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                        Export
+                    </button>
+                    <div class="dropdown-menu">
+                        <a class="dropdown-item" href="{% url 'client:export_projects_pdf' %}">Export to PDF</a>
+                        <a class="dropdown-item" href="{% url 'client:export_projects_excel' %}">Export to Excel</a>
+                    </div>
+                </div>
             </div>
         </div>
         <div class="col-12" style="margin-top:10px;">

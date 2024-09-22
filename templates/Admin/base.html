@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 
@@ -195,25 +194,34 @@
           
           <li class="nav-item">
             <a class="nav-link" data-toggle="collapse" href="#account" aria-expanded="false" aria-controls="ui-basic">
-              <i class="icon-layout menu-icon"></i>
+              <i class="fas fa-user-circle menu-icon"></i>
               <span class="menu-title">Account</span>
               <i class="menu-arrow"></i>
             </a>
             <div class="collapse" id="account">
               <ul class="nav flex-column sub-menu">
-                <li class="nav-item"> <a class="nav-link" href="{% url 'administrator:account_settings' %}">Profile</a></li>
-                <li class="nav-item"> <a class="nav-link" href="{% url 'administrator:account_settings' %}">Reset password</a></li>
+                <li class="nav-item"> <a class="nav-link" href="{% url 'administrator:account_settings' %}?section=profile">Profile</a></li>
+                <li class="nav-item"> <a class="nav-link" href="{% url 'administrator:account_settings' %}?section=reset_password">Reset password</a></li>
               </ul>
             </div>
           </li>
-
+          
         
 
           <li class="nav-item">
-            <a class="nav-link" href="{% url 'administrator:complaints' %}">
-              <i class="icon-grid menu-icon"></i>
-              <span class="menu-title">Complaints</span>
+            <a class="nav-link" data-toggle="collapse" href="#Portfolio" aria-expanded="false" aria-controls="ui-basic">
+              <i class="fas fa-folder-open menu-icon"></i>
+              <span class="menu-title">Portfolio</span>
+              <i class="menu-arrow"></i>
             </a>
+            <div class="collapse" id="Portfolio">
+              <ul class="nav flex-column sub-menu">
+               
+                <li class="nav-item"> <a class="nav-link" href="{% url 'administrator:add_template' %}">Add Template</a></li>
+                <li class="nav-item"> <a class="nav-link" href="{% url 'administrator:template_list' %}">Templates</a></li>
+                
+              </ul>
+            </div>
           </li>
 
 
@@ -234,21 +242,39 @@
           </li>
           <li class="nav-item">
             <a class="nav-link" href="{% url 'administrator:projects' %}">
-              <i class="icon-grid menu-icon"></i>
+              <i class="fas fa-tasks menu-icon"></i>
               <span class="menu-title">Projects</span>
             </a>
           </li>
           <li class="nav-item">
             <a class="nav-link" href="{% url 'administrator:reviews' %}">
-              <i class="icon-grid menu-icon"></i>
+              <i class="fas fa-star menu-icon"></i>
               <span class="menu-title">Site Reviews</span>
             </a>
           </li>
+             
+
+          
+
           
 
           <li class="nav-item">
+            <a class="nav-link" data-toggle="collapse" href="#complaints" aria-expanded="false" aria-controls="ui-basic">
+              <i class="fas fa-user-circle menu-icon"></i>
+              <span class="menu-title">Complaints</span>
+              <i class="menu-arrow"></i>
+            </a>
+            <div class="collapse" id="complaints">
+              <ul class="nav flex-column sub-menu">
+                <li class="nav-item"> <a class="nav-link" href="{% url 'administrator:complaints' %}">All Compalints</a></li>
+                <li class="nav-item"> <a class="nav-link" href="{% url 'administrator:site_complaints' %}">Site Complaints</a></li>
+              </ul>
+            </div>
+          </li>
+
+          <li class="nav-item">
             <a class="nav-link" href="{% url 'logout' %}">
-              <i class="icon-paper menu-icon"></i>
+              <i class="fas fa-sign-out-alt menu-icon"></i>
               <span class="menu-title">Logout</span>
             </a>
           </li>

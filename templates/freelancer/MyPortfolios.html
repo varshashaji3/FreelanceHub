@@ -1,0 +1,106 @@
+{% extends 'freelancer/base.html' %}
+{% block 'freelancer_content' %}
+{% load static %}
+
+
+<style>
+    
+    .portfolio-page {
+        width: 80%;
+        margin: 20px auto;
+        text-align: center;
+    }
+    .portfolio-cards {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 20px;
+        justify-content: center;
+    }
+    .card {
+        border: 1px solid #ccc;
+        border-radius: 8px;
+        width: 18rem;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        overflow: hidden;
+        transform: scale(1);
+        transition: transform 0.3s ease-in-out;
+        cursor: pointer;
+    }
+    .card:hover {
+        transform: scale(1.05);
+    }
+    .card img {
+        width: 100%;
+        height: 200px;
+        object-fit: cover;
+    }
+    .card-body {
+        padding: 15px;
+        background-color: #fff;
+        position: relative; /* Added for positioning icons */
+    }
+    .icon-group {
+        display: none; /* Initially hidden */
+        position: absolute; /* Positioning for hover effect */
+        bottom: 10px; /* Position at the bottom */
+        left: 50%; /* Center horizontally */
+        transform: translateX(-50%); /* Center adjustment */
+    }
+    .card:hover .icon-group {
+        display: flex; /* Show on hover */
+    }
+    .card-title {
+        font-size: 1.25rem;
+        margin: 0 0 10px;
+    }
+    .card-text {
+        margin: 0 0 15px;
+        color: #555;
+    }
+    .btn-group {
+        display: flex;
+        justify-content: space-between;
+    }
+    .btn {
+        display: flex;
+        align-items: center;
+        padding: 10px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        text-decoration: none;
+        margin: 5px;
+        background-color: transparent; /* Remove background color */
+        color: inherit; /* Inherit text color */
+    }
+    .btn i {
+        margin-right: 5px;
+    }
+</style>
+    <div class="row" style="background-color:white;padding:10px;border-radius:10px;">
+        <h3 align="center" style="margin:1% auto;color:#ff0057">My Portfolios</h3>
+    </div><br>
+    {% if portfolios %}
+<div class="portfolio-page">
+    <div class="portfolio-cards" id="portfolio-cards">
+        {% for portfolio in portfolios %}
+        <div class="card" onclick="window.location.href='{{ portfolio.portfolio_file.url }}'">
+            <div class="card-body">
+                <p class="card-text">Created on: {{ portfolio.created_at|date:"F j, Y" }}</p>
+                <div class="icon-group"> <!-- New icon group for hover effect -->
+                    <a class="btn" href="{{ portfolio.portfolio_file.url }}" download>
+                        <i class="fas fa-download"></i>
+                    </a>
+                    <a class="btn" href="{{ portfolio.portfolio_file.url }}" target="_blank">
+                        <i class="fas fa-eye"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% else %}
+<p>No portfolios Created</p>
+{% endif %}
+{% endblock %}

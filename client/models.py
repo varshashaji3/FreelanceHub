@@ -1,4 +1,3 @@
-
 from datetime import datetime
 from django.db import models
 from django.conf import settings
@@ -273,7 +272,13 @@ class Complaint(models.Model):
     STATUS_CHOICES = [
         ('Pending', 'Pending'),
         ('Resolved', 'Resolved'),
+        ('Rejected','Rejected')
     ]
+    RESOLUTION_STATUS_CHOICES = [
+    ('Satisfactory', 'Satisfactory'),
+    ('Unsatisfactory', 'Unsatisfactory'),
+    ('Pending', 'Pending'),  # New status added
+]
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='complaints')  # Complainant
     complainee = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='received_complaints')  # Complainee (only for Client and Freelancer complaints)
@@ -283,6 +288,20 @@ class Complaint(models.Model):
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='Pending')
     date_filed = models.DateTimeField(auto_now_add=True)
     resolution = models.TextField(null=True, blank=True)
+    resolution_status = models.CharField(max_length=15, choices=RESOLUTION_STATUS_CHOICES, null=True, blank=True, default='Pending')
+    resolution_date = models.DateTimeField(null=True, blank=True)  # New field for resolution date
+
+    def save(self, *args, **kwargs):
+        # Check if the complaint is resolved and set the resolution date
+        if self.status == 'Resolved' and not self.resolution_date:
+            self.resolution_date = timezone.now()
+        
+        # Automatically reject if not resolved within 30 days
+        if self.date_filed and self.status != 'Resolved':
+            if timezone.now() > self.date_filed + timezone.timedelta(days=30):
+                self.status = 'Rejected'
+        
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.subject} - {self.complaint_type} Complaint by {self.user}"

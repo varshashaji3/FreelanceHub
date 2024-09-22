@@ -2176,6 +2176,24 @@ def add_complaint(request):
                         messages.error(request, 'Invalid complainee ID.')
                 
                 complaint.save()
+
+                # Notify admin if the complaint is about a site issue
+                if complaint_type == 'Site Issue':
+                    admin_user = CustomUser.objects.get(id=1)  # Assuming user ID 1 is the admin
+                    Notification.objects.create(
+                        user=admin_user,
+                        message=f'New site issue complaint from {profile1.username}: {subject}'
+                    )
+                else:
+                    # Notify the accused if it's about a freelancer or client
+                    if complaint_type in ['Freelancer', 'Client']:
+                        complainee = CustomUser.objects.filter(id=complainee_id).first()
+                        if complainee:
+                            Notification.objects.create(
+                                user=complainee,
+                                message=f'You have received a complaint: {subject}'
+                            )
+
                 messages.success(request, 'Complaint submitted successfully.')
                 return redirect('client:client_view') 
         return render(request, 'client/AddComplaint.html', {
@@ -2218,3 +2236,201 @@ def view_complaints(request):
             'client': client,
         })
         
+        
+def view_complaints_recieved(request):
+    if not request.user.is_authenticated or request.user.role != 'client':
+        return redirect('login')
+
+    profile1 = get_object_or_404(CustomUser, id=request.user.id)
+    profile2 = get_object_or_404(Register, user_id=request.user.id)
+    client = get_object_or_404(ClientProfile, user_id=request.user.id)
+    
+    if profile1.permission:
+        complaints = Complaint.objects.filter(complainee=profile1)
+        return render(request, 'client/RecievedComplaints.html', {
+            'profile1': profile1,
+            'profile2': profile2,
+            'client': client,
+            'complaints': complaints,
+        })
+    else:
+        return render(request, 'client/PermissionDenied.html', {
+            'profile1': profile1,
+            'profile2': profile2,
+            'client': client,
+        })
+        
+        
+        
+
+def update_solution(request):
+    if request.method == 'POST':
+        complaint_id = request.POST.get('complaint_id')
+        solution = request.POST.get('solution')
+        
+        # Update the complaint's solution
+        complaint = Complaint.objects.get(id=complaint_id)
+        complaint.resolution = solution
+        complaint.save()
+        
+        # Notify the user about the solution
+        Notification.objects.create(
+            user=complaint.user,  # Notify the user who made the complaint
+            message=f'A solution has been provided for your complaint: "{complaint.subject}".'
+        )
+        
+        return redirect("client:view_complaints_recieved")
+    return redirect("client:view_complaints_recieved")
+
+
+def update_complaint_status(request):
+    if request.method == 'POST':
+        complaint_id = request.POST.get('complaint_id')
+        satisfaction_status = request.POST.get('satisfaction_status')
+
+        # Update the complaint status in the database
+        try:
+            complaint = Complaint.objects.get(id=complaint_id)
+            # Update the status based on satisfaction
+            if satisfaction_status == 'Satisfactory':
+                complaint.resolution_status = "Satisfactory"
+                complaint.status = 'Resolved'  # Adjust field name and value as necessary
+                # Notify the accused about the positive resolution
+                Notification.objects.create(
+                    user=complaint.complainee,
+                    message=f'Your complaint has been resolved: "{complaint.subject}".'
+                )
+            elif satisfaction_status == 'Unsatisfactory':
+                complaint.resolution_status = "Unsatisfactory"
+                complaint.status = 'Pending'  # Adjust field name and value as necessary
+                # Notify the accused about the negative resolution
+                Notification.objects.create(
+                    user=complaint.complainee,
+                    message=f'Your solution is marked as unsatisfactory: "{complaint.subject}".'
+                )
+            complaint.satisfaction_status = satisfaction_status  # Store satisfaction status
+            complaint.save()
+            return JsonResponse({'success': True})
+        except Complaint.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Complaint not found.'})
+
+    return JsonResponse({'success': False, 'error': 'Invalid request.'})
+
+
+from django.http import HttpResponse
+from reportlab.lib.pagesizes import A4
+from reportlab.lib import colors
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.units import inch
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
+
+def export_projects_pdf(request):
+    user_id = request.user.id  # Get the logged-in user's ID
+    projects = Project.objects.filter(user=user_id).select_related('freelancer')  # Get the projects
+
+    project_data = []
+    for index, project in enumerate(projects, start=1):  # Use enumerate for serial numbers
+        freelancer_name = 'No freelancer assigned'
+        if project.freelancer:
+            register = Register.objects.filter(user=project.freelancer).values('first_name', 'last_name').first()
+            if register:
+                freelancer_name = f"{register['first_name']} {register['last_name']}"
+
+        project_data.append([
+            str(index),  # Serial number
+            project.title,
+            freelancer_name,
+            project.description,
+            project.project_status,
+            f"{project.budget}",
+            f"{project.total_including_gst}",
+        ])
+
+    # Set up response for PDF file
+    response = HttpResponse(content_type='application/pdf')
+    response['Content-Disposition'] = 'attachment; filename="projects_report.pdf"'
+
+    # Create a PDF document using ReportLab
+    doc = SimpleDocTemplate(response, pagesize=A4)
+
+    # Define styles for the document
+    styles = getSampleStyleSheet()
+    title_style = styles['Heading1']
+    body_style = styles['BodyText']
+
+    # Create the title
+    story = [Paragraph("Projects Report", title_style)]
+
+    # Define table data with Paragraphs to allow wrapping
+    table_data = [["#", "Title", "Freelancer", "Description", "Status", "Budget", "Total (GST)"]]
+    for project in project_data:
+        table_data.append([Paragraph(cell, body_style) for cell in project])
+
+    # Define column widths
+    column_widths = [0.5 * inch, 2 * inch, 2 * inch, 3 * inch, 1 * inch, 1 * inch, 1 * inch]
+
+    # Calculate total width
+    total_width = sum(column_widths)
+
+    # Scale down if total width exceeds usable width (7.27 inches)
+    if total_width > 7.27 * inch:
+        scale_factor = (7.27 * inch) / total_width
+        column_widths = [w * scale_factor for w in column_widths]
+
+    # Create a table with the project data and set column widths
+    table = Table(table_data, colWidths=column_widths)
+
+    # Add table styles
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),  # Header row background
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black),
+    ]))
+
+    # Add the table to the story
+    story.append(table)
+
+    # Build the PDF
+    doc.build(story)
+
+    # Return the response with the generated PDF
+    return response
+
+
+
+
+
+def export_projects_excel(request):
+    user_id = request.user.id  # Get the logged-in user's ID
+    projects = Project.objects.filter(user=user_id).select_related('freelancer')  # Get the projects directly
+
+    # Prepare data for exporting
+    data = []
+    for project in projects:
+        freelancer_name = 'No freelancer assigned'
+        if project.freelancer:  # Accessing the actual model instance
+            register = Register.objects.filter(user=project.freelancer).values('first_name', 'last_name').first()
+            if register:
+                freelancer_name = f"{register['first_name']} {register['last_name']}"
+
+        data.append({
+            'id': project.id,
+            'title': project.title,
+            'freelancer': freelancer_name,
+            'description': project.description,
+            'status': project.project_status,  # Adding project_status
+            'budget': project.budget,  # Adding budget
+            'total': project.total_including_gst,  # Adding total_including_gst
+        })
+
+    df = pd.DataFrame(data)  # Create a DataFrame
+
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response['Content-Disposition'] = 'attachment; filename="projects.xlsx"'
+    
+    df.to_excel(response, index=False)  # Write DataFrame to response
+    return response
