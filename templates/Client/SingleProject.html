@@ -113,6 +113,9 @@
         display: flex; /* Use flexbox for button alignment */
         align-items: center; /* Center align icons and text */
     }
+    .modal-content{
+        width:700px;
+    }
 </style>
 
 <div class="row" style="background-color:white;padding:10px;border-radius:10px;">
@@ -146,7 +149,6 @@
                     <th>Email</th>
                     <th>Budget</th>
                     <th>Status</th>
-                    <th>Prediction</th>
                     <th colspan="2">Actions</th>
                 </tr>
             </thead>
@@ -163,19 +165,7 @@
                         <td>{{ proposal.freelancer.email }}</td>
                         <td>{{ proposal.budget }}</td>
                         <td>{{ proposal.status }}</td>
-                        <td>
-                            {% with proposal_predictions|get_item:proposal.freelancer.id as predictions %}
-                            {% if predictions %}
-                                <ul>
-                                    {% for prediction in predictions %}
-                                        {{ prediction.prediction }}%
-                                    {% endfor %}
-                                </ul>
-                            {% else %}
-                                <p>No Prediction Results Available</p>
-                            {% endif %}
-                        {% endwith %}
-                        </td>
+                        
                         <td class="buttons">
                             <button type="button" class="btn" data-toggle="modal" data-target="#proposalModal{{ proposal.id }}" style="color: #dc3545;">
                                 <i class="fas fa-eye"></i>

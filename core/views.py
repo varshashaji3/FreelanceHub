@@ -155,7 +155,7 @@ def faqs(request):
 
 def login(request):
     if request.method == 'POST':
-        email = request.POST.get('email')
+        email = request.POST.get('mail')
         password = request.POST.get('pass')
         
         user = authenticate(request, email=email, password=password)
@@ -182,6 +182,7 @@ def login(request):
         if not user.welcome_email_sent:
             user.welcome_email_sent = True
             user.save()
+            
             send_welcome_email(request, user)
                 
         return redirect_based_on_user_type(request, user)
@@ -204,7 +205,7 @@ def redirect_based_on_user_type(request, user):
     
     existing_entry = Register.objects.filter(user_id=user.id).first()
     if not existing_entry:
-        user2 = Register(first_name='', last_name='', user_id=user.id)
+        user2 = Register(user_id=user.id)
         user2.save()
         print(f"Created Register entry for user: {user}")
     
@@ -258,7 +259,7 @@ def register(request):
             uid=user.id
             reg=Register.objects.create(user_id=uid,first_name=fname,last_name=lname)
             reg.save()
-            return render(request, 'register.html', {'user': user, 'uid': user.id})
+            return redirect('add_user_type', uid=user.id)
         
             
     else:

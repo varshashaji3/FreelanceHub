@@ -1215,7 +1215,15 @@ def project_list(request):
     profile2 = Register.objects.get(user_id=uid)
     client = ClientProfile.objects.get(user_id=uid)
     if profile1.permission:
-        projects = Project.objects.filter(user_id=uid).select_related('freelancer')
+        search_query = request.GET.get('search', '')
+        if search_query:
+            projects = Project.objects.filter(Q(user_id=uid) and
+                Q(title__istartswith=search_query) 
+                
+            ).select_related('freelancer')
+
+        else:
+            projects = Project.objects.filter(user_id=uid).select_related('freelancer')
         freelancer_names = {}
         project_repos = {}
 
@@ -1232,13 +1240,6 @@ def project_list(request):
                 
             repository = Repository.objects.filter(project=project).first()
             project_repos[project.id] = repository.id if repository else None
-
-        # Debugging information
-        print("Projects:", projects)
-        print("Freelancer Names:", freelancer_names)
-        print("Project Repos:", project_repos)
-
-
 
         return render(request, 'client/ProjectList.html', {
             'profile1': profile1,
@@ -1298,13 +1299,6 @@ def single_project_view(request,pid):
             'client': client,})      
 
 
-
-
-
-
-
-
-        
         
 @login_required
 @nocache
@@ -1317,7 +1311,6 @@ def toggle_project_status(request, pid):
     project.save()
     return redirect('client:project_list')         
         
-        
 @login_required
 @nocache
 def update_proposal_status(request, pro_id):
@@ -1328,16 +1321,15 @@ def update_proposal_status(request, pro_id):
         new_status = request.POST.get('status')
         
         if new_status in ['Pending', 'Accepted', 'Rejected']:
-            
             proposal.status = new_status
             proposal.save()
 
             if new_status == 'Accepted':
                 project.freelancer = proposal.freelancer
                 project.budget = proposal.budget
-                project.project_status='In Progress'
-                project.status='closed'
-                project.start_date=timezone.now().date()
+                project.project_status = 'In Progress'
+                project.status = 'closed'
+                project.start_date = timezone.now().date()
                 
                 gst_rate = 18 
                 gst_amount = project.budget * gst_rate / 100
@@ -1352,23 +1344,39 @@ def update_proposal_status(request, pro_id):
                     message=f'Congratulations! Your proposal for project "{project.title}" has been accepted.'
                 )
                 
-                # Create chatroom logic
-                chatroom = ChatRoom.objects.create(
-                project=project
-                )
-                chatroom.participants.add(proposal.freelancer, project.user)  # Add freelancer and client as participants
-                            
-                # Notifications for chatroom creation
-                Notification.objects.create(
-                    user=proposal.freelancer,
-                    message=f'A chatroom has been created for project "{project.title}".'
-                )
-                Notification.objects.create(
-                    user=project.user,  # Assuming the client is the project owner
-                    message=f'A chatroom has been created for your project "{project.title}".'
-                )
-
+                chatroom = ChatRoom.objects.filter(
+                    participants=proposal.freelancer
+                ).filter(
+                    participants=project.user
+                ).first()
                 
+                if chatroom:
+                    chatroom.project = project
+                    chatroom.save()
+                    
+                    Notification.objects.create(
+                        user=proposal.freelancer,
+                        message=f'You have been assigned to a new project "{project.title}" in the existing chatroom.'
+                    )
+                    Notification.objects.create(
+                        user=project.user,
+                        message=f'You have a new project "{project.title}" assigned in the existing chatroom.'
+                    )
+                else:
+                    chatroom = ChatRoom.objects.create(
+                        project=project
+                    )
+                    chatroom.participants.add(proposal.freelancer, project.user)  
+                    
+                    
+                    Notification.objects.create(
+                        user=proposal.freelancer,
+                        message=f'A new chatroom has been created for project "{project.title}".'
+                    )
+                    Notification.objects.create(
+                        user=project.user,
+                        message=f'A new chatroom has been created for your project "{project.title}".'
+                    )
                 
                 Proposal.objects.filter(project=project).exclude(id=pro_id).update(status='Rejected')
                 rejected_proposals = Proposal.objects.filter(project=project, status='Rejected')
@@ -1388,6 +1396,7 @@ def update_proposal_status(request, pro_id):
                     )
 
     return redirect('client:single_project_view', pid=project.id)
+
 
 
 @login_required

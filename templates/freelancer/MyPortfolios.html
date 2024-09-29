@@ -76,12 +76,83 @@
     .btn i {
         margin-right: 5px;
     }
+    ul{
+        margin-left:20px;
+    }
 </style>
     <div class="row" style="background-color:white;padding:10px;border-radius:10px;">
         <h3 align="center" style="margin:1% auto;color:#ff0057">My Portfolios</h3>
     </div><br>
+
+<!-- New section for GitHub hosting -->
+<div class="row" style="background-color:white;padding:10px;border-radius:10px; cursor: pointer;" onclick="toggleGitHubSection()">
+    <h4 align="center" style="margin:1% auto;color:#0555ab">Do you want to host this portfolio on GitHub?</h4>
+</div>
+<div id="github-section" class="row" style="display: none; padding: 10px; background-color: white; border-radius: 8px; text-align: left; "> <!-- Added margin-left -->
+    <div style="margin-top: 20px; color: #333;margin-left: 20px;">
+        <h5 style="color: #0555ab;">Step 1: Create a GitHub Account</h5>
+        <ul> <!-- Added bullet points -->
+            <li>If you don't already have a GitHub account, sign up at <a href="https://github.com" target="_blank">github.com</a>.</li>
+        </ul>
+        
+        <h5 style="color: #0555ab;">Step 2: Create a New Repository</h5>
+        <ul> <!-- Added bullet points -->
+            <li>Log in to your GitHub account.</li>
+            <li>Click the "+" icon in the top-right corner and select "New repository."</li>
+            <li>Name your repository (e.g., my-html-template).</li>
+            <li>Optionally, add a description.</li>
+            <li>Choose the repository visibility (Public or Private).</li>
+            <li>Click "Create repository."</li>
+        </ul>
+        
+        <h5 style="color: #0555ab;">Step 3: Upload Your HTML Template</h5>
+        <ul> <!-- Added bullet points -->
+            <li>On your repository page, click on the "Add file" button and choose "Upload files."</li>
+            <li>Drag and drop your HTML files and any other assets (like CSS, JS, images) into the upload area or click "choose your files" to select them manually.</li>
+            <li>After uploading, scroll down and click on "Commit changes."</li>
+        </ul>
+        
+        <h5 style="color: #0555ab;">Step 4: Enable GitHub Pages</h5>
+        <ul> <!-- Added bullet points -->
+            <li>Go to your repository's Settings (found on the right side of the repository page).</li>
+            <li>Scroll down to the "Pages" section on the left sidebar.</li>
+            <li>Under "Source," select the branch you want to use for GitHub Pages (usually main or master).</li>
+            <li>For the "/ (root)" folder, select it and click "Save."</li>
+        </ul>
+        
+        <h5 style="color: #0555ab;">Step 5: Access Your Hosted Template</h5>
+        <ul> <!-- Added bullet points -->
+            <li>After enabling GitHub Pages, you should see a message indicating the URL where your site is published (e.g., https://<your-username>.github.io/<repository-name>).</li>
+            <li>Click on the link to view your hosted HTML template.</li>
+        </ul>
+        
+        <h5 style="color: #0555ab;">Step 6: Share the Link</h5>
+        <ul> <!-- Added bullet points -->
+            <li>You can now share the GitHub Pages link with anyone who wants to access your HTML template.</li>
+        </ul>
+        
+        <h5 style="color: #0555ab;">Additional Tips</h5>
+        <ul> <!-- Added bullet points -->
+            <li>Ensure your index.html file is in the root of your repository, as GitHub Pages uses it as the default page.</li>
+            <li>If you need to make updates, commit the changes in your repository, and the changes will reflect on your GitHub Pages link shortly.</li>
+        </ul>
+    </div>
+    <p style="margin-left: 20px;">If you need help, refer to the <a href="https://docs.github.com/en/pages" target="_blank">GitHub Pages documentation</a>.</p>
+    <br><p style="color:#ff0057;font-size:20px;margin-left: 460px;">Or</p> <!-- Added 'Or' in center -->
+    <iframe width="560" height="315" src="https://www.youtube.com/embed/BT4WzyT2g8k?si=Cfn4QeHgcA_X8No7" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen style="margin-top: 20px;margin-left: 200px;margin-bottom:20px;"></iframe> <!-- Centered video with top margin -->
+
+    
+</div>
+
+<script>
+    function toggleGitHubSection() {
+        const section = document.getElementById('github-section');
+        section.style.display = section.style.display === 'none' ? 'block' : 'none';
+    }
+</script>
+
     {% if portfolios %}
-<div class="portfolio-page">
+<div class="portfolio-page" style="margin-top: 20px;">
     <div class="portfolio-cards" id="portfolio-cards">
         {% for portfolio in portfolios %}
         <div class="card" onclick="window.location.href='{{ portfolio.portfolio_file.url }}'">
@@ -101,6 +172,6 @@
     </div>
 </div>
 {% else %}
-<p>No portfolios Created</p>
+<p style="margin: 30px;">No portfolios Created</p>
 {% endif %}
 {% endblock %}

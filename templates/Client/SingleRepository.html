@@ -1188,7 +1188,7 @@ th,td{
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <form id="addUrlForm" method="post" action="{% url 'freelancer:add_url' repository.id %}">
+                <form id="addUrlForm" method="post" action="{% url 'client:add_url' repository.id %}">
                     {% csrf_token %}
                     <div class="mb-3">
                         <label for="url" class="form-label">URL</label>
@@ -1220,7 +1220,7 @@ th,td{
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <form id="addFilesForm" method="post" enctype="multipart/form-data" action="{% url 'freelancer:add_file' repository.id %}">
+                <form id="addFilesForm" method="post" enctype="multipart/form-data" action="{% url 'client:add_file' repository.id %}">
                     {% csrf_token %}
                     <div class="mb-3">
                         <label for="fileUpload" class="form-label">Choose files</label>

@@ -335,7 +335,7 @@
           <div class="tab-pane fade show active scroll-wrapper" id="todo-section" role="tabpanel"
             aria-labelledby="todo-section">
             <div class="add-items d-flex px-3 mb-0">
-              <form class="form w-100" method="post" action="{% url 'freelancer:add_todo' profile1.id %}"
+              <form class="form w-100" method="post" action="{% url 'freelancer:add_todo' %}"
                 id="todo_form">
                 {% csrf_token %}
                 <div class="form-group d-flex">

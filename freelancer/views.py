@@ -868,49 +868,77 @@ def view_project(request):
     profile1 = CustomUser.objects.get(id=uid)
     profile2 = Register.objects.get(user_id=uid)
     freelancer = FreelancerProfile.objects.get(user_id=uid)
-    
-    if profile1.permission:
-        todos = Todo.objects.filter(user_id=uid)
 
+    # Mapping professions to corresponding categories
+    profession_category_map = {
+        'Web Developer': 'Web Development',
+        'Front-End Developer': 'Front-End Development',
+        'Back-End Developer': 'Back-End Development',
+        'Full-Stack Developer': 'Full-Stack Development',
+        'Mobile App Developer': 'Mobile Development',
+        'Android Developer': 'Android Development',
+        'iOS Developer': 'iOS Development',
+        'UI/UX Designer': 'UI/UX Design',
+        'Graphic Designer': 'Graphic Design',
+        'Logo Designer': 'Logo Design',
+        'Poster Designer': 'Poster Design',
+        'Machine Learning Engineer': 'Machine Learning Engineering',
+        'Artificial Intelligence Specialist': 'Artificial Intelligence',
+        'Software Developer': 'Software Development'
+    }
+
+    if profile1.permission:
+        professions = []
+        if freelancer and freelancer.professional_title:
+            professions = freelancer.professional_title.strip('[]').replace("'", "").split(', ')
+
+        profession_categories = [profession_category_map.get(profession) for profession in professions if profession in profession_category_map]
+
+        todos = Todo.objects.filter(user_id=uid)
 
         search = request.GET.get('search', '')
         filter_type = request.GET.get('filter_type', '')
         status = request.GET.get('status', '')
         cat = request.GET.get('category', '')
 
-        print("Category filter value:", cat)
-        print("Filter type:", filter_type)
+
         projects = Project.objects.all()
+
+        if profession_categories:
+            query = Q()
+            for category in profession_categories:
+                query |= Q(category=category)
+            projects = projects.filter(query)
 
         if search:
             projects = projects.filter(Q(title__icontains=search) | Q(category__icontains=search))
 
-
         if filter_type == 'category' and cat:
             projects = projects.filter(category=cat)
 
-
         if filter_type == 'status' and status:
             projects = projects.filter(status=status)
-
 
         project_details = []
         for project in projects:
             cid = project.user_id
             client_profile = ClientProfile.objects.get(user_id=cid)
             client_register = Register.objects.get(user_id=cid)
+
+            has_proposal = Proposal.objects.filter(project_id=project.id, freelancer_id=uid).exists()
+
             project_details.append({
                 'project': project,
                 'client_profile': client_profile,
-                'client_register': client_register
+                'client_register': client_register,
+                'has_proposal': has_proposal  # Pass proposal status to template
             })
 
         categories = [
-    "Web Development","Front-End Development","Back-End Development","Full-Stack Development","Mobile Development",
-    "Android Development","iOS Development","UI/UX Design",
-    "Graphic Design","Logo Design","Poster Design","Software Development",
-    "Machine Learning Engineering","Artificial Intelligence"
-]
+            "Web Development", "Front-End Development", "Back-End Development", "Full-Stack Development", "Mobile Development",
+            "Android Development", "iOS Development", "UI/UX Design", "Graphic Design", "Logo Design", "Poster Design", 
+            "Software Development", "Machine Learning Engineering", "Artificial Intelligence"
+        ]
 
         return render(request, 'freelancer/ViewProjects.html', {
             'profile1': profile1,
@@ -926,6 +954,8 @@ def view_project(request):
             'profile2': profile2,
             'freelancer': freelancer
         })
+
+
   
   
   

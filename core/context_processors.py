@@ -49,11 +49,17 @@ def project_status(request):
         client_profile = get_object_or_404(ClientProfile, user=project.user_id)
         client_type = client_profile.client_type
         
+        client_name = None  # Initialize client_name
+        client_id = None  # Initialize client_id
+
         if client_type == 'Individual':
             client = get_object_or_404(Register, user=project.user_id)
             client_name = client.first_name
+            client_id = client.id  # Assign client_id
+
         elif client_type == 'Company':
             client_name = client_profile.company_name
+            client_id = project.user_id  # Assuming project.user_id is the company user ID
         
         context['project_status'] = {
             'status': project.project_status,
@@ -61,13 +67,15 @@ def project_status(request):
             'client_name': client_name,
             'project_id': project.id,
             'freelancer_id': freelancer.id,
-            'client_id': client.id,
+            'client_id': client_id,  # Use the initialized client_id
             'project_title': project.title,
-            'freelancer_review_given': project.freelancer_review_given,  # Pass boolean directly
+            'freelancer_review_given': project.freelancer_review_given,
             'client_review_given': project.client_review_given
         }
+        
         is_client = client_profile.user == current_user
         context['is_client'] = is_client
+    
     return context
 
 
@@ -99,16 +107,3 @@ def review_due(request):
     return {'review_due': False}
 
 
-# your_app/context_processors.py
-def prediction_processor(request):
-    if not request.user.is_authenticated:
-        return {}
-
-    try:
-        return {
-            'proposal_predictions': request.session.get('proposal_predictions', {})
-        }
-    except Exception as e:
-        return {
-            'error_message': f"An unexpected error occurred: {str(e)}"
-        }

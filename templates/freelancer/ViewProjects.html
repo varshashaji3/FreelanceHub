@@ -134,7 +134,17 @@ function handleFilterChange() {
             <p class="budget"><strong style="color:red;">Category:</strong> {{ detail.project.category|default:'' }}</p>
             <p><strong style="color:blueviolet;">Proposal End Date:</strong> {{ detail.project.end_date|default:'' }}</p><br>
         </div>
-        <a href="{% url 'freelancer:single_project_view' detail.project.id %}" class="btn btn-primary" style="margin-right:30px;">View More</a>
+        {% if detail.has_proposal %}
+            <!-- Link when a proposal has been submitted (styled differently) -->
+            <a href="{% url 'freelancer:single_project_view' detail.project.id %}" style="margin-right:30px;color:red;">
+                Proposal Submitted
+            </a>
+        {% else %}
+            <!-- 'View More' button when no proposal has been submitted -->
+            <a href="{% url 'freelancer:single_project_view' detail.project.id %}" class="btn btn-primary" style="margin-right:30px;">
+                View More
+            </a>
+        {% endif %}
     </div>
     {% endfor %}
 </div>

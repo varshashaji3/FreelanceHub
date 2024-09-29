@@ -210,7 +210,7 @@ $("#update_form").submit(function () {
                             Add To Do
                         </h4>
                         <div class="add-items d-flex mb-0 mt-2">
-                            <form method="post" action="{% url 'freelancer:add_todo' profile1.id %}" id="add_form"
+                            <form method="post" action="{% url 'freelancer:add_todo'  %}" id="add_form"
                                   style="margin-top: 10px; margin-bottom: 30px;">
                                 {% csrf_token %}
                                 <input type="hidden" name="next" value="{{ request.path }}">

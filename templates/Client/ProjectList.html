@@ -19,8 +19,12 @@
         </div>
     </div>
 
+    <form method="GET" id="filterForm" class="form-row align-items-center">
+    <div class="col-md-3 mb-2">
+        <input type="text" name="search" id="searchInput" placeholder="Search by name or profession..." class="form-control" value="{{ request.GET.search }}">
+    </div>
     
-
+</form>
     <div class="row" style="margin-right:-60px;background-color:white;">
         <div class="row mb-3" style="margin-left:700px;margin-top:30px;">
             <div class="col-12 ">

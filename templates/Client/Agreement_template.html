@@ -114,14 +114,11 @@
                 installmentError = false; // Clear error flag
             }
         
-            // Update remaining budget only if no errors are present
             if (!installmentError) {
-                // Update remaining budget only if the first installment has been entered
                 if (firstInstallmentEntered) {
                     remainingBudget = budget - totalInstallments;
                     $("#remainingBudget").text("Remaining Budget: Rs." + remainingBudget.toFixed(2)).show();
         
-                    // Check if the remaining budget is zero or less
                     if (remainingBudget < 0) {
                         $("#remainingBudget").css("color", "red");
                         $("#error_installments").html("Installments exceed the total budget").show();
@@ -143,37 +140,43 @@
 
 
         var projectDeadline = new Date("{{ proposal.deadline|date:'Y-m-d' }}");
+var today = new Date();
+today.setHours(0, 0, 0, 0); // Set the time to the start of today
 
-        function validate_due_dates() {
-            var dueDates = [];
-            var valid = true;
+function validate_due_dates() {
+    var dueDates = [];
+    var valid = true;
+    
+    $('input[name="installment_due_date[]"]').each(function () {
+        var dateStr = $(this).val();
+        
+        if (dateStr) {
+            var dueDate = new Date(dateStr);
+            dueDate.setHours(0, 0, 0, 0); // Set time to the start of the due date
             
-            // Loop through all due date inputs
-            $('input[name="installment_due_date[]"]').each(function () {
-                var dateStr = $(this).val();
-                
-                if (dateStr) {
-                    var dueDate = new Date(dateStr);
-    
-                    if (isNaN(dueDate.getTime())) {
-                        $(this).css("border", "2px solid red");
-                        $("#error_due_dates").html("Invalid due date format").show();
-                        valid = false;
-                    } else if (dueDate > projectDeadline) {
-                        $(this).css("border", "2px solid red");
-                        $("#error_due_dates").html("Due dates must be on or before the project deadline").show();
-                        valid = false;
-                    } else if (dueDates.includes(dateStr)) { 
-                        $(this).css("border", "2px solid red");
-                        $("#error_due_dates").html("Due dates must be unique").show();
-                        valid = false;
-                    } else {
-                        $(this).css("border", "2px solid green");
-                        dueDates.push(dateStr);
-                    }
-                }
-            });
-    
+            if (isNaN(dueDate.getTime())) {
+                $(this).css("border", "2px solid red");
+                $("#error_due_dates").html("Invalid due date format").show();
+                valid = false;
+            } else if (dueDate > projectDeadline) {
+                $(this).css("border", "2px solid red");
+                $("#error_due_dates").html("Due dates must be on or before the project deadline").show();
+                valid = false;
+            } else if (dueDate < today) { // Ensure due date is today or later
+                $(this).css("border", "2px solid red");
+                $("#error_due_dates").html("Due dates must be today or later").show();
+                valid = false;
+            } else if (dueDates.includes(dateStr)) { 
+                $(this).css("border", "2px solid red");
+                $("#error_due_dates").html("Due dates must be unique").show();
+                valid = false;
+            } else {
+                $(this).css("border", "2px solid green");
+                dueDates.push(dateStr);
+            }
+        }
+    });
+
             if (!valid) {
                 $("#error_due_dates").html("Due dates must be on or before the project deadline and unique").show();
                 due_date_error = true;

@@ -28,7 +28,7 @@ urlpatterns = [
     path('notification_mark_as_read/<int:not_id>', notification_mark_as_read, name='notification_mark_as_read'),
     path('todo/', todo, name='todo'),
     
-    path('add_todo/<int:user_id>', add_todo, name='add_todo'),
+    path('add_todo/', add_todo, name='add_todo'),
     path('delete_todo/<int:todo_id>', delete_todo, name='delete_todo'),
     path('update_todo/', update_todo, name='update_todo'),
     
