@@ -36,6 +36,7 @@ class Project(models.Model):
         ('Not Started', 'Not Started'),
         ('In Progress', 'In Progress'),
         ('Completed', 'Completed'),
+        ('Cancelled','Cancelled')
     )
     
     SCOPE_CHOICES = (

@@ -3,7 +3,7 @@ from django.contrib import admin
 from django.shortcuts import render
 from django.urls import include, path
 
-from core.views import   check_email,about, add_user_type, contact, email_verification, index, login, login_view, logout, register, register_view, reset_password, send_forget_password_mail, send_verification_mail, service,faqs, site_review
+from core.views import  payment_success, update_cancellation_status,request_cancellation,check_email,about, add_user_type, contact, email_verification, index, login, login_view, logout, register, register_view, reset_password, send_forget_password_mail, send_verification_mail, service,faqs, site_review
 
 
 urlpatterns = [
@@ -26,6 +26,7 @@ urlpatterns = [
     path('send_verification_mail/', send_verification_mail, name="send_verification_mail"),
     path('email_verification/<token>/', email_verification, name="email_verification"),
     path('site-review/', site_review, name='site_review'),
-    
-  
+    path('request_cancellation/<int:project_id>', request_cancellation, name='request_cancellation'),
+       path('update_cancellation_status/<int:cancellation_id>/', update_cancellation_status, name='update_cancellation_status'),
+       path('payment_success/', payment_success, name='payment_success'),
 ]

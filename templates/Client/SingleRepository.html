@@ -1,3 +1,4 @@
+
 {% extends 'client/base.html' %}
 {% block 'client_content' %}
 {% load static %}
@@ -621,8 +622,8 @@ th,td{
         }
 
         // Function to check task description
-        function check_description(field_id, error_id) {
-            var description = $(field_id).val().trim();
+        function check_descriptions(field_id, error_id) {
+            var description = $(field_id).val();
             if (description === "") {
                 $(error_id).html("Description cannot be empty.").show();
                 $(field_id).css("border", "2px solid red");
@@ -668,7 +669,7 @@ th,td{
             check_title("#title", "#error_title");
         });
         $('#description').keyup(function () {
-            check_description("#description", "#error_description");
+            check_descriptions("#descriptions", "#error_description");
         });
         $('#start_date').change(function () {
             check_dates("#start_date", "#due_date", "#error_start_date", "#error_due_date");
@@ -686,7 +687,7 @@ th,td{
                 check_title("#title-" + task_id, "#error_title-" + task_id);
             });
             $('#description-' + task_id).keyup(function () {
-                check_description("#description-" + task_id, "#error_description-" + task_id);
+                check_descriptions("#description-" + task_id, "#error_description-" + task_id);
             });
             $('#start_date-' + task_id).change(function () {
                 check_dates("#start_date-" + task_id, "#due_date-" + task_id, "#error_start_date-" + task_id, "#error_due_date-" + task_id);
@@ -696,32 +697,8 @@ th,td{
             });
         });
 
-        // Form submission validation for Add Task
-        $("#addTaskForm").submit(function (event) {
-            check_title("#title", "#error_title");
-            check_description("#description", "#error_description");
-            var dates_valid = check_dates("#start_date", "#due_date", "#error_start_date", "#error_due_date");
-
-            if (title_error || description_error || !dates_valid) {
-                event.preventDefault();
-            }
-        });
-
-        // Form submission validation for Edit Task
-        $("form[id^='editTaskForm-']").each(function () {
-            $(this).submit(function (event) {
-                var form_id = $(this).attr('id');
-                var task_id = form_id.split('-')[1];
-
-                check_title("#title-" + task_id, "#error_title-" + task_id);
-                check_description("#description-" + task_id, "#error_description-" + task_id);
-                var dates_valid = check_dates("#start_date-" + task_id, "#due_date-" + task_id, "#error_start_date-" + task_id, "#error_due_date-" + task_id);
-
-                if (title_error || description_error || !dates_valid) {
-                    event.preventDefault();
-                }
-            });
-        });
+        
+        
     });
 </script>
 
@@ -787,7 +764,7 @@ th,td{
         // Add Task Form Validation
         $("#addTaskForm").submit(function (event) {
             var title_valid = check_title("#title", "#error_title");
-            var description_valid = check_description("#description", "#error_description");
+            var description_valid = check_description("#descriptions", "#error_description");
             var dates_valid = check_dates("#start_date", "#due_date", "#error_start_date", "#error_due_date");
 
             if (!title_valid || !description_valid || !dates_valid) {
@@ -795,25 +772,128 @@ th,td{
             }
         });
 
-        // Edit Task Form Validation
-        $("form[id^='editTaskForm-']").each(function () {
-            $(this).submit(function (event) {
-                var form_id = $(this).attr('id');
-                var task_id = form_id.split('-')[1];
-
-                var title_valid = check_title("#title-" + task_id, "#error_title-" + task_id);
-                var description_valid = check_description("#description-" + task_id, "#error_description-" + task_id);
-                var dates_valid = check_dates("#start_date-" + task_id, "#due_date-" + task_id, "#error_start_date-" + task_id, "#error_due_date-" + task_id);
-
-                if (!title_valid || !description_valid || !dates_valid) {
-                    event.preventDefault(); // Prevent form submission if there's an error
-                }
-            });
-        });
+        
     });
 </script>
 
 
+
+
+{% if cancellation_details and cancellation_details.status == 'Approved' %}
+<!-- Modal for cancellation notice -->
+<div class="modal fade" id="cancellationNoticeModal" tabindex="-1" aria-labelledby="cancellationNoticeModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="cancellationNoticeModalLabel">Project Canceled</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>This project has been canceled. No further activities can be performed.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    $(document).ready(function() {
+        $('#addTaskButton, #addUrlButton, #addFileButton, #addNoteButton').prop('disabled', true);
+
+        $('#addTaskButton, #addUrlButton, #addFileButton, #addNoteButton').on('click', function(e) {
+            e.preventDefault(); 
+            $('#cancellationNoticeModal').modal('show'); 
+        });
+    });
+</script>
+{% endif %}
+
+
+
+{% if project.project_status != 'Completed' and not cancellation_details %}
+<div class="row" style="
+    background-color: #fff; 
+    padding: 20px; 
+    border-radius: 12px; 
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1); 
+    text-align: center;
+">
+  <p style="
+        font-size: 18px; 
+        color: #333;
+        margin-bottom: 10px;
+    ">
+    Hi <strong>{% if client.client_type == 'Individual' %}{{ profile2.first_name }} {{ profile2.last_name }}{% else %}{{ client.company_name }}{% endif %}, are you sure you want to cancel this project?
+  </p>
+
+  <p style="
+        font-size: 16px; 
+        color: #666; 
+        margin-bottom: 20px;
+    ">
+    This action is irreversible. Once canceled, all project-related data will remain inactive and will not be available for work. You will no longer be able to access this project.
+  </p>
+  
+  <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#cancelProjectModal">
+      Request Cancel
+  </button>
+
+  <br>
+</div>
+<br>
+
+<!-- Modal for cancellation reason -->
+<div class="modal fade" id="cancelProjectModal" tabindex="-1" aria-labelledby="cancelProjectModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="cancelProjectModalLabel">Cancel Project</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="cancelProjectForm" method="post" action="{% url 'request_cancellation' project.id %}">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="cancellationReason" class="form-label">Reason for Cancellation</label>
+                        <textarea class="form-control" id="cancellationReason" name="cancellation_reason" rows="3" required></textarea>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        <button type="submit" class="btn btn-danger">Submit Cancellation</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% elif cancellation_details %}
+<div class="alert alert-info mt-4" style="border-radius: 10px; padding: 15px;">
+    <strong>Status:</strong> {{ cancellation_details.status }}<br>
+    {% if request.user == cancellation_details.requested_by %}
+        <strong>Reason:</strong> {{ cancellation_details.reason }}<br>
+        <strong>Requested Date:</strong> {{ cancellation_details.requested_date|date:"F j, Y" }}<br>
+        <button class="btn btn-primary" style="margin-top: 10px;">Request {{cancellation_details.status}}</button>
+    {% elif request.user == cancellation_details.approver %}
+        <strong>Requested By:</strong> {{ cancellation_details.requested_by }}<br>
+        <strong>Requested Date:</strong> {{ cancellation_details.requested_date|date:"F j, Y" }}<br>
+        <strong>Reason:</strong> {{ cancellation_details.reason }}<br>
+        {% if cancellation_details.status == 'Pending' %}
+        <form class="cancellation-form" data-id="{{ cancellation_details.id }}" method="post">
+            {% csrf_token %}
+            <input type="hidden" name="status" value="Approved">
+            <button type="submit" class="btn btn-success" style="margin-top: 10px;">Accept</button>
+        </form>
+        <form class="cancellation-form" data-id="{{ cancellation_details.id }}" method="post">
+            {% csrf_token %}
+            <input type="hidden" name="status" value="Rejected">
+            <button type="submit" class="btn btn-danger" style="margin-top: 10px;">Reject</button>
+        </form>
+        {% endif %}
+    {% endif %}
+</div>
+{% endif %}
 
 <div class="container mt-4">
     <div class="toggle-buttons">
@@ -1035,10 +1115,10 @@ th,td{
 
     <div id="activity-section" style="display: none;">
         <div class="action-buttons mb-4">
-            <a href="#" class="btn btn-add-url me-2" data-bs-toggle="modal" data-bs-target="#addUrlModal">
+            <a href="#" class="btn btn-add-url me-2" id="addUrlButton" data-bs-toggle="modal" data-bs-target="#addUrlModal">
                 <i class="fas fa-link"></i> Add URL
             </a>
-            <a href="#" class="btn btn-add-files" data-bs-toggle="modal" data-bs-target="#addFilesModal">
+            <a href="#" class="btn btn-add-files" id="addFileButton" data-bs-toggle="modal" data-bs-target="#addFilesModal">
                 <i class="fas fa-file-upload"></i> Add Files
             </a>
         </div>
@@ -1264,7 +1344,7 @@ th,td{
                     <!-- Task Description -->
                     <div class="mb-3">
                         <label for="description" class="form-label">Description:</label>
-                        <textarea id="description" name="description" class="form-control"></textarea>
+                        <textarea id="descriptions" name="description" class="form-control"></textarea>
                         <span id="error_description" class="text-danger" style="display: none;"></span>
                     </div>
 
@@ -1343,6 +1423,40 @@ th,td{
             if (select.value === 'Completed') {
                 select.disabled = true; // Disable the select if status is Completed
             }
+        });
+    });
+</script>
+<script>
+    $(document).ready(function() {
+        // Get cancellation ID from Django template
+        var cancellationId = "{{ cancellation_details.id|default:'' }}";
+
+        $('.cancellation-form').submit(function(e) {
+            e.preventDefault(); // Prevent default form submission
+            var form = $(this);
+            var status = form.find('input[name="status"]').val();
+
+            // Check if cancellation ID is null or empty
+            if (!cancellationId) {
+                alert('Cancellation ID is not found. Form will not be submitted.'); // Alert if ID is not present
+                return; // Exit the function, preventing form submission
+            }
+
+            // Proceed with AJAX submission if cancellation ID is valid
+            $.ajax({
+                url: "{% url 'update_cancellation_status' '0' %}".replace('0', cancellationId), // Use the actual cancellation ID
+                type: 'POST',
+                data: form.serialize(), // Serialize form data
+                success: function(response) {
+                    // Handle success (e.g., show a success message or update the UI)
+                    alert('Cancellation status updated successfully!');
+                    window.location.reload(); // Reload the page after successful update
+                },
+                error: function(xhr) {
+                    // Handle error (e.g., show an error message)
+                    alert('Error updating cancellation status: ' + xhr.responseText);
+                }
+            });
         });
     });
 </script>

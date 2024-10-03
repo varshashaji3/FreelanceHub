@@ -107,3 +107,32 @@ def review_due(request):
     return {'review_due': False}
 
 
+import razorpay
+from django.conf import settings
+from .models import RefundPayment
+def refund_payment_context(request):
+    context = {}
+    if request.user.is_authenticated:
+        refund_payment = RefundPayment.objects.filter(user_id=request.user.id).first()
+        if refund_payment:
+            client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
+            amount_in_paisa = int(refund_payment.amount * 100)  # Convert to paisa as Razorpay expects amounts in paisa
+            data = {
+                "amount": amount_in_paisa,
+                "currency": "INR",
+                "receipt": f"refund_{refund_payment.id}",
+                "payment_capture": 1,
+            }
+            order = client.order.create(data=data)
+
+            context.update({
+                'has_refund_payment': True,
+                'refund_payment': refund_payment,
+                'razorpay_order_id': order['id'],
+                'razorpay_key': settings.RAZORPAY_KEY_ID,
+                'amount_in_paisa': amount_in_paisa,
+            })
+        else:
+            context['has_refund_payment'] = False
+
+    return context

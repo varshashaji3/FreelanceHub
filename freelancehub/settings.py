@@ -24,7 +24,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure--vamx(qq%e)g0=)b$17dg&4kj0&%73+wztckvwmj8b%(8m3k-p'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = True
 
 ALLOWED_HOSTS = ['*']
 
@@ -94,6 +94,8 @@ TEMPLATES = [
                 'core.context_processors.review_due',
                 'administrator.context_processors.user_profile',
                 'client.context_processors.client_context',
+                'freelancer.context_processors.freelancer_context',
+                'core.context_processors.refund_payment_context',
             ],
         },
     },
@@ -167,11 +169,11 @@ USE_TZ = False
 
 
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')  # Adjust as necessary
 STATICFILES_DIRS = [
     os.path.join(BASE_DIR, "static"),
 ]
-STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 AUTH_USER_MODEL='core.CustomUser'

@@ -663,6 +663,127 @@
 
 
 
+      {% if has_refund_payment %}
+      <div id="paymentDetailsModal" class="modal" tabindex="-1" role="dialog" style="display: none;">
+          <div class="modal-dialog" role="document">
+              <div class="modal-content">
+                  <div class="modal-header">
+                      <h5 class="modal-title">Payment Details</h5>
+                      <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                          <span aria-hidden="true">&times;</span>
+                      </button>
+                  </div>
+                  <div class="modal-body">
+                      <p>Total Paid: {{ refund_payment.total_paid }}</p>
+                      <p>Amount Due: {{ refund_payment.amount }}</p>
+                      <p>Compensation Amount: {{ refund_payment.compensation_amount }}</p>
+                      <p>Refund Payment To: {{ refund_payment.pay_to }}</p>
+                  </div>
+                  <div class="modal-footer">
+                      <button id="payButton" type="button" class="btn btn-primary" onclick="makePayment({{ refund_payment.amount }}, '{{ refund_payment.pay_to.id }}')">Pay Now</button>
+                      <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                  </div>
+              </div>
+          </div>
+      </div>
+  {% endif %}
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.4.0/dist/confetti.browser.min.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", function() {
+      {% if has_refund_payment and not refund_payment.is_paid %}
+          $('#paymentDetailsModal').modal('show');
+      {% endif %}
+  
+      document.getElementById("payButton").addEventListener("click", function() {
+          console.log("Pay button clicked, initiating Razorpay payment.");
+  
+          var options = {
+              "key": "{{ razorpay_key }}",
+              "amount": "{{ amount_in_paisa }}",
+              "currency": "INR",
+              "name": "Refund Payment",
+              "description": "Refund Payment to {{ refund_payment.pay_to }}",
+              "order_id": "{{ razorpay_order_id }}",
+              "handler": function (response) {
+                  console.log("Payment successful, sending AJAX request.");
+                  
+                  $.ajax({
+                      url: "{% url 'payment_success' %}",
+                      method: "POST",
+                      data: {
+                          payment_id: response.razorpay_payment_id,
+                          order_id: response.razorpay_order_id,
+                          signature: response.razorpay_signature,
+                          refund_payment_id: "{{ refund_payment.id }}",
+                          csrfmiddlewaretoken: '{{ csrf_token }}'
+                      },
+                      success: function(data) {
+                        $('#paymentDetailsModal').modal('hide');
+                        
+                          console.log("Payment success AJAX response:", data);
+                          
+                          // Create a confetti canvas with a high z-index
+                          const confettiCanvas = document.createElement('canvas');
+                          confettiCanvas.style.position = 'fixed';
+                          confettiCanvas.style.top = '0';
+                          confettiCanvas.style.left = '0';
+                          confettiCanvas.style.width = '100%';
+                          confettiCanvas.style.height = '100%';
+                          confettiCanvas.style.zIndex = '9999'; // Ensure it's on top
+                          document.body.appendChild(confettiCanvas);
+  
+                          const myConfetti = confetti.create(confettiCanvas, {
+                              resize: true,
+                              useWorker: true
+                          });
+  
+                          myConfetti({
+                              particleCount: 1000,
+                              spread: 160,
+                              startVelocity: 60,
+                              origin: { y: 0.6 }
+                          });
+  
+                          // Remove the confetti canvas after 3 seconds
+                          setTimeout(() => {
+                              document.body.removeChild(confettiCanvas);
+                          }, 3000);
+  
+                          Swal.fire({
+                              title: 'Payment Successful!',
+                              text: 'Thank you for your payment.',
+                              icon: 'success',
+                              confirmButtonText: 'OK'
+                          }).then(() => {
+                              location.reload(); // Reload the page
+                          });
+                      },
+                      error: function(err) {
+                          console.error("Payment verification failed", err);
+                          alert('Payment verification failed');
+                      }
+                  });
+              },
+              "prefill": {
+                  "name": "{{ request.user.name }}",
+                  "email": "{{ request.user.email }}",
+                  "contact": ""  // Add contact if available
+              },
+              "theme": {
+                  "color": "#41436A"
+              }
+          };
+  
+          var rzp1 = new Razorpay(options);
+          rzp1.open();
+      });
+      
+  });
+  </script>
+  // ... existing code ...
 
 
 

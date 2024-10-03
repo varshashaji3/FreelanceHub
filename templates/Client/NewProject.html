@@ -146,22 +146,16 @@
     
   function check_scope() {
     var scope = $("#scope").val();
-    if (scope === "high") {
-        $("#error_scope").html("High scope projects require more time and resources. Are you sure you want to proceed?").show();
-        $("#scope").css("border", "2px solid red");
-        scope_error = true;
-    } else if (scope === "medium") {
-        $("#error_scope").html("Medium scope projects are balanced in terms of time and resources. Are you sure you want to proceed?").show();
-        $("#scope").css("border", "2px solid orange");
-        scope_error = false;
-    } else if (scope === "low") {
-        $("#error_scope").html("Low scope projects require less time and resources. Are you sure you want to proceed?").show();
-        $("#scope").css("border", "2px solid green");
-        scope_error = false;
-    } else {
+    if (scope === "") {
         $("#error_scope").html("Please select a scope").show();
         $("#scope").css("border", "2px solid red");
         scope_error = true;
+    } else {
+        $("#error_scope").hide();
+        $("#scope").css("border", "2px solid green");
+        scope_error = false;
+
+        
     }
 }
 
@@ -442,7 +436,7 @@
                 <!-- Submit Button -->
                 <div class="col-12">
                     <div class="d-grid">
-                        <button type="submit" class="btn btn-dark btn-lg">Add Project</button>
+                        <button type="submit" class="btn btn-dark btn-lg" id="addProject">Add Project</button>
                     </div>
                 </div>
             </div>

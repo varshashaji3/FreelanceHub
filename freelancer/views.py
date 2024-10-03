@@ -1433,6 +1433,7 @@ def acc_deactivate(request):
 
 
 
+from core.models import CancellationRequest
 @login_required
 @nocache
 def view_repository(request, repo_id):
@@ -1489,6 +1490,11 @@ def view_repository(request, repo_id):
         items.sort(key=lambda x: x['date'])
         notes = SharedNote.objects.filter(repository=repository).order_by('added_at')
         tasks=Task.objects.filter(project=project)
+        try:
+            cancellation_details = CancellationRequest.objects.get(project=project)
+        except CancellationRequest.DoesNotExist:
+            cancellation_details = None  # Set to None if no cancellation request exists
+
         return render(request, 'freelancer/SingleRepository.html', {
             'profile1': profile1,
             'profile2': profile2,
@@ -1503,6 +1509,7 @@ def view_repository(request, repo_id):
             'contracts': contracts,
             
             'project': project,
+            'cancellation_details': cancellation_details,
         })
     else:
         return render(request, 'freelancer/PermissionDenied.html', {
@@ -2365,3 +2372,5 @@ def update_complaint_status(request):
             return JsonResponse({'success': False, 'error': 'Complaint not found.'})
 
     return JsonResponse({'success': False, 'error': 'Invalid request.'})
+
+

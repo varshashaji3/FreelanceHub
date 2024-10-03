@@ -593,7 +593,88 @@ font-size: 12px;
         });
     });
 </script>
+{% if project.project_status != 'Completed' and not cancellation_details %}
+<div class="row" style="
+    background-color: #fff; 
+    padding: 20px; 
+    border-radius: 12px; 
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1); 
+    text-align: center;
+">
+  <p style="
+        font-size: 18px; 
+        color: #333;
+        margin-bottom: 10px;
+    ">
+    Hi <strong>{{ profile2.first_name }} {{ profile2.last_name }}, are you sure you want to cancel this project?
+  </p>
 
+  <p style="
+        font-size: 16px; 
+        color: #666; 
+        margin-bottom: 20px;
+    ">
+    This action is irreversible. Once canceled, all project-related data will remain inactive and will not be available for work. You will no longer be able to access this project.
+  </p>
+  
+  <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#cancelProjectModal">
+      Request Cancel
+  </button>
+
+  <br>
+</div>
+<br>
+
+<!-- Modal for cancellation reason -->
+<div class="modal fade" id="cancelProjectModal" tabindex="-1" aria-labelledby="cancelProjectModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="cancelProjectModalLabel">Cancel Project</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="cancelProjectForm" method="post" action="{% url 'request_cancellation' project.id %}">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="cancellationReason" class="form-label">Reason for Cancellation</label>
+                        <textarea class="form-control" id="cancellationReason" name="cancellation_reason" rows="3" required></textarea>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        <button type="submit" class="btn btn-danger">Submit Cancellation</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% elif cancellation_details %}
+<div class="alert alert-info mt-4" style="border-radius: 10px; padding: 15px;">
+    <strong>Status:</strong> {{ cancellation_details.status }}<br>
+    {% if request.user == cancellation_details.requested_by %}
+        <strong>Reason:</strong> {{ cancellation_details.reason }}<br>
+        <strong>Requested Date:</strong> {{ cancellation_details.requested_date|date:"F j, Y" }}<br>
+        <button class="btn btn-primary" style="margin-top: 10px;">Request {{cancellation_details.status}}</button>
+    {% elif request.user == cancellation_details.approver %}
+        <strong>Requested By:</strong> {{ cancellation_details.requested_by }}<br>
+        <strong>Requested Date:</strong> {{ cancellation_details.requested_date|date:"F j, Y" }}<br>
+        <strong>Reason:</strong> {{ cancellation_details.reason }}<br>
+        {% if cancellation_details.status == 'Pending' %}
+        <form class="cancellation-form" data-id="{{ cancellation_details.id }}" method="post">
+            {% csrf_token %}
+            <input type="hidden" name="status" value="Approved">
+            <button type="submit" class="btn btn-success" style="margin-top: 10px;">Accept</button>
+        </form>
+        <form class="cancellation-form" data-id="{{ cancellation_details.id }}" method="post">
+            {% csrf_token %}
+            <input type="hidden" name="status" value="Rejected">
+            <button type="submit" class="btn btn-danger" style="margin-top: 10px;">Reject</button>
+        </form>
+        {% endif %}
+    {% endif %}
+</div>
+{% endif %}
 
 
 <div class="container mt-4">
@@ -942,5 +1023,41 @@ font-size: 12px;
         });
     });
 </script>
+
+<script>
+    $(document).ready(function() {
+        // Get cancellation ID from Django template
+        var cancellationId = "{{ cancellation_details.id|default:'' }}";
+
+        $('.cancellation-form').submit(function(e) {
+            e.preventDefault(); // Prevent default form submission
+            var form = $(this);
+            var status = form.find('input[name="status"]').val();
+
+            // Check if cancellation ID is null or empty
+            if (!cancellationId) {
+                alert('Cancellation ID is not found. Form will not be submitted.'); // Alert if ID is not present
+                return; // Exit the function, preventing form submission
+            }
+
+            // Proceed with AJAX submission if cancellation ID is valid
+            $.ajax({
+                url: "{% url 'update_cancellation_status' '0' %}".replace('0', cancellationId), // Use the actual cancellation ID
+                type: 'POST',
+                data: form.serialize(), // Serialize form data
+                success: function(response) {
+                    // Handle success (e.g., show a success message or update the UI)
+                    alert('Cancellation status updated successfully!');
+                    window.location.reload(); // Reload the page after successful update
+                },
+                error: function(xhr) {
+                    // Handle error (e.g., show an error message)
+                    alert('Error updating cancellation status: ' + xhr.responseText);
+                }
+            });
+        });
+    });
+</script>
+
 
 {% endblock %}

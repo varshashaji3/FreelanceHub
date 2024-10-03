@@ -5,7 +5,9 @@
 <script>
    
     $(document).ready(function () {
-
+        var today = new Date().toISOString().split('T')[0];
+        var projectDeadline = new Date("{{ proposal.deadline|date:'Y-m-d' }}").toISOString().split('T')[0];
+        $('input[type="date"]').attr('min', today).attr('max', projectDeadline);
         $("#clientSignatureUpload").change(function () {
             check_client_signature();
         });
@@ -147,13 +149,12 @@ function validate_due_dates() {
     var dueDates = [];
     var valid = true;
     
-    $('input[name="installment_due_date[]"]').each(function () {
+    $('input[name="installment_due_date[]"]').each(function (index) {
         var dateStr = $(this).val();
+        var dueDate = new Date(dateStr);
+        dueDate.setHours(0, 0, 0, 0); // Set time to the start of the due date
         
         if (dateStr) {
-            var dueDate = new Date(dateStr);
-            dueDate.setHours(0, 0, 0, 0); // Set time to the start of the due date
-            
             if (isNaN(dueDate.getTime())) {
                 $(this).css("border", "2px solid red");
                 $("#error_due_dates").html("Invalid due date format").show();
@@ -162,7 +163,7 @@ function validate_due_dates() {
                 $(this).css("border", "2px solid red");
                 $("#error_due_dates").html("Due dates must be on or before the project deadline").show();
                 valid = false;
-            } else if (dueDate < today) { // Ensure due date is today or later
+            } else if (index > 0 && dueDate < today) { // Ensure due date is today or later for all but the first installment
                 $(this).css("border", "2px solid red");
                 $("#error_due_dates").html("Due dates must be today or later").show();
                 valid = false;
@@ -174,6 +175,10 @@ function validate_due_dates() {
                 $(this).css("border", "2px solid green");
                 dueDates.push(dateStr);
             }
+        } else if (index > 0) { // Ensure that all but the first installment have a value
+            $(this).css("border", "2px solid red");
+            $("#error_due_dates").html("Due dates must be today or later").show();
+            valid = false;
         }
     });
 
@@ -204,8 +209,7 @@ function validate_due_dates() {
         });
 
         // Set min date for all date inputs
-        var today = new Date().toISOString().split('T')[0];
-        $('input[type="date"]').attr('min', today);
+         // Disable dates before today and after the project deadline
     });
 
 </script>

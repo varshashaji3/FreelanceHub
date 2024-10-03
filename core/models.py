@@ -141,5 +141,38 @@ class SiteReview(models.Model):
     
     
     
-    
-    
+from client.models import Project,FreelanceContract
+from django.conf import settings
+from django.utils import timezone
+class CancellationRequest(models.Model):
+    STATUS_CHOICES = (
+        ('Pending', 'Pending'),
+        ('Approved', 'Approved'),
+        ('Rejected', 'Rejected'),
+    )
+
+    project = models.ForeignKey(Project, on_delete=models.CASCADE)
+    requested_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='cancellation_requests_made')
+    approver = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='cancellation_requests_to_approve')
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='Pending')
+    requested_date = models.DateTimeField(default=timezone.now)
+    response_date = models.DateTimeField(null=True, blank=True)
+    reason = models.TextField(blank=True, null=True) 
+    def __str__(self):
+        return f"Cancellation Request for Project {self.project.id} by {self.requested_by}"
+
+
+
+class RefundPayment(models.Model):
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    pay_to = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    is_paid = models.BooleanField(default=False)
+    payment_date = models.DateTimeField(null=True, blank=True)
+    razorpay_order_id = models.CharField(max_length=255, null=True, blank=True)
+    razorpay_payment_id = models.CharField(max_length=255, null=True, blank=True)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='created_refund_payments')
+    total_paid = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    compensation_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+
+    def __str__(self):
+        return f"Refund Payment of {self.amount} to {self.pay_to} for Contract {self.contract.id}"

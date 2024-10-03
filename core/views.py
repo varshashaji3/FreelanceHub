@@ -1,4 +1,3 @@
-
 import math
 import os
 import random
@@ -432,3 +431,170 @@ def site_review(request):
             next_url = request.POST.get('next', '/')
             return redirect(next_url)
         
+        
+# views.py
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib.auth.decorators import login_required
+from .models import CancellationRequest
+from client.models import Project,Repository
+
+@login_required
+def request_cancellation(request, project_id):
+    project = get_object_or_404(Project, id=project_id)
+    repository=Repository.objects.get(project=project.id)
+    if request.method == 'POST':
+        reason=request.POST.get("cancellation_reason")
+        if request.user == project.user:  
+            approver = project.freelancer  
+        else:
+            approver = project.user  
+
+        cancellation_request = CancellationRequest.objects.create(
+            project=project,
+            requested_by=request.user,
+            approver=approver,
+            status='Pending',
+            reason=reason
+        )
+        
+        messages.success(request, 'Cancellation request submitted successfully.')
+        
+        Notification.objects.create(
+            user=approver,
+            message=f'You have a new cancellation request for project: {project.title}.'
+        )
+
+        return redirect('client:view_repository', repository.id) if request.user == project.user else redirect('freelancer:view_repository', repository.id)
+
+
+from client.models import FreelanceContract,PaymentInstallment
+from core.models import RefundPayment
+from django.http import JsonResponse
+from django.utils import timezone
+
+from django.http import JsonResponse
+from django.utils import timezone
+from django.db.models import Sum
+
+from decimal import Decimal  # Make sure Decimal is imported
+
+def update_cancellation_status(request, cancellation_id):
+    if request.method == 'POST':
+        status = request.POST.get('status')
+        try:
+            cancellation = CancellationRequest.objects.get(id=cancellation_id)
+            cancellation.status = status
+            cancellation.response_date = timezone.now()
+            cancellation.save()
+            
+            if status == 'Approved':  
+                project = cancellation.project  
+                project.project_status = 'Cancelled'  
+                project.save()  
+                
+                # Fetch related data
+                budget = project.budget
+                tasks = project.task_set.all()
+
+                total_tasks = tasks.count()
+                completed_tasks = tasks.filter(status='completed').count()
+                
+                amount_per_task = Decimal(budget) / Decimal(total_tasks) if total_tasks > 0 else Decimal('0')
+                
+                total_completed_amount = Decimal(completed_tasks) * amount_per_task
+                compensation_amount = Decimal(budget) * Decimal('0.10')
+                
+                total_paid_result = PaymentInstallment.objects.filter(contract=project.contract).aggregate(Sum('amount'))
+                total_paid = total_paid_result['amount__sum'] or Decimal('0')
+                total_paid -= project.gst_amount
+                
+                # Determine if the requester is a client or freelancer
+                if cancellation.requested_by == project.user:  # Client cancels
+                    if total_paid > total_completed_amount:
+                        overpayment = total_paid - total_completed_amount
+                        if overpayment >= compensation_amount:
+                            # Sufficient overpayment for compensation, refund excess overpayment
+                            amount_due = Decimal('0')
+                            refund_amount = overpayment - compensation_amount
+                            if refund_amount > Decimal('0'):
+                                RefundPayment.objects.create(
+                                    user_id=project.freelancer.id,
+                                    pay_to=cancellation.requested_by,  # Refund to client
+                                    amount=refund_amount,
+                                    total_paid=total_paid,  # New entry
+                                    compensation_amount=compensation_amount  # New entry
+                                )
+                                print(f"Refund entry created: {refund_amount} from freelancer {project.freelancer.id} to client {cancellation.requested_by.id}")
+                        else:
+                            # Not enough overpayment for compensation
+                            amount_due = compensation_amount - overpayment
+                            RefundPayment.objects.create(
+                                user_id=cancellation.requested_by.id,
+                                pay_to=project.freelancer,  # Pay to freelancer
+                                amount=overpayment,
+                                total_paid=total_paid,  # New entry
+                                compensation_amount=compensation_amount  # New entry
+                            )
+                            print(f"Refund entry created: {overpayment} from client {cancellation.requested_by.id} to freelancer {project.freelancer.id}")
+                    else:
+                        # Client is underpaid
+                        amount_due = (total_completed_amount - total_paid) + compensation_amount
+
+                else:  # Freelancer cancels
+                    if total_paid > total_completed_amount:
+                        overpayment = total_paid - total_completed_amount
+                        amount_due = overpayment + compensation_amount
+                        RefundPayment.objects.create(
+                            user_id=cancellation.requested_by.id,
+                            pay_to=project.user,  # Pay to client
+                            amount=amount_due,
+                            total_paid=total_paid,  # New entry
+                            compensation_amount=compensation_amount  # New entry
+                        )
+                        print(f"Refund entry created: {amount_due} from freelancer {cancellation.requested_by.id} to client {project.user.id}")
+                    else:
+                        # Freelancer is underpaid
+                        amount_due = Decimal('0')
+
+                print(f"Amount due for cancellation: {amount_due}")
+            
+            return JsonResponse({'success': True})
+        except CancellationRequest.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Cancellation not found.'})
+    return JsonResponse({'success': False, 'error': 'Invalid request.'})
+
+from django.views.decorators.csrf import csrf_exempt
+from django.http import JsonResponse
+from django.utils import timezone
+from .models import RefundPayment  # Update the import to match your model path
+
+
+@csrf_exempt
+def payment_success(request):
+    if request.method == 'POST':
+        # Debug print statements to check the received data
+        print("Received POST request for payment success")
+        print(request.POST)
+
+        # Get payment details from the request
+        refund_payment_id = request.POST.get('refund_payment_id')
+        payment_id = request.POST.get('payment_id')
+        order_id = request.POST.get('order_id')
+
+        if refund_payment_id and payment_id:
+            try:
+                # Update the RefundPayment entry in the database
+                refund_payment = RefundPayment.objects.get(id=refund_payment_id)
+                refund_payment.razorpay_payment_id = payment_id
+                refund_payment.razorpay_order_id = order_id  # Save the order_id if needed
+                refund_payment.is_paid = True
+                refund_payment.payment_date = timezone.now()
+                refund_payment.save()
+
+                # Return a JSON response indicating success
+                return JsonResponse({'status': 'success'})
+            except RefundPayment.DoesNotExist:
+                return JsonResponse({'status': 'failed', 'error': 'Refund payment not found'}, status=404)
+        else:
+            return JsonResponse({'status': 'failed', 'error': 'Invalid data received'}, status=400)
+    

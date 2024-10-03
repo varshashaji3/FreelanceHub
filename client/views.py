@@ -543,6 +543,7 @@ def payment_success(request):
     return render(request, 'client/success.html', {'installment': installment})
 
 
+
 @login_required
 @nocache
 def notification_mark_as_read(request,not_id):
@@ -1492,11 +1493,11 @@ def create_repository(request):
             'client': client,
         })
         
- 
+from core.models import CancellationRequest
 @login_required
 @nocache
 def view_repository(request, repo_id):
-    if 'uid' not in request.session and not request.user.is_authenticated and request.user.role != 'client':
+    if 'uid' not in request.session or not request.user.is_authenticated or request.user.role != 'client':
         return redirect('login')
 
     uid = request.session['uid']
@@ -1524,7 +1525,7 @@ def view_repository(request, repo_id):
         notes = SharedNote.objects.filter(repository=repository).order_by('added_at')
         tasks = Task.objects.filter(project=project)
 
-        proposals = Proposal.objects.filter(project=project,status='Accepted')
+        proposals = Proposal.objects.filter(project=project, status='Accepted')
         contracts = FreelanceContract.objects.filter(project=project)
 
         items = []
@@ -1548,7 +1549,10 @@ def view_repository(request, repo_id):
             })
         
         items.sort(key=lambda x: x['date'])
-    
+
+        # Fetch cancellation details related to the project
+        cancellation_details = CancellationRequest.objects.filter(project=project).first()
+
         return render(request, 'client/SingleRepository.html', {
             'profile1': profile1,
             'profile2': profile2,
@@ -1562,6 +1566,7 @@ def view_repository(request, repo_id):
             'proposals': proposals,
             'contracts': contracts,
             'project': project,
+            'cancellation_details': cancellation_details,  # Pass cancellation details to the template
         })
         
     else:
@@ -1789,11 +1794,8 @@ def update_task_progress(request, repo_id):
             task = Task.objects.get(id=task_id)
             task.progress_percentage = progress
             
-            # Debugging output
-            print(f"Task ID: {task_id}")
-            print(f"New Progress: {progress}")
 
-            if progress >= 100:
+            if progress == 100:
                 task.status = 'Completed'
             else:
                 task.status = 'In Progress'  # Assuming you want to set a different status for progress < 100
