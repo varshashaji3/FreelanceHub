@@ -832,7 +832,7 @@ def add_template(request):
         file = request.FILES['template_file']
         file2 = request.FILES['cover_image']
         Template.objects.create(name=name, file=file,cover_image=file2)
-        return redirect('administrator:template_list')  # Replace 'success_url' with your desired redirect URL
+        return redirect('administrator:template_list') 
 
     return render(request, 'Admin/AddTemplate.html')
 

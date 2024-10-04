@@ -2054,6 +2054,15 @@ from django.template import loader
 from io import BytesIO
 from django.conf import settings
 import os
+import imgkit
+from django.core.files.base import ContentFile
+
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service as ChromeService
+from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.chrome.options import Options
+from django.core.files.base import ContentFile
+
 def process_resume(request, document_id):
     document = get_object_or_404(Document, id=document_id)
     user = request.user
@@ -2103,7 +2112,6 @@ def process_resume(request, document_id):
         template = loader.get_template(selected_template_path)
         rendered_html = template.render(context, request)
 
-        # Save the rendered HTML as a file
         html_file_name = f'resume_{document_id}.html'
         html_file_path = os.path.join(settings.MEDIA_ROOT, 'portfolios', html_file_name)
         os.makedirs(os.path.dirname(html_file_path), exist_ok=True)
@@ -2111,12 +2119,31 @@ def process_resume(request, document_id):
         with open(html_file_path, 'w', encoding='utf-8') as html_file:
             html_file.write(rendered_html)
 
-        # Save the file path to the model
+        # Set up Selenium with headless Chrome
+        chrome_options = Options()
+        chrome_options.add_argument("--headless")
+        chrome_options.add_argument("--no-sandbox")
+        chrome_options.add_argument("--disable-dev-shm-usage")
+        driver = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()), options=chrome_options)
+
+        # Load the HTML file in the browser
+        driver.get(f'file://{html_file_path}')
+        driver.set_window_size(1024, 768)  
+
+        # Capture the screenshot
+        img_file_name = f'resume_{document_id}.png'
+        img_file_path = os.path.join(settings.MEDIA_ROOT, 'portfolios', img_file_name)
+        driver.save_screenshot(img_file_path)
+        driver.quit()
+
+        # Save the image to the cover_image field
+        with open(img_file_path, 'rb') as img_file:
+            document.cover_image.save(img_file_name, ContentFile(img_file.read()))
+
         document.portfolio_file = f'portfolios/{html_file_name}'
         document.save()
 
-        # Return the rendered HTML without download prompt
-        return HttpResponse(rendered_html, content_type='text/html')  # Specify content type
+        return HttpResponse(rendered_html, content_type='text/html') 
     except Exception as e:
         return HttpResponse(f"Error loading template: {e}", status=500)
 

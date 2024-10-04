@@ -5,80 +5,101 @@
 
 <style>
     
-    .portfolio-page {
-        width: 80%;
-        margin: 20px auto;
-        text-align: center;
-    }
-    .portfolio-cards {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 20px;
-        justify-content: center;
-    }
-    .card {
-        border: 1px solid #ccc;
-        border-radius: 8px;
-        width: 18rem;
-        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-        overflow: hidden;
-        transform: scale(1);
-        transition: transform 0.3s ease-in-out;
-        cursor: pointer;
-    }
-    .card:hover {
-        transform: scale(1.05);
-    }
-    .card img {
-        width: 100%;
-        height: 200px;
-        object-fit: cover;
-    }
-    .card-body {
-        padding: 15px;
-        background-color: #fff;
-        position: relative; /* Added for positioning icons */
-    }
-    .icon-group {
-        display: none; /* Initially hidden */
-        position: absolute; /* Positioning for hover effect */
-        bottom: 10px; /* Position at the bottom */
-        left: 50%; /* Center horizontally */
-        transform: translateX(-50%); /* Center adjustment */
-    }
-    .card:hover .icon-group {
-        display: flex; /* Show on hover */
-    }
-    .card-title {
-        font-size: 1.25rem;
-        margin: 0 0 10px;
-    }
-    .card-text {
-        margin: 0 0 15px;
-        color: #555;
-    }
-    .btn-group {
-        display: flex;
-        justify-content: space-between;
-    }
-    .btn {
-        display: flex;
-        align-items: center;
-        padding: 10px;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        text-decoration: none;
-        margin: 5px;
-        background-color: transparent; /* Remove background color */
-        color: inherit; /* Inherit text color */
-    }
-    .btn i {
-        margin-right: 5px;
-    }
+    
     ul{
         margin-left:20px;
     }
+
+    #template-container {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-around;
+        margin-top:40px;
+    }
+
+    .card {
+        
+        height:180px;
+        width: 200px;/* Adjusted margin */
+        position: relative; /* Ensure positioning for overlay */
+        overflow: hidden; /* Hide overflow for the overlay */
+        border: none; /* Removed border */
+        border-radius: 15px; 
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2); /* Enhanced shadow */
+        text-align: center;
+        background-color: #ffffff; /* Changed background color */
+        transition: transform 0.3s, box-shadow 0.3s; /* Added transition for box-shadow */
+    }
+
+    .card-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: rgba(0, 0, 0, 0.7);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        opacity: 0; /* Initially hidden */
+        transition: opacity 0.3s;
+    }
+
+    .card:hover .card-overlay {
+        opacity: 1; /* Show overlay on hover */
+    }
+
+    .card h3 {
+        font-size: 1em; /* Adjusted font size for better visibility */
+        color: #ffffff; /* Ensure text is white for contrast */
+        margin: 5px 0; /* Adjusted margin */
+        text-align: center; /* Center align text */
+        z-index: 1; /* Ensure text is above the overlay */
+    }
+
+    .icon-button {
+        background-color: #3498db; /* Button background color */
+        color: white; /* Button text color */
+        border: none; /* No border */
+        padding: 8px 12px; /* Padding for buttons */
+        cursor: pointer; /* Pointer cursor on hover */
+        border-radius: 4px; /* Rounded corners */
+        transition: background-color 0.3s; /* Transition for hover effect */
+        font-size: 0.9em; /* Font size for buttons */
+        margin: 5px; /* Margin for spacing */
+    }
+
+    .icon-button:hover {
+        background-color: #2980b9; /* Darker shade on hover */
+    }
+
+    .btn {
+        background-color: #007BFF;
+        color: white;
+        border: none;
+        padding: 10px;
+        cursor: pointer;
+        border-radius: 5px;
+        width: 100%;
+        margin-top: 10px;
+    }
+
+    .btn:hover {
+        background-color: #0056b3;
+    }
+
+    .card-image{
+        height:180px;
+        width: 200px;
+    }
+    .btn{
+        color:#fff;
+    }
+    .card-text{
+        color:#fff;
+    }
+
 </style>
     <div class="row" style="background-color:white;padding:10px;border-radius:10px;">
         <h3 align="center" style="margin:1% auto;color:#ff0057">My Portfolios</h3>
@@ -152,11 +173,15 @@
 </script>
 
     {% if portfolios %}
-<div class="portfolio-page" style="margin-top: 20px;">
-    <div class="portfolio-cards" id="portfolio-cards">
+    <div id="template-container">
         {% for portfolio in portfolios %}
-        <div class="card" onclick="window.location.href='{{ portfolio.portfolio_file.url }}'">
-            <div class="card-body">
+        <div class="card">
+            {% if portfolio.cover_image %}
+            <img class="card-image" src="{{ portfolio.cover_image.url }}" alt="{{ template.name }}">
+            {% else %}
+            <img class="card-image" src="" alt="{{ template.name }}">
+            {% endif %}
+            <div class="card-overlay">
                 <p class="card-text">Created on: {{ portfolio.created_at|date:"F j, Y" }}</p>
                 <div class="icon-group"> <!-- New icon group for hover effect -->
                     <a class="btn" href="{{ portfolio.portfolio_file.url }}" download>
@@ -170,7 +195,6 @@
         </div>
         {% endfor %}
     </div>
-</div>
 {% else %}
 <p style="margin: 30px;">No portfolios Created</p>
 {% endif %}
