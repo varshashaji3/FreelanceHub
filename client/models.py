@@ -81,6 +81,9 @@ class Project(models.Model):
         self.gst_amount = budget_decimal * (gst_rate_decimal / Decimal('100'))
         self.total_including_gst = budget_decimal + self.gst_amount
         
+        if self.end_date and self.end_date < timezone.now().date():
+            self.status = 'closed'
+        
         super().save(*args, **kwargs)
 
     def __str__(self):

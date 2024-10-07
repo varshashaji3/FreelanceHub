@@ -19,18 +19,13 @@
         </div>
     </div>
 
-    <form method="GET" id="filterForm" class="form-row align-items-center">
-    <div class="col-md-3 mb-2">
-        <input type="text" name="search" id="searchInput" placeholder="Search by name or profession..." class="form-control" value="{{ request.GET.search }}">
-    </div>
     
-</form>
     <div class="row" style="margin-right:-60px;background-color:white;">
         <div class="row mb-3" style="margin-left:700px;margin-top:30px;">
-            <div class="col-12 ">
-                <a href="{% url 'client:add_new_project' %}" class="btn btn-primary add-project-btn">Add New Project</a>
+            <div class="col-12 d-flex justify-content-between">
+                <a href="{% url 'client:add_new_project' %}" class="btn btn-primary add-project-btn" style="margin-right:10px;">Add New Project</a>
                 <!-- New Export Dropdown -->
-                <div class="btn-group">
+                <div class="btn-group" style="margin-right:10px;">
                     <button type="button" class="btn btn-secondary dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
                         Export
                     </button>
@@ -39,11 +34,21 @@
                         <a class="dropdown-item" href="{% url 'client:export_projects_excel' %}">Export to Excel</a>
                     </div>
                 </div>
+                
             </div>
+            
         </div>
         <div class="col-12" style="margin-top:10px;">
-            <div class="table-responsive">
-                <table id="projectTable" class="table table-hover table-bordered table-responsive-sm">
+            
+            <div class="table-responsive" style="margin-top:-10px;">
+                <form method="GET" id="filterForm" class="form-row align-items-center" style="margin-right:10px;width:350px;margin-left:790px;">
+                    <div class="col-md-6 mb-2">
+                        <input type="text" name="search" id="searchInput" placeholder="Search by title..." class="form-control" value="{{ request.GET.search }}">
+                    </div>
+                    
+                </form>
+                <table id="projectTable" class="table table-hover table-bordered table-responsive-sm" >
+                    
                     <thead class="thead-dark">
                         <tr>
                             <th>Title</th>
@@ -186,7 +191,7 @@
 $(document).ready(function () {
     $('#projectTable').DataTable({
         "paging": true,
-        "searching": true,
+        "searching": false, // Disable the search option
         "info": true,
         "responsive": true,
         "autoWidth": false,

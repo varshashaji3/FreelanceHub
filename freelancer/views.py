@@ -52,7 +52,7 @@ def freelancer_view(request):
     profile2 = Register.objects.get(user_id=uid)
     todos = Todo.objects.filter(user_id=uid)
     profile1 = CustomUser.objects.get(id=uid)
-    notifications = Notification.objects.filter(user=logged_user).order_by('-created_at')[:10]
+    notifications = Notification.objects.filter(user=logged_user).order_by('-created_at')[:5]
 
     current_date = timezone.now().date()
     one_week_later = current_date + timedelta(days=7)

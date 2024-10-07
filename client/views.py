@@ -25,6 +25,8 @@ from datetime import timedelta
 from django.http import HttpResponse, JsonResponse
 import json
 from django.views.decorators.csrf import csrf_exempt
+from xhtml2pdf import pisa
+from datetime import date
 
 @login_required
 @nocache
@@ -42,7 +44,7 @@ def client_view(request):
     profile2 = Register.objects.get(user_id=logged_user.id)
     
     client, created = ClientProfile.objects.get_or_create(user_id=logged_user.id)
-    notifications = Notification.objects.filter(user=logged_user).order_by('-created_at')[:10]
+    notifications = Notification.objects.filter(user=logged_user).order_by('-created_at')[:5]
 
     for event in events:
         one_day_before = event.start_time.date() - datetime.timedelta(days=1)
@@ -176,7 +178,7 @@ def client_view(request):
 #         if progress_percentage == 100:
 #             project.project_status = 'Completed'
 #             project.save()
-
+            
 #             # Fetch proposal related to the project
 #             try:
 #                 proposal = Proposal.objects.get(project=project)
@@ -742,6 +744,38 @@ def change_profile_image(request,uid):
             return redirect('client:account_settings')
     return render(request, 'client/profile.html',{'profile1':profile1,'profile2':profile2,'client':client})
 
+@login_required
+@nocache
+def download_invoice(request, contract_id):
+    # Fetch the contract using the contract_id
+    contract = get_object_or_404(FreelanceContract, id=contract_id)
+    
+    # Fetch related project and payment details
+    project = contract.project
+    payments = PaymentInstallment.objects.filter(contract_id=contract_id)
+    today = date.today()  # Get today's date
+
+    # Render the HTML template with context
+    html_content = render_to_string('client/InvoiceDownload.html', {
+        'project': project,
+        'payments': payments,
+        'today': today
+    })
+
+    # Create a PDF response
+    response = HttpResponse(content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="invoice_{contract_id}.pdf"'
+
+    # Convert HTML to PDF
+    pisa_status = pisa.CreatePDF(
+       html_content, dest=response
+    )
+
+    # Return the response
+    if pisa_status.err:
+       return HttpResponse('We had some errors <pre>' + html_content + '</pre>')
+    return response
+
 
         
 @login_required
@@ -1218,10 +1252,7 @@ def project_list(request):
     if profile1.permission:
         search_query = request.GET.get('search', '')
         if search_query:
-            projects = Project.objects.filter(Q(user_id=uid) and
-                Q(title__istartswith=search_query) 
-                
-            ).select_related('freelancer')
+            projects = Project.objects.filter(user_id=uid, title__istartswith=search_query).select_related('freelancer')
 
         else:
             projects = Project.objects.filter(user_id=uid).select_related('freelancer')
@@ -1492,6 +1523,38 @@ def create_repository(request):
             'profile2': profile2,
             'client': client,
         })
+
+@login_required
+@nocache
+def download_invoice(request, contract_id):
+    # Fetch the contract using the contract_id
+    contract = get_object_or_404(FreelanceContract, id=contract_id)
+    
+    # Fetch related project and payment details
+    project = contract.project
+    payments = PaymentInstallment.objects.filter(contract_id=contract_id)
+    today = date.today()  # Get today's date
+
+    # Render the HTML template with context
+    html_content = render_to_string('client/InvoiceDownload.html', {
+        'project': project,
+        'payments': payments,
+        'today': today
+    })
+
+    # Create a PDF response
+    response = HttpResponse(content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="invoice_{contract_id}.pdf"'
+
+    # Convert HTML to PDF
+    pisa_status = pisa.CreatePDF(
+       html_content, dest=response
+    )
+
+    # Return the response
+    if pisa_status.err:
+       return HttpResponse('We had some errors <pre>' + html_content + '</pre>')
+    return response
         
 from core.models import CancellationRequest
 @login_required
@@ -2445,3 +2508,89 @@ def export_projects_excel(request):
     
     df.to_excel(response, index=False)  # Write DataFrame to response
     return response
+
+
+@login_required
+def payments(request):
+    if not request.user.is_authenticated or request.user.role != 'client':
+        return redirect('login')
+
+    user_id = request.user.id
+    contracts = FreelanceContract.objects.filter(client=user_id).select_related('project')
+    payments_details = {}
+
+    for contract in contracts:
+        project_payments = PaymentInstallment.objects.filter(contract=contract)
+        for payment in project_payments:
+            project_id = contract.project.id
+            contract_id = contract.id  # Added contract_id
+            if project_id not in payments_details:
+                freelancer_register = get_object_or_404(Register, user=contract.project.freelancer)
+                freelancer_first_name = freelancer_register.first_name
+                freelancer_last_name = freelancer_register.last_name
+                
+                payments_details[project_id] = {
+                    'project_title': contract.project.title,
+                    'freelancer_first_name': freelancer_first_name,
+                    'freelancer_last_name': freelancer_last_name,
+                    'amount': contract.project.total_including_gst,
+                    'contract_id': contract_id,  
+                    'payments': []
+                }
+            
+
+    payments_details_list = list(payments_details.values())
+
+    return render(request, 'client/payments.html', {
+        'payments_details': payments_details_list,
+    })
+    
+    
+
+import pdfkit  
+
+from datetime import date
+
+def view_invoice(request, contract_id):
+    contract = get_object_or_404(FreelanceContract, id=contract_id)
+    project = contract.project
+    payments = PaymentInstallment.objects.filter(contract_id=contract_id)
+    today = date.today()  # Get today's date
+    return render(request, 'client/PaymentInvoice.html', {
+        'project': project,
+        'payments': payments,
+        'today': today  # Pass today's date to the template
+    })
+
+
+
+from django.http import HttpResponse
+from django.template.loader import render_to_string
+from xhtml2pdf import pisa
+from django.shortcuts import get_object_or_404
+from client.models import FreelanceContract, PaymentInstallment
+from datetime import date
+
+@login_required
+@nocache
+def download_invoice(request, contract_id):
+    # Fetch the contract using the contract_id
+    contract = get_object_or_404(FreelanceContract, id=contract_id)
+    
+    project = contract.project
+    payments = PaymentInstallment.objects.filter(contract_id=contract_id)
+    today = date.today()  # Get today's date
+
+    client_profile = ClientProfile.objects.get(user=request.user.id)
+    if client_profile.client_type == 'Individual':
+        register_info = Register.objects.get(user=request.user.id)
+        client_name = f"{register_info.first_name} {register_info.last_name}"
+    else:
+        client_name = client_profile.company_name
+
+    return render(request, 'client/InvoiceDownload.html', {
+        'project': project,
+        'payments': payments,
+        'today': today,
+        'client_name': client_name  
+    })
