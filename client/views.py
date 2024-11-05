@@ -1,5 +1,6 @@
 
 
+
 import datetime
 import os
 from django.contrib import messages
@@ -27,6 +28,9 @@ import json
 from django.views.decorators.csrf import csrf_exempt
 from xhtml2pdf import pisa
 from datetime import date
+
+from django.core.paginator import Paginator
+from django.db.models import Case, When, Value, IntegerField
 
 @login_required
 @nocache
@@ -71,9 +75,7 @@ def client_view(request):
         completed_tasks = tasks.filter(status='Completed').count()
         progress_percentage = (completed_tasks / total_tasks) * 100 if total_tasks > 0 else 0.0
 
-        if progress_percentage == 100:
-            project.project_status = 'Completed'
-            project.save()
+    
             
         project_progress_data.append({
             'project': project,
@@ -87,7 +89,20 @@ def client_view(request):
     not_completed_projects = total_projects - completed_projects
     
     client_contracts = FreelanceContract.objects.filter(client=logged_user).select_related('freelancer', 'project')
-    payment_installments = PaymentInstallment.objects.filter(contract__in=client_contracts).select_related('contract__project', 'contract__freelancer')
+    
+    # Order installments with pending first, then by due date
+    payment_installments = PaymentInstallment.objects.filter(contract__in=client_contracts).annotate(
+        sort_order=Case(
+            When(status='pending', then=Value(0)),
+            default=Value(1),
+            output_field=IntegerField(),
+        )
+    ).order_by('sort_order', 'due_date')
+
+    # Pagination
+    paginator = Paginator(payment_installments, 5)  # Show 5 installments per page
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
 
     for installment in payment_installments:
         due_date = installment.due_date
@@ -119,7 +134,7 @@ def client_view(request):
     return render(request, 'Client/index.html', {
         'profile2': profile2,
         'profile1': profile1,
-        'client':client,
+        'client': client,
         'uid': logged_user.id,
         'notifications': notifications,
         'events': events,
@@ -127,151 +142,40 @@ def client_view(request):
         'completed_projects': completed_projects,
         'not_completed_projects': not_completed_projects,
         'project_progress_data': project_progress_data,
-        'payment_installments': payment_installments
+        'page_obj': page_obj
     })
 
 
 
-# @login_required
-# @nocache
-# def client_view(request):
-#     if not request.user.is_authenticated or request.user.role != 'client':
-#         return redirect('login')
 
-#     logged_user = request.user
-#     current_date = datetime.date.today()
-#     one_week_later = current_date + datetime.timedelta(days=7)
+from django.views.decorators.http import require_POST
 
-#     events = Event.objects.filter(user=logged_user, start_time__range=[current_date, one_week_later])
-
-#     profile1 = CustomUser.objects.get(id=logged_user.id)
-#     profile2 = Register.objects.get(user_id=logged_user.id)
-    
-#     client, created = ClientProfile.objects.get_or_create(user_id=logged_user.id)
-#     notifications = Notification.objects.filter(user=logged_user).order_by('-created_at')[:10]
-
-#     for event in events:
-#         one_day_before = event.start_time.date() - datetime.timedelta(days=1)
-#         if one_day_before == current_date:
-#             Notification.objects.get_or_create(
-#                 user=logged_user,
-#                 message=f"Reminder: Upcoming event '{event.title}' tomorrow!",
-#                 defaults={'is_read': False}
-#             )
-#         if event.start_time.date() == current_date:
-#             Notification.objects.get_or_create(
-#                 user=logged_user,
-#                 message=f"Reminder: Event '{event.title}' is today!",
-#                 defaults={'is_read': False}
-#             )
-
-#     client_projects = Project.objects.filter(user=logged_user)
-#     project_progress_data = []
-
-#     # Project progress data
-#     for project in client_projects:
-#         tasks = Task.objects.filter(project=project)
-#         total_tasks = tasks.count()
-#         completed_tasks = tasks.filter(status='Completed').count()
-#         progress_percentage = (completed_tasks / total_tasks) * 100 if total_tasks > 0 else 0.0
-
-#         if progress_percentage == 100:
-#             project.project_status = 'Completed'
-#             project.save()
-            
-#             # Fetch proposal related to the project
-#             try:
-#                 proposal = Proposal.objects.get(project=project)
-                
-#                 # Calculate ProposedDeadline and ActualCompletion based on proposal
-#                 proposed_deadline_days = (proposal.proposed_deadline - proposal.start_date).days
-#                 actual_completion_days = (project.end_time - proposal.start_date).days
-
-#                 # Determine if the project was completed on time
-#                 completed_on_time = actual_completion_days <= proposed_deadline_days
-#             except Proposal.DoesNotExist:
-#                 proposed_deadline_days = None
-#                 actual_completion_days = None
-#                 completed_on_time = False
-
-#             # Fetch work_type from FreelanceProfile
-#             try:
-#                 freelance_profile = FreelancerProfile.objects.get(user=project.freelancer)
-#                 work_type = freelance_profile.work_type
-#             except FreelancerProfile.DoesNotExist:
-#                 work_type = None
-
-#             # Add to Prediction table
-#             Prediction.objects.create(
-#                 project_id=project.project_id,
-#                 budget=project.budget,
-#                 proposed_deadline=proposed_deadline_days,
-#                 actual_completion=actual_completion_days,
-#                 freelancer_id=project.freelancer.id,
-#                 experience=project.freelancer.experience,
-#                 category=project.category,
-#                 complexity=project.complexity,
-#                 work_type=work_type,
-#                 completed_on_time=completed_on_time
-#             )
-
-#         project_progress_data.append({
-#             'project': project,
-#             'progress_percentage': progress_percentage,
-#             'total_tasks': total_tasks,
-#             'completed_tasks': completed_tasks
-#         })
-
-#     total_projects = client_projects.count()
-#     completed_projects = client_projects.filter(project_status='Completed').count()
-#     not_completed_projects = total_projects - completed_projects
-    
-#     client_contracts = FreelanceContract.objects.filter(client=logged_user).select_related('freelancer', 'project')
-#     payment_installments = PaymentInstallment.objects.filter(contract__in=client_contracts).select_related('contract__project', 'contract__freelancer')
-
-#     for installment in payment_installments:
-#         due_date = installment.due_date
-#         one_day_before_due = due_date - datetime.timedelta(days=1)
+@login_required
+@require_POST
+def mark_project_completed(request):
+    try:
+        project_id = request.POST.get('project_id')
+        project = Project.objects.get(id=project_id, user=request.user)
         
-#         if installment.status == 'Pending':
-#             if one_day_before_due == current_date:
-#                 Notification.objects.get_or_create(
-#                     user=logged_user,
-#                     message=f"Reminder: Payment installment for project '{installment.contract.project.title}' is due tomorrow!",
-#                     defaults={'is_read': False}
-#                 )
-#             elif due_date == current_date:
-#                 Notification.objects.get_or_create(
-#                     user=logged_user,
-#                     message=f"Reminder: Payment installment for project '{installment.contract.project.title}' is due today!",
-#                     defaults={'is_read': False}
-#                 )
-
-#     if not profile2.phone_number and not profile2.profile_picture and not profile2.bio_description and not profile2.location:
-#         return render(request, 'Client/Add_profile.html', {
-#             'profile2': profile2,
-#             'profile1': profile1,
-#             'uid': logged_user.id,
-#             'notifications': notifications,
-#             'events': events
-#         })
-
-#     return render(request, 'Client/index.html', {
-#         'profile2': profile2,
-#         'profile1': profile1,
-#         'client': client,
-#         'uid': logged_user.id,
-#         'notifications': notifications,
-#         'events': events,
-#         'total_projects': total_projects,
-#         'completed_projects': completed_projects,
-#         'not_completed_projects': not_completed_projects,
-#         'project_progress_data': project_progress_data,
-#         'payment_installments': payment_installments
-#     })
-
-
-
+        # Update project status
+        project.project_status = 'Completed'
+        project.project_end_date = timezone.now()  # Changed from datetime.now()
+        project.save()
+        
+        return JsonResponse({
+            'status': 'success',
+            'message': 'Project marked as completed successfully'
+        })
+    except Project.DoesNotExist:
+        return JsonResponse({
+            'status': 'error',
+            'message': 'Project not found'
+        }, status=404)
+    except Exception as e:
+        return JsonResponse({
+            'status': 'error',
+            'message': str(e)
+        }, status=500)
 
 
 
@@ -301,133 +205,6 @@ def convert_to_days(date_input):
     days_remaining = (proposed_date - datetime.date.today()).days
     return days_remaining
 
-
-# import numpy as np 
-# @login_required
-# def single_project_view(request, pid):
-#     if 'uid' not in request.session or not request.user.is_authenticated or request.user.role != 'client':
-#         return redirect('login')
-
-#     uid = request.session['uid']
-#     try:
-#         profile1 = CustomUser.objects.get(id=uid)
-#         profile2 = Register.objects.get(user_id=uid)
-#         client = ClientProfile.objects.get(user_id=uid)
-#     except (CustomUser.DoesNotExist, Register.DoesNotExist, ClientProfile.DoesNotExist):
-#         return redirect('login')
-
-#     if profile1.permission:
-#         try:
-#             project = get_object_or_404(Project, id=pid)
-#             proposals = Proposal.objects.filter(project_id=project)
-#             freelancer_ids = proposals.values_list('freelancer_id', flat=True)
-#             freelancer_profiles = FreelancerProfile.objects.filter(user_id__in=freelancer_ids)
-
-#             new_data = [
-#                 {
-#                     'ProposedDeadline': convert_to_days(proposal.deadline),
-#                     'FreelancerID': proposal.freelancer_id,
-#                     'Category': project.category,
-#                     'Complexity': project.scope,
-#                 }
-#                 for proposal in proposals
-#             ]
-
-#             # Convert new data to DataFrame
-#             new_df = pd.DataFrame(new_data)
-
-#             # Define expected columns and check for their presence
-#             expected_columns = ['ProposedDeadline', 'FreelancerID', 'Category', 'Complexity']
-#             missing_columns = [col for col in expected_columns if col not in new_df.columns]
-            
-#             if missing_columns:
-#                 return render(request, 'client/Error.html', {
-#                     'error_message': f"Missing columns: {', '.join(missing_columns)}"
-#                 })
-
-#             new_df = new_df[expected_columns]
-
-#             # Load model, scaler, and label encoders
-#             model_path = os.path.join(settings.BASE_DIR, 'freelancehub', 'models', 'final_model.pkl')
-#             scaler_path = os.path.join(settings.BASE_DIR, 'freelancehub', 'models', 'final_scaler.pkl')
-#             le_path = os.path.join(settings.BASE_DIR, 'freelancehub', 'models', 'final_label_encoders.pkl')
-
-#             try:
-#                 model = joblib.load(model_path)
-#                 scaler = joblib.load(scaler_path)
-#                 label_encoders = joblib.load(le_path)
-#             except FileNotFoundError as e:
-#                 return render(request, 'client/ModelFileNotFound.html', {
-#                     'error_message': f"Error loading model files: {str(e)}"
-#                 })
-
-#             # Encode categorical variables
-#             for col in ['Category', 'Complexity']:
-#                 if col in new_df.columns:
-#                     new_df[col] = label_encoders[col].transform(new_df[col])
-#                 else:
-#                     return render(request, 'client/Error.html', {
-#                         'error_message': f"Column {col} is missing in the data."
-#                     })
-
-#             # Handle missing values
-#             new_df.fillna(0, inplace=True)
-
-#             # Feature scaling
-#             X_new = scaler.transform(new_df)
-
-#             # Make predictions
-#             predictions = model.predict(X_new)
-#             probabilities = model.predict_proba(X_new)
-
-#             if probabilities.shape[1] == 1:
-#                 probabilities = np.hstack([1 - probabilities, probabilities])
-#             print(predictions)
-#             print(probabilities)
-#             prediction_results = [
-#                 {
-#                     'freelancer_id': freelancer_ids[i],
-#                     'prediction': 'Will Complete On Time' if pred == 1 else 'Will Not Complete On Time',
-#                     'prob_class_0': prob[0] * 100,
-#                     'prob_class_1': prob[1] * 100
-#                 }
-#                 for i, (pred, prob) in enumerate(zip(predictions, probabilities))
-#             ]
-
-#             # Group prediction results by freelancer ID
-#             prediction_map = {}
-#             for result in prediction_results:
-#                 fid = result['freelancer_id']
-#                 if fid not in prediction_map:
-#                     prediction_map[fid] = []
-#                 prediction_map[fid].append(result)
-
-#             # Store prediction results in session
-#             request.session['proposal_predictions'] = prediction_map
-
-#             additional_files = ProposalFile.objects.filter(proposal__in=proposals)
-
-#             return render(request, 'client/SingleProject.html', {
-#                 'profile1': profile1,
-#                 'profile2': profile2,
-#                 'client': client,
-#                 'project': project,
-#                 'proposals': proposals,
-#                 'reg_details': Register.objects.filter(user_id__in=freelancer_ids),
-#                 'freelancer_profiles': freelancer_profiles,
-#                 'additional_files': additional_files,
-#                 'prediction_map': prediction_map,
-#             })
-#         except Exception as e:
-#             return render(request, 'client/Error.html', {
-#                 'error_message': f"An unexpected error occurred: {str(e)}"
-#             })
-#     else:
-#         return render(request, 'client/PermissionDenied.html', {
-#             'profile1': profile1,
-#             'profile2': profile2,
-#             'client': client,
-#         })
 
 
 
@@ -488,7 +265,7 @@ def make_payment(request, installment_id):
         else:
             return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
     else:
-        return render(request, 'client/PermissionDenied.html', {
+        return render(request, 'Client/PermissionDenied.html', {
             'profile1': profile1,
             'profile2': profile2,
             'client': client,
@@ -542,7 +319,7 @@ def payment_success(request):
     installment.status = 'paid'
     installment.save()
 
-    return render(request, 'client/success.html', {'installment': installment})
+    return render(request, 'Client/success.html', {'installment': installment})
 
 
 
@@ -611,7 +388,7 @@ def AddProfileClient(request, uid):
 
         return redirect('client:client_view')
 
-    return render(request, 'client/add_profile_client.html', {'profile': profile, 'client_profile': client_profile})
+    return render(request, 'Client/add_profile_client.html', {'profile': profile, 'client_profile': client_profile})
 
 
 @login_required
@@ -668,7 +445,7 @@ def update_profile(request, uid):
 
         return redirect('client:account_settings')
 
-    return render(request, 'client/profile.html', {'profile1': profile1, 'profile2': profile2, 'client': client})
+    return render(request, 'Client/profile.html', {'profile1': profile1, 'profile2': profile2, 'client': client})
 
 
 
@@ -682,7 +459,7 @@ def account_settings(request):
     profile2=Register.objects.get(user_id=uid)
     client=ClientProfile.objects.get(user_id=uid)
     
-    return render(request, 'client/profile.html',{'profile1':profile1,'profile2':profile2,'client':client})
+    return render(request, 'Client/profile.html',{'profile1':profile1,'profile2':profile2,'client':client})
 
 
 
@@ -709,13 +486,13 @@ def change_password(request, uid):
             profile1.set_password(new_pass)
             profile1.save()
             messages.success(request, 'Your password has been changed successfully!')
-            return render(request, 'client/profile.html',{'profile1':profile1,'profile2':profile2,'client':client})
+            return render(request, 'Client/profile.html',{'profile1':profile1,'profile2':profile2,'client':client})
     
             
         else:
             messages.error(request, 'Current password is incorrect.')
 
-    return render(request, 'client/profile.html',{'profile1':profile1,'profile2':profile2,'client':client})
+    return render(request, 'Client/profile.html',{'profile1':profile1,'profile2':profile2,'client':client})
     
     
     
@@ -742,7 +519,7 @@ def change_profile_image(request,uid):
             profile2.save()
             
             return redirect('client:account_settings')
-    return render(request, 'client/profile.html',{'profile1':profile1,'profile2':profile2,'client':client})
+    return render(request, 'Client/profile.html',{'profile1':profile1,'profile2':profile2,'client':client})
 
 @login_required
 @nocache
@@ -756,7 +533,7 @@ def download_invoice(request, contract_id):
     today = date.today()  # Get today's date
 
     # Render the HTML template with context
-    html_content = render_to_string('client/InvoiceDownload.html', {
+    html_content = render_to_string('Client/InvoiceDownload.html', {
         'project': project,
         'payments': payments,
         'today': today
@@ -788,11 +565,11 @@ def freelancer_list(request):
     profile1 = get_object_or_404(CustomUser, id=uid)
     profile2 = get_object_or_404(Register, user_id=uid)
     client = get_object_or_404(ClientProfile, user_id=uid)
-
+    
     if profile1.permission:
         search_query = request.GET.get('search', '')
-        profession_filter = request.GET.get('profession', '')
-        skill_filter = request.GET.get('skill', '')
+        selected_professions = request.GET.getlist('profession')
+        selected_skills = request.GET.getlist('skill')
 
         users_with_profiles = CustomUser.objects.filter(
             role='freelancer',
@@ -809,15 +586,17 @@ def freelancer_list(request):
                 Q(register__last_name__icontains=search_query)
             )
 
-        if profession_filter:
-            users_with_profiles = users_with_profiles.filter(
-                freelancerprofile__professional_title__icontains=profession_filter
-            )
+        if selected_professions:
+            for profession in selected_professions:
+                users_with_profiles = users_with_profiles.filter(
+                    freelancerprofile__professional_title__icontains=profession
+                )
 
-        if skill_filter:
-            users_with_profiles = users_with_profiles.filter(
-                freelancerprofile__skills__icontains=skill_filter
-            )
+        if selected_skills:
+            for skill in selected_skills:
+                users_with_profiles = users_with_profiles.filter(
+                    freelancerprofile__skills__icontains=skill
+                )
 
         registers = Register.objects.all()
         register_dict = {}
@@ -853,19 +632,26 @@ def freelancer_list(request):
             "coreldraw", "affinity designer", "adobe photoshop", "adobe indesign", "canva", "opencv"
         ]
 
-        return render(request, 'client/ViewFreelancers.html', {
+        template_context = {
             'profile1': profile1,
             'profile2': profile2,
             'client': client,
             'users': context,
             'search_query': search_query,
-            'profession_filter': profession_filter,
-            'skill_filter': skill_filter,
+            'selected_professions': selected_professions,
+            'selected_skills': selected_skills,
             'profession_choices': profession_choices,
             'skill_choices': skill_choices,
-        })
+        }
+
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            # Return only the freelancer cards for AJAX requests
+            return render(request, 'Client/ViewFreelancers.html', template_context)
+        
+        # Return full page for regular requests
+        return render(request, 'Client/ViewFreelancers.html', template_context)
     else:
-        return render(request, 'client/PermissionDenied.html', {
+        return render(request, 'Client/PermissionDenied.html', {
             'profile1': profile1,
             'profile2': profile2,
             'client': client,
@@ -909,7 +695,7 @@ def freelancer_detail(request, fid):
                 'reviewer_image': reviewer_profile.profile_picture.url if reviewer_profile.profile_picture else None,
             })
 
-        return render(request, 'client/SingleFreelancer.html', {
+        return render(request, 'Client/SingleFreelancer.html', {
             'profile1': profile1,
             'profile2': profile2,
             'freelancer': freelancer,
@@ -920,7 +706,7 @@ def freelancer_detail(request, fid):
             "reviews": review_details,
         })
     else:
-        return render(request, 'client/PermissionDenied.html', {
+        return render(request, 'Client/PermissionDenied.html', {
             'profile1': profile1,
             'profile2': profile2,
             'client': client,
@@ -954,14 +740,14 @@ def calendar(request):
     ]
 
     if profile1.permission:
-        return render(request, 'client/calendar.html', {
+        return render(request, 'Client/calendar.html', {
             'profile1': profile1,
             'profile2': profile2,
             'client': client,
             'events_data': events_data  
         })
     else:
-        return render(request, 'client/PermissionDenied.html', {
+        return render(request, 'Client/PermissionDenied.html', {
             'profile1': profile1,
             'profile2': profile2,
             'client': client,
@@ -1002,7 +788,7 @@ def add_event(request):
             )
             return redirect('client:calendar')
     else:
-        return render(request, 'client/PermissionDenied.html',{'profile1': profile1,
+        return render(request, 'Client/PermissionDenied.html',{'profile1': profile1,
             'profile2': profile2,
             'client': client,})   
         
@@ -1052,7 +838,7 @@ def update_event(request):
 
             event = get_object_or_404(Event, id=event_id)
 
-            return render(request, 'client/edit_event.html', {
+            return render(request, 'Client/edit_event.html', {
                 'event': event,
                 'profile1': profile1,
                 'profile2': profile2,
@@ -1060,7 +846,7 @@ def update_event(request):
             })
 
     else:
-        return render(request, 'client/PermissionDenied.html', {
+        return render(request, 'Client/PermissionDenied.html', {
             'profile1': profile1,
             'profile2': profile2,
             'client': client,
@@ -1095,7 +881,7 @@ def delete_event(request):
             return redirect('client:calendar')
 
     else:
-        return render(request, 'client/PermissionDenied.html', {
+        return render(request, 'Client/PermissionDenied.html', {
             'profile1': profile1,
             'profile2': profile2,
             'client': client,
@@ -1133,7 +919,7 @@ def add_new_project(request):
             # Check if a project with the same title already exists for this user
             if Project.objects.filter(title=title, user=request.user).exists():
                 messages.error(request, 'A project with this title already exists!')
-                return render(request, 'client/NewProject.html', {
+                return render(request, 'Client/NewProject.html', {
                     'profile1': profile1, 
                     'profile2': profile2, 
                     'client': client, 
@@ -1154,20 +940,20 @@ def add_new_project(request):
             project.save()
             projects = Project.objects.filter(user_id=uid)
             messages.success(request, 'New Project Added Successfully!!')
-            return render(request, 'client/ProjectList.html', {
+            return render(request, 'Client/ProjectList.html', {
                 'profile1': profile1,
                 'profile2': profile2,
                 'client': client,
                 'projects': projects
             })
-        return render(request, 'client/NewProject.html', {
+        return render(request, 'Client/NewProject.html', {
             'profile1': profile1,
             'profile2': profile2,
             'client': client,
             'categories': categories
         })
     else:
-        return render(request, 'client/PermissionDenied.html', {
+        return render(request, 'Client/PermissionDenied.html', {
             'profile1': profile1,
             'profile2': profile2,
             'client': client,
@@ -1222,7 +1008,7 @@ def edit_project(request, pid):
             project.save()
             return redirect('client:project_list')
 
-        return render(request, 'client/UpdateProject.html', {
+        return render(request, 'Client/UpdateProject.html', {
             'profile1': profile1,
             'profile2': profile2,
             'client': client,
@@ -1230,7 +1016,7 @@ def edit_project(request, pid):
             'project': project
         })
     else:
-        return render(request, 'client/PermissionDenied.html', {
+        return render(request, 'Client/PermissionDenied.html', {
             'profile1': profile1,
             'profile2': profile2,
             'client': client
@@ -1273,7 +1059,7 @@ def project_list(request):
             repository = Repository.objects.filter(project=project).first()
             project_repos[project.id] = repository.id if repository else None
 
-        return render(request, 'client/ProjectList.html', {
+        return render(request, 'Client/ProjectList.html', {
             'profile1': profile1,
             'profile2': profile2,
             'client': client,
@@ -1282,7 +1068,7 @@ def project_list(request):
             'project_repos': project_repos,
         })
     else:
-        return render(request, 'client/PermissionDenied.html', {
+        return render(request, 'Client/PermissionDenied.html', {
             'profile1': profile1,
             'profile2': profile2,
             'client': client,
@@ -1301,9 +1087,25 @@ def single_project_view(request,pid):
     profile1 = CustomUser.objects.get(id=uid)
     profile2=Register.objects.get(user_id=uid)
     client=ClientProfile.objects.get(user_id=uid)
+    
     if profile1.permission:
         project = get_object_or_404(Project, id=pid)
         proposals = Proposal.objects.filter(project_id=project)
+        
+        # Get assigned freelancer details if exists
+        assigned_freelancer = None
+        freelancer_first_name = None
+        freelancer_last_name = None
+        if project.freelancer:
+            assigned_freelancer = FreelancerProfile.objects.get(user=project.freelancer)
+            freelancer_register = Register.objects.get(user=project.freelancer)
+            freelancer_first_name = freelancer_register.first_name
+            freelancer_last_name = freelancer_register.last_name
+            assigned_freelancer.skills = assigned_freelancer.skills.strip('[]').replace("'", "").split(', ')
+        
+        # Get repository if exists
+        repository = Repository.objects.filter(project=project).first()
+        repository_id = repository.id if repository else None
         
         freelancer_ids = proposals.values_list('freelancer__id', flat=True)
         reg_details = Register.objects.filter(user_id__in=freelancer_ids)
@@ -1314,7 +1116,7 @@ def single_project_view(request,pid):
         
         additional_files = ProposalFile.objects.filter(proposal__in=proposals)
 
-        return render(request, 'client/SingleProject.html', {
+        return render(request, 'Client/SingleProject.html', {
             'profile1': profile1,
             'profile2': profile2,
             'client': client,
@@ -1323,12 +1125,18 @@ def single_project_view(request,pid):
             'reg_details': reg_details,
             'freelancer_profiles': freelancer_profiles,
             'additional_files': additional_files,
+            'assigned_freelancer': assigned_freelancer,
+            'freelancer_first_name': freelancer_first_name,
+            'freelancer_last_name': freelancer_last_name,
+            'repository_id': repository_id,
         })
         
     else:
-        return render(request, 'client/PermissionDenied.html',{'profile1': profile1,
+        return render(request, 'Client/PermissionDenied.html',{
+            'profile1': profile1,
             'profile2': profile2,
-            'client': client,})      
+            'client': client,
+        })
 
 
         
@@ -1336,9 +1144,8 @@ def single_project_view(request,pid):
 @nocache
 def toggle_project_status(request, pid):
     project = Project.objects.get(id=pid)
-    if project.status == 'closed':
-        project.status = 'open'
-    elif project.status == 'open':
+    
+    if project.status == 'open':
         project.status = 'closed'
     project.save()
     return redirect('client:project_list')         
@@ -1467,7 +1274,7 @@ def acc_deactivate(request):
     context = {
         'user_name': name
     }
-    html_content = render_to_string('client/deactivation.html', context)
+    html_content = render_to_string('Client/deactivation.html', context)
     text_content = strip_tags(html_content)
     email = EmailMultiAlternatives(subject, text_content, settings.EMAIL_HOST_USER, [user.email])
     email.attach_alternative(html_content, "text/html")
@@ -1518,7 +1325,7 @@ def create_repository(request):
                 return redirect('client:project_list')
         
     else:
-        return render(request, 'client/PermissionDenied.html', {
+        return render(request, 'Client/PermissionDenied.html', {
             'profile1': profile1,
             'profile2': profile2,
             'client': client,
@@ -1536,7 +1343,7 @@ def download_invoice(request, contract_id):
     today = date.today()  # Get today's date
 
     # Render the HTML template with context
-    html_content = render_to_string('client/InvoiceDownload.html', {
+    html_content = render_to_string('Client/InvoiceDownload.html', {
         'project': project,
         'payments': payments,
         'today': today
@@ -1616,7 +1423,7 @@ def view_repository(request, repo_id):
         # Fetch cancellation details related to the project
         cancellation_details = CancellationRequest.objects.filter(project=project).first()
 
-        return render(request, 'client/SingleRepository.html', {
+        return render(request, 'Client/SingleRepository.html', {
             'profile1': profile1,
             'profile2': profile2,
             'client': client,
@@ -1633,7 +1440,7 @@ def view_repository(request, repo_id):
         })
         
     else:
-        return render(request, 'client/PermissionDenied.html', {
+        return render(request, 'Client/PermissionDenied.html', {
             'profile1': profile1,
             'profile2': profile2,
             'client': client,
@@ -1674,7 +1481,7 @@ def add_github_link(request,repo_id):
             return redirect('client:view_repository', repo_id=repository.id)
         
     else:
-        return render(request, 'client/PermissionDenied.html', {
+        return render(request, 'Client/PermissionDenied.html', {
             'profile1': profile1,
             'profile2': profile2,
             'client': client,
@@ -1710,7 +1517,7 @@ def add_file(request,repo_id):
             return redirect('client:view_repository', repo_id=repository.id)
         
     else:
-        return render(request, 'client/PermissionDenied.html', {
+        return render(request, 'Client/PermissionDenied.html', {
             'profile1': profile1,
             'profile2': profile2,
             'client': client,
@@ -1747,7 +1554,7 @@ def add_url(request,repo_id):
             return redirect('client:view_repository', repo_id=repository.id)
         
     else:
-        return render(request, 'client/PermissionDenied.html', {
+        return render(request, 'Client/PermissionDenied.html', {
             'profile1': profile1,
             'profile2': profile2,
             'client': client,
@@ -1787,7 +1594,7 @@ def add_note(request, repo_id):
                 messages.error(request, 'Note content cannot be empty.')
         
     else:
-        return render(request, 'client/PermissionDenied.html', {
+        return render(request, 'Client/PermissionDenied.html', {
             'profile1': profile1,
             'profile2': profile2,
             'client': client,
@@ -1818,22 +1625,26 @@ def add_task(request, repo_id):
             due_date = request.POST.get('due_date')
 
             task = Task.objects.create(
-            project=project,
-            title=title,
-            description=description,
-            start_date=start_date,
-            due_date=due_date,
-        )
-        task.save()
+                project=project,
+                title=title,
+                description=description,
+                start_date=start_date,
+                due_date=due_date,
+            )
+            task.save()
+
+            # Update project status to 'In Progress' when a task is added
+            project.project_status = 'In Progress'
+            project.save()
 
     else:
-        return render(request, 'client/PermissionDenied.html', {
+        return render(request, 'Client/PermissionDenied.html', {
             'profile1': profile1,
             'profile2': profile2,
             'client': client,
         })
 
-    return redirect('client:view_repository', repo_id=repo_id) 
+    return redirect('client:view_repository', repo_id=repo_id)
 
 
 
@@ -1851,30 +1662,26 @@ def update_task_progress(request, repo_id):
         if request.method == "POST":
             progress_percentage = request.POST.get('progress_percentage')
             task_id = request.POST.get('task_id')
-
             
-            progress = int(progress_percentage)
-            task = Task.objects.get(id=task_id)
-            task.progress_percentage = progress
-            
-
-            if progress == 100:
-                task.status = 'Completed'
-            else:
-                task.status = 'In Progress'  # Assuming you want to set a different status for progress < 100
-            
-            task.save()
-
-            return redirect('client:view_repository', repo_id=repo_id) 
-
-    else:
-        return render(request, 'client/PermissionDenied.html', {
-            'profile1': profile1,
-            'profile2': profile2,
-            'client': client,
-        })
-
-    return redirect('client:view_repository', repo_id=repo_id)
+            try:
+                progress = int(progress_percentage)
+                task = Task.objects.get(id=task_id)
+                
+                # Update progress and automatically set status based on progress
+                task.progress_percentage = progress
+                task.status = 'Completed' if progress == 100 else 'In Progress'
+                task.save()
+                
+                return redirect('client:view_repository', repo_id=repo_id)
+                
+            except (ValueError, Task.DoesNotExist):
+                messages.error(request, 'Invalid progress value or task not found')
+                
+    return render(request, 'Client/PermissionDenied.html', {
+        'profile1': profile1,
+        'profile2': profile2,
+        'client': client,
+    })
 
 
 
@@ -1896,27 +1703,31 @@ def update_task_status(request, repo_id):
     
     if profile1.permission:
         if request.method == "POST":
-           
             task_id = request.POST.get('task_id')
             new_status = request.POST.get('status')
             
-            task = Task.objects.get(id=task_id)
-            task.status = new_status
-            if new_status== 'Completed':
-                task.progress_percentage = 100
+            try:
+                task = Task.objects.get(id=task_id)
+                task.status = new_status
                 
-            task.save()
+                # Automatically update progress when status changes
+                if new_status == 'Completed':
+                    task.progress_percentage = 100
+                elif new_status == 'In Progress' and task.progress_percentage == 100:
+                    # If moving back to "In Progress", reset progress to 99%
+                    task.progress_percentage = 99
+                    
+                task.save()
+                return redirect('client:view_repository', repo_id=repo_id)
+                
+            except Task.DoesNotExist:
+                messages.error(request, 'Task not found')
 
-            return redirect('client:view_repository', repo_id=repo_id) 
-
-    else:
-        return render(request, 'client/PermissionDenied.html', {
-            'profile1': profile1,
-            'profile2': profile2,
-            'client': client,
-        })
-
-    return redirect('client:view_repository', repo_id=repo_id)
+    return render(request, 'Client/PermissionDenied.html', {
+        'profile1': profile1,
+        'profile2': profile2,
+        'client': client,
+    })
 
 
 
@@ -1953,7 +1764,7 @@ def edit_task(request, repo_id):
             return redirect('client:view_repository', repo_id=repo_id) 
 
     else:
-        return render(request, 'client/PermissionDenied.html', {
+        return render(request, 'Client/PermissionDenied.html', {
             'profile1': profile1,
             'profile2': profile2,
             'client': client,
@@ -2010,7 +1821,7 @@ def submit_contract(request, pro_id):
 
         payment_installments = PaymentInstallment.objects.filter(contract=existing_contract) if existing_contract else None
         
-        return render(request, 'client/Agreement_template.html', {
+        return render(request, 'Client/Agreement_template.html', {
             'profile1': profile1,
             'profile2': profile2,
             'client': client,
@@ -2022,7 +1833,7 @@ def submit_contract(request, pro_id):
             'payment_installments': payment_installments,  # Pass payment installments to the template
         })
     else:
-        return render(request, 'client/PermissionDenied.html', {
+        return render(request, 'Client/PermissionDenied.html', {
             'profile1': profile1,
             'profile2': profile2,
             'client': client,
@@ -2094,7 +1905,7 @@ def chat_view(request):
                     'chat_room_id': chat.id  # Pass the chat room ID
                 })  # Store user, profile, register details, and chat room ID
         
-        return render(request, 'client/chat.html', {
+        return render(request, 'Client/chat.html', {
             'profile1': profile1,
             'profile2': profile2,
             'client': client,
@@ -2102,7 +1913,7 @@ def chat_view(request):
             'freelancers': freelancers,
         })
     else:
-        return render(request, 'client/PermissionDenied.html', {
+        return render(request, 'Client/PermissionDenied.html', {
             'profile1': profile1,
             'profile2': profile2,
             'client': client,
@@ -2270,14 +2081,14 @@ def add_complaint(request):
 
                 messages.success(request, 'Complaint submitted successfully.')
                 return redirect('client:client_view') 
-        return render(request, 'client/AddComplaint.html', {
+        return render(request, 'Client/AddComplaint.html', {
             'profile1': profile1,
             'profile2': profile2,
             'client': client,
             'freelancer_registers': freelancer_registers,
         })
     else:
-        return render(request, 'client/PermissionDenied.html', {
+        return render(request, 'Client/PermissionDenied.html', {
             'profile1': profile1,
             'profile2': profile2,
             'client': client,
@@ -2297,14 +2108,14 @@ def view_complaints(request):
     
     if profile1.permission:
         complaints = Complaint.objects.filter(user=profile1)
-        return render(request, 'client/Complaints.html', {
+        return render(request, 'Client/Complaints.html', {
             'profile1': profile1,
             'profile2': profile2,
             'client': client,
             'complaints': complaints,
         })
     else:
-        return render(request, 'client/PermissionDenied.html', {
+        return render(request, 'Client/PermissionDenied.html', {
             'profile1': profile1,
             'profile2': profile2,
             'client': client,
@@ -2321,14 +2132,14 @@ def view_complaints_recieved(request):
     
     if profile1.permission:
         complaints = Complaint.objects.filter(complainee=profile1)
-        return render(request, 'client/RecievedComplaints.html', {
+        return render(request, 'Client/RecievedComplaints.html', {
             'profile1': profile1,
             'profile2': profile2,
             'client': client,
             'complaints': complaints,
         })
     else:
-        return render(request, 'client/PermissionDenied.html', {
+        return render(request, 'Client/PermissionDenied.html', {
             'profile1': profile1,
             'profile2': profile2,
             'client': client,
@@ -2391,124 +2202,11 @@ def update_complaint_status(request):
     return JsonResponse({'success': False, 'error': 'Invalid request.'})
 
 
-from django.http import HttpResponse
-from reportlab.lib.pagesizes import A4
-from reportlab.lib import colors
-from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.lib.units import inch
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
-
-def export_projects_pdf(request):
-    user_id = request.user.id  # Get the logged-in user's ID
-    projects = Project.objects.filter(user=user_id).select_related('freelancer')  # Get the projects
-
-    project_data = []
-    for index, project in enumerate(projects, start=1):  # Use enumerate for serial numbers
-        freelancer_name = 'No freelancer assigned'
-        if project.freelancer:
-            register = Register.objects.filter(user=project.freelancer).values('first_name', 'last_name').first()
-            if register:
-                freelancer_name = f"{register['first_name']} {register['last_name']}"
-
-        project_data.append([
-            str(index),  # Serial number
-            project.title,
-            freelancer_name,
-            project.description,
-            project.project_status,
-            f"{project.budget}",
-            f"{project.total_including_gst}",
-        ])
-
-    # Set up response for PDF file
-    response = HttpResponse(content_type='application/pdf')
-    response['Content-Disposition'] = 'attachment; filename="projects_report.pdf"'
-
-    # Create a PDF document using ReportLab
-    doc = SimpleDocTemplate(response, pagesize=A4)
-
-    # Define styles for the document
-    styles = getSampleStyleSheet()
-    title_style = styles['Heading1']
-    body_style = styles['BodyText']
-
-    # Create the title
-    story = [Paragraph("Projects Report", title_style)]
-
-    # Define table data with Paragraphs to allow wrapping
-    table_data = [["#", "Title", "Freelancer", "Description", "Status", "Budget", "Total (GST)"]]
-    for project in project_data:
-        table_data.append([Paragraph(cell, body_style) for cell in project])
-
-    # Define column widths
-    column_widths = [0.5 * inch, 2 * inch, 2 * inch, 3 * inch, 1 * inch, 1 * inch, 1 * inch]
-
-    # Calculate total width
-    total_width = sum(column_widths)
-
-    # Scale down if total width exceeds usable width (7.27 inches)
-    if total_width > 7.27 * inch:
-        scale_factor = (7.27 * inch) / total_width
-        column_widths = [w * scale_factor for w in column_widths]
-
-    # Create a table with the project data and set column widths
-    table = Table(table_data, colWidths=column_widths)
-
-    # Add table styles
-    table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),  # Header row background
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-        ('GRID', (0, 0), (-1, -1), 1, colors.black),
-    ]))
-
-    # Add the table to the story
-    story.append(table)
-
-    # Build the PDF
-    doc.build(story)
-
-    # Return the response with the generated PDF
-    return response
-
-
-
-
-
-def export_projects_excel(request):
-    user_id = request.user.id  # Get the logged-in user's ID
-    projects = Project.objects.filter(user=user_id).select_related('freelancer')  # Get the projects directly
-
-    # Prepare data for exporting
-    data = []
-    for project in projects:
-        freelancer_name = 'No freelancer assigned'
-        if project.freelancer:  # Accessing the actual model instance
-            register = Register.objects.filter(user=project.freelancer).values('first_name', 'last_name').first()
-            if register:
-                freelancer_name = f"{register['first_name']} {register['last_name']}"
-
-        data.append({
-            'id': project.id,
-            'title': project.title,
-            'freelancer': freelancer_name,
-            'description': project.description,
-            'status': project.project_status,  # Adding project_status
-            'budget': project.budget,  # Adding budget
-            'total': project.total_including_gst,  # Adding total_including_gst
-        })
-
-    df = pd.DataFrame(data)  # Create a DataFrame
-
-    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-    response['Content-Disposition'] = 'attachment; filename="projects.xlsx"'
-    
-    df.to_excel(response, index=False)  # Write DataFrame to response
-    return response
-
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib.auth.decorators import login_required
+from client.models import FreelanceContract, PaymentInstallment, Project
+from core.models import Register
+from core.models import RefundPayment
 
 @login_required
 def payments(request):
@@ -2521,27 +2219,48 @@ def payments(request):
 
     for contract in contracts:
         project_payments = PaymentInstallment.objects.filter(contract=contract)
-        for payment in project_payments:
-            project_id = contract.project.id
-            contract_id = contract.id  # Added contract_id
-            if project_id not in payments_details:
-                freelancer_register = get_object_or_404(Register, user=contract.project.freelancer)
-                freelancer_first_name = freelancer_register.first_name
-                freelancer_last_name = freelancer_register.last_name
-                
-                payments_details[project_id] = {
-                    'project_title': contract.project.title,
-                    'freelancer_first_name': freelancer_first_name,
-                    'freelancer_last_name': freelancer_last_name,
-                    'amount': contract.project.total_including_gst,
-                    'contract_id': contract_id,  
-                    'payments': []
-                }
+        refund_payments = RefundPayment.objects.filter(project=contract.project)
+        
+        project_id = contract.project.id
+        contract_id = contract.id
+
+        if project_id not in payments_details:
+            freelancer_register = get_object_or_404(Register, user=contract.project.freelancer)
+            freelancer_first_name = freelancer_register.first_name
+            freelancer_last_name = freelancer_register.last_name
             
+            payments_details[project_id] = {
+                'project_title': contract.project.title,
+                'freelancer_first_name': freelancer_first_name,
+                'freelancer_last_name': freelancer_last_name,
+                'amount': contract.project.total_including_gst,
+                'contract_id': contract_id,
+                'payments': [],
+                'refunds': []
+            }
+
+        # Add regular payments
+        for payment in project_payments:
+            payments_details[project_id]['payments'].append({
+                'amount': payment.amount,
+                'due_date': payment.due_date,
+                'status': payment.status,
+                'paid_at': payment.paid_at
+            })
+
+        # Add refund payments
+        for refund in refund_payments:
+            payments_details[project_id]['refunds'].append({
+                'amount': refund.amount,
+                'reason': refund.reason,
+                'status': refund.status,
+                'created_at': refund.created_at,
+                'processed_at': refund.processed_at
+            })
 
     payments_details_list = list(payments_details.values())
 
-    return render(request, 'client/payments.html', {
+    return render(request, 'Client/payments.html', {
         'payments_details': payments_details_list,
     })
     
@@ -2556,7 +2275,7 @@ def view_invoice(request, contract_id):
     project = contract.project
     payments = PaymentInstallment.objects.filter(contract_id=contract_id)
     today = date.today()  # Get today's date
-    return render(request, 'client/PaymentInvoice.html', {
+    return render(request, 'Client/PaymentInvoice.html', {
         'project': project,
         'payments': payments,
         'today': today  # Pass today's date to the template
@@ -2588,7 +2307,7 @@ def download_invoice(request, contract_id):
     else:
         client_name = client_profile.company_name
 
-    return render(request, 'client/InvoiceDownload.html', {
+    return render(request, 'Client/InvoiceDownload.html', {
         'project': project,
         'payments': payments,
         'today': today,

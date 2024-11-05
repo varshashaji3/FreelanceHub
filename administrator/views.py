@@ -12,13 +12,18 @@ from freelancer.models import FreelancerProfile
 
 from django.contrib import messages
 
-from django.db.models.functions import TruncMonth
-from django.db.models import Count
 from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
 from django.utils.html import strip_tags
 from django.conf import settings
 from client.models import Project
+
+from django.db.models import Count
+
+from django.db.models import Avg
+from django.db.models.functions import TruncMonth
+import json
+
 
 @login_required
 @nocache
@@ -53,22 +58,53 @@ def admin_view(request):
     total_reviews = SiteReview.objects.count()  # Count of site reviews
 
     # Calculate average rating for site reviews
-    from django.db.models import Avg
     average_rating = SiteReview.objects.aggregate(Avg('rating'))['rating__avg'] or 0  # Default to 0 if no reviews
 
-    return render(request, 'Admin/index.html', {
+    # Get top 5 categories
+    top_categories = Project.objects.values('category').annotate(
+        count=Count('category')
+    ).order_by('-count')[:5]
+
+    category_names = [category['category'] for category in top_categories]
+    category_counts = [category['count'] for category in top_categories]
+
+    print("Category Names:", category_names)  # Debug print
+    print("Category Counts:", category_counts)  # Debug print
+
+    # Calculate average rating per month
+    monthly_ratings = SiteReview.objects.annotate(
+        month=TruncMonth('created_at')
+    ).values('month').annotate(
+        average_rating=Avg('rating')
+    ).order_by('month')
+
+    monthly_ratings_data = [
+        {
+            'month': rating['month'].strftime('%B %Y'),
+            'average_rating': float(rating['average_rating'])
+        }
+        for rating in monthly_ratings
+    ]
+
+    context = {
         'months': months,
         'client_counts': client_counts,
         'freelancer_counts': freelancer_counts,
-        # Add project statistics to context
         'posted_count': posted_count,
         'completed_count': completed_count,
         'in_progress_count': in_progress_count,
         'user_count': user_count,
-        'total_complaint': total_complaints,  # Add total complaints count to context
-        'total_reviews': total_reviews,  # Add total reviews count to context
-        'average_rating': average_rating,  # Add average rating to context
-    })
+        'total_complaint': total_complaints,
+        'total_reviews': total_reviews,
+        'average_rating': average_rating,
+        'top_categories': category_names,
+        'category_counts': category_counts,
+        'monthly_ratings': json.dumps(monthly_ratings_data),  # Add this line
+    }
+
+    print("Context:", context)  # Debug print
+
+    return render(request, 'Admin/index.html', context)
 
 
 @login_required
@@ -335,7 +371,7 @@ def send_permission_email(uid):
     context = {
         'user_name': name
     }
-    html_content = render_to_string('Admin/permission_done.html', context)
+    html_content = render_to_string('Admin/Permission_done.html', context)
     text_content = strip_tags(html_content)
     email = EmailMultiAlternatives(subject, text_content, settings.EMAIL_HOST_USER, [user.email])
     email.attach_alternative(html_content, "text/html")
@@ -482,7 +518,7 @@ def reviews(request):
         'reviews': reviews_list,
     }
     
-    return render(request, 'admin/reviews.html', context)
+    return render(request, 'Admin/reviews.html', context)
 
 
 
@@ -533,118 +569,17 @@ def allusers(request):
         'current_year': current_year
     }
     
-    return render(request, 'admin/allusers.html', context)
+    return render(request, 'Admin/AllUsers.html', context)
 
 
 
 
 # views.py
 from django.http import HttpResponse
-from core.models import CustomUser, Register  # Assuming you have these models
-import openpyxl
+from core.models import CustomUser, Register 
 from xhtml2pdf import pisa
 from io import BytesIO
 
-@login_required
-@nocache
-def export_users_to_excel(request):
-    year = request.GET.get('year', None)
-    
-    # Filter users based on the year if provided
-    if year:
-        users_list = CustomUser.objects.filter(joined__year=year)
-    else:
-        users_list = CustomUser.objects.all()
-
-    # Create an Excel workbook and worksheet
-    wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title = 'User List'
-
-    # Define headers
-    headers = ['#', 'Name/Company', 'Email', 'User Type', 'Status', 'Date Joined', 'Phone Number']
-    ws.append(headers)
-
-    # Add data rows
-    for idx, user in enumerate(users_list, start=1):
-        register_info = Register.objects.filter(user=user).first()
-        name = f"{register_info.first_name} {register_info.last_name}" if register_info else None
-
-        row = [
-            idx,
-            name,
-            user.email,
-            user.role,
-            user.status,
-            user.joined.strftime("%Y-%m-%d") if user.joined else None,
-            register_info.phone_number if register_info else None
-        ]
-        ws.append(row)
-
-    # Create HTTP response
-    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-    response['Content-Disposition'] = 'attachment; filename="user_list.xlsx"'
-
-    wb.save(response)
-    return response
-
-
-@login_required
-@nocache
-def export_users_to_pdf(request):
-    year = request.GET.get('year', None)
-    
-    # Filter users based on the year if provided
-    if year:
-        users_list = CustomUser.objects.filter(joined__year=year)
-    else:
-        users_list = CustomUser.objects.all()
-
-    # Prepare user details
-    user_details = []
-    for user in users_list:
-        register_info = Register.objects.filter(user=user).first()
-        name = f"{register_info.first_name} {register_info.last_name}" if register_info else None
-
-        user_details.append({
-            'index': len(user_details) + 1,
-            'name': name,
-            'email': user.email,
-            'role': user.role,
-            'status': user.status,
-            'joined': user.joined.strftime("%Y-%m-%d") if user.joined else None,
-            'phone_number': register_info.phone_number if register_info else None
-        })
-
-    # Render the PDF template
-    context = {'users': user_details}
-    html = render_to_string('admin/user_list_pdf.html', context)
-    
-    # Create PDF
-    response = HttpResponse(content_type='application/pdf')
-    response['Content-Disposition'] = 'attachment; filename="user_list.pdf"'
-    
-    pisa_status = pisa.CreatePDF(BytesIO(html.encode('utf-8')), dest=response)
-    
-    if pisa_status.err:
-        return HttpResponse('We had some errors <pre>' + html + '</pre>')
-    
-    return response
-
-
-@login_required
-@nocache
-def export_users(request):
-    year = request.GET.get('year', None)
-    
-    # Check the export format
-    export_format = request.GET.get('format', None)
-    if export_format == 'excel':
-        return export_users_to_excel(request)  # Function to handle Excel export
-    elif export_format == 'pdf':
-        return export_users_to_pdf(request)  # Function to handle PDF export
-    else:
-        return HttpResponse("Invalid format", status=400)  # Handle invalid format
 
 
 def complaints(request):
@@ -654,74 +589,7 @@ def complaints(request):
         'complaints': complaints_list,
     }
     
-    return render(request, 'admin/complaints.html', context)
-
-
-
-
-
-def export_complaints_pdf(request):
-    # Fetch all complaints
-    complaints_list = Complaint.objects.all()
-
-    # Prepare complaint details
-    complaint_details = []
-    for idx, complaint in enumerate(complaints_list, start=1):
-        complaint_details.append({
-            'slno': idx,
-            'complainant': complaint.user,
-            'complaint_type': complaint.complaint_type,
-            'subject': complaint.subject,
-            'description': complaint.description,
-            'status': complaint.status,
-            'date_filed': complaint.date_filed.strftime("%Y-%m-%d") if complaint.date_filed else None,
-        })
-
-    # Render the PDF template
-    context = {'complaints': complaint_details}
-    html = render_to_string('admin/complaints_pdf.html', context)
-    
-    # Create PDF
-    response = HttpResponse(content_type='application/pdf')
-    response['Content-Disposition'] = 'attachment; filename="complaint_list.pdf"'
-    
-    pisa_status = pisa.CreatePDF(BytesIO(html.encode('utf-8')), dest=response)
-    
-    if pisa_status.err:
-        return HttpResponse('We had some errors <pre>' + html + '</pre>')
-    
-    return response
-
-
-
-import pandas as pd
-def export_complaints_excel(request):
-    # Fetch all complaints
-    complaints_list = Complaint.objects.all()
-    
-    # Prepare complaint details for DataFrame
-    data = []
-    for complaint in complaints_list:
-        data.append({
-            'Complainant': complaint.user,
-            'Complaint Type': complaint.complaint_type,
-            'Subject': complaint.subject,
-            'Description': complaint.description,
-            'Status': complaint.status,
-            'Date Filed': complaint.date_filed.strftime("%Y-%m-%d") if complaint.date_filed else None,
-        })
-    
-    # Create DataFrame
-    df = pd.DataFrame(data)
-    
-    # Create an HTTP response with Excel content
-    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-    response['Content-Disposition'] = 'attachment; filename="complaint_list.xlsx"'
-    
-    # Write DataFrame to Excel
-    df.to_excel(response, index=False)
-    
-    return response
+    return render(request, 'Admin/complaints.html', context)
 
 
 
@@ -756,72 +624,13 @@ def projects(request):
         })
 
     context = {
-        'projects': project_data
+        'projects': project_data,'current_year': datetime.now().year,
     }
 
-    return render(request, 'admin/Projects.html', context)
+    return render(request, 'Admin/Projects.html', context)
 
 
 
-def export_projects_excel(request):
-    # Fetch all projects
-    all_projects = Project.objects.all()
-
-    data = []
-    for project in all_projects:
-        client_profile = ClientProfile.objects.get(user=project.user)
-        register_profile = Register.objects.get(user=project.user)
-        
-        client_name = f"{register_profile.first_name} {register_profile.last_name}" if client_profile.client_type == 'Individual' else client_profile.company_name
-        
-        data.append({
-            
-            'Client Name': client_name,
-            'Project Title': project.title,
-            'Category': project.category,
-            'Budget(@18% gst)': project.total_including_gst,
-            'Status': project.project_status
-        })
-    
-    df = pd.DataFrame(data)
-    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-    response['Content-Disposition'] = 'attachment; filename=projects.xlsx'
-    
-    df.to_excel(response, index=False)
-    return response
-
-
-from xhtml2pdf import pisa
-from io import BytesIO
-
-def export_projects_pdf(request):
-    all_projects = Project.objects.all()
-    
-    project_data = []
-    for project in all_projects:
-        client_profile = ClientProfile.objects.get(user=project.user)
-        register_profile = Register.objects.get(user=project.user)
-        
-        client_name = f"{register_profile.first_name} {register_profile.last_name}" if client_profile.client_type == 'Individual' else client_profile.company_name
-        
-        project_data.append({
-            'project': project,
-            'client_info': {
-                'name': client_name,
-                'profile_picture': register_profile.profile_picture.url  # Not used in the template
-            }
-        })
-
-    html_string = render_to_string('admin/projects_pdf.html', {'projects': project_data})
-    result = BytesIO()
-    pdf = pisa.CreatePDF(BytesIO(html_string.encode("UTF-8")), dest=result)
-
-    if pdf.err:
-        return HttpResponse("Error generating PDF", status=500)
-
-    response = HttpResponse(result.getvalue(), content_type='application/pdf')
-    response['Content-Disposition'] = 'attachment; filename="projects_report.pdf"'
-    return response
 
 from django.shortcuts import render, redirect
 from .models import Template
@@ -850,7 +659,7 @@ def site_complaints(request):
         'complaints': site_complaints_list,
     }
     
-    return render(request, 'admin/site_complaints.html', context)  # Create a corresponding template for this view
+    return render(request, 'Admin/site_complaints.html', context)  # Create a corresponding template for this view
 
 
 def update_solution(request):
@@ -866,6 +675,8 @@ def update_solution(request):
         
         return redirect("administrator:site_complaints")
     return redirect("administrator:site_complaints")
+
+
 
 
 

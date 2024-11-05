@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, date
 from django.db import models
 from django.conf import settings
 from django.utils import timezone
@@ -10,11 +10,7 @@ class ClientProfile(models.Model):
         ('Individual', 'Individual'),
         ('Company', 'Company'),
     )
-    STATUS_CHOICES = (
-        ('active', 'Active'),
-        ('inactive', 'Inactive'),
-    )
-
+    
     id = models.AutoField(primary_key=True)
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     client_type = models.CharField(max_length=50, choices=CLIENT_TYPE_CHOICES, default='Individual')
@@ -23,7 +19,6 @@ class ClientProfile(models.Model):
     license_number = models.CharField(max_length=255, null=True, blank=True)
     
     aadhaar_document = models.FileField(upload_to='aadhaar/', null=True, blank=True)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
     
     
 class Project(models.Model):
@@ -71,7 +66,6 @@ class Project(models.Model):
     scope = models.CharField(max_length=10, choices=SCOPE_CHOICES, default='medium')
 
     def save(self, *args, **kwargs):
-        
         if isinstance(self.budget, str):
             self.budget = int(self.budget)
         
@@ -81,8 +75,18 @@ class Project(models.Model):
         self.gst_amount = budget_decimal * (gst_rate_decimal / Decimal('100'))
         self.total_including_gst = budget_decimal + self.gst_amount
         
-        if self.end_date and self.end_date < timezone.now().date():
-            self.status = 'closed'
+        if self.end_date:
+            # Convert end_date to date object if it's a string
+            if isinstance(self.end_date, str):
+                try:
+                    self.end_date = datetime.strptime(self.end_date, '%Y-%m-%d').date()
+                except ValueError:
+                    # Handle invalid date format
+                    pass
+            
+            # Now compare with today's date
+            if self.end_date < date.today():
+                self.status = 'closed'
         
         super().save(*args, **kwargs)
 
