@@ -40,42 +40,74 @@ def project_status(request):
     ) | Project.objects.filter(
         project_status='Completed',
         user=current_user.id
-    )
+    ).order_by('-project_end_date')  # Order by completion date, most recent first
 
-    if completed_projects.exists():
-        project = completed_projects.first()
-        freelancer = get_object_or_404(Register, user=project.freelancer_id)
-        
-        client_profile = get_object_or_404(ClientProfile, user=project.user_id)
+    print("Completed Projects:")
+    for project in completed_projects:
+        freelancer = get_object_or_404(Register, user=project.freelancer)
+        client_profile = get_object_or_404(ClientProfile, user=project.user)
         client_type = client_profile.client_type
         
-        client_name = None  # Initialize client_name
-        client_id = None  # Initialize client_id
+        client_name = None
+        client_id = None
 
         if client_type == 'Individual':
-            client = get_object_or_404(Register, user=project.user_id)
+            client = get_object_or_404(Register, user=project.user)
             client_name = client.first_name
-            client_id = client.id  # Assign client_id
-
+            client_id = client.user.id
         elif client_type == 'Company':
             client_name = client_profile.company_name
-            client_id = project.user_id  # Assuming project.user_id is the company user ID
+            client_id = project.user.id
+        
+        print(f"Project ID: {project.id}")
+        print(f"Title: {project.title}")
+        print(f"Status: {project.project_status}")
+        print(f"Freelancer: {freelancer.first_name} (ID: {freelancer.user.id})")
+        print(f"Client: {client_name} (ID: {client_id})")
+        print(f"Client Type: {client_type}")
+        print(f"Freelancer Review Given: {project.freelancer_review_given}")
+        print(f"Client Review Given: {project.client_review_given}")
+        print("---")
+
+    # Find the most recent project that needs a review
+    project_needing_review = completed_projects.filter(
+        freelancer_review_given=False
+    ).first() or completed_projects.filter(
+        client_review_given=False
+    ).first()
+
+    if project_needing_review:
+        freelancer = get_object_or_404(Register, user=project_needing_review.freelancer)
+        client_profile = get_object_or_404(ClientProfile, user=project_needing_review.user)
+        client_type = client_profile.client_type
+        
+        client_name = None
+        client_id = None
+
+        if client_type == 'Individual':
+            client = get_object_or_404(Register, user=project_needing_review.user)
+            client_name = client.first_name
+            client_id = client.user.id
+        elif client_type == 'Company':
+            client_name = client_profile.company_name
+            client_id = project_needing_review.user.id
         
         context['project_status'] = {
-            'status': project.project_status,
+            'status': project_needing_review.project_status,
             'freelancer_name': freelancer.first_name,
             'client_name': client_name,
-            'project_id': project.id,
-            'freelancer_id': freelancer.id,
-            'client_id': client_id,  # Use the initialized client_id
-            'project_title': project.title,
-            'freelancer_review_given': project.freelancer_review_given,
-            'client_review_given': project.client_review_given
+            'project_id': project_needing_review.id,
+            'freelancer_id': freelancer.user.id,
+            'client_id': client_id,
+            'project_title': project_needing_review.title,
+            'freelancer_review_given': project_needing_review.freelancer_review_given,
+            'client_review_given': project_needing_review.client_review_given
         }
         
         is_client = client_profile.user == current_user
         context['is_client'] = is_client
     
+    print("Context:", context)
     return context
 
 

@@ -1,5 +1,3 @@
-
-
 from datetime import datetime
 import random
 import string
@@ -8,7 +6,6 @@ from django.template.loader import get_template
 from xhtml2pdf import pisa
 import io
 import os
-from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404, redirect, render
 
 from client.models import Message,ClientProfile, FreelanceContract, PaymentInstallment, Project, Review,SharedFile, SharedNote,SharedURL,Repository, Task,Complaint
@@ -28,18 +25,17 @@ from django.views.decorators.csrf import csrf_exempt
 from django.core.files.storage import default_storage
 from django.core.files.storage import FileSystemStorage
 from django.conf import settings
-from django.utils.dateparse import parse_date
 from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
 from django.utils.html import strip_tags
-from django.conf import settings
 import json
 from io import BytesIO
 from xhtml2pdf import pisa
 from datetime import timedelta
 from django.utils import timezone
-from django.core.exceptions import ObjectDoesNotExist
 
+from django.db.models import Sum,Avg
+from django.db.models.functions import TruncMonth
 @login_required
 @nocache
 def freelancer_view(request):
@@ -130,6 +126,75 @@ def freelancer_view(request):
             'events': events
         })
     
+    # Calculate monthly earnings based on the paid_at date and status
+    monthly_earnings = PaymentInstallment.objects.filter(
+        contract__freelancer=logged_user,  # Ensure the contract is associated with the logged-in freelancer
+        status='paid',  # Only include installments with status 'paid'
+        paid_at__isnull=False  # Ensure only paid installments are considered
+    ).annotate(
+        month=TruncMonth('paid_at')
+    ).values('month').annotate(
+        total_earnings=Sum('amount')
+    ).order_by('month')
+
+    # Prepare data for the chart
+    earnings_data = {
+        'months': [entry['month'].strftime('%B') for entry in monthly_earnings],
+        'earnings': [float(entry['total_earnings']) for entry in monthly_earnings]
+    }
+
+    # Calculate top clients by revenue
+    top_clients = Project.objects.filter(freelancer=logged_user).values(
+        'user__id',
+        'user__register__first_name',
+        'user__register__last_name',
+        'user__clientprofile__company_name'
+    ).annotate(
+        total_revenue=Sum('budget')
+    ).order_by('-total_revenue')[:5]
+
+    top_clients_data = {
+        'clients': [],
+        'revenues': []
+    }
+
+    for client in top_clients:
+        if client['user__clientprofile__company_name']:
+            client_name = client['user__clientprofile__company_name']
+        else:
+            client_name = f"{client['user__register__first_name']} {client['user__register__last_name']}"
+        
+        top_clients_data['clients'].append(client_name)
+        top_clients_data['revenues'].append(float(client['total_revenue']))
+
+    # Calculate average ratings for each category
+    avg_ratings = Review.objects.filter(
+        reviewer=logged_user
+    ).aggregate(
+        overall_rating=Avg('overall_rating'),
+        quality_of_work=Avg('quality_of_work'),
+        communication=Avg('communication'),
+        adherence_to_deadlines=Avg('adherence_to_deadlines'),
+        professionalism=Avg('professionalism'),
+        problem_solving_ability=Avg('problem_solving_ability')
+    )
+
+    # Prepare data for the chart
+    rating_data = {
+        'categories': [
+            'Overall Rating', 'Quality of Work', 'Communication',
+            'Adherence to Deadlines', 'Professionalism', 'Problem Solving'
+        ],
+        'values': [
+            avg_ratings['overall_rating'] or 0,
+            avg_ratings['quality_of_work'] or 0,
+            avg_ratings['communication'] or 0,
+            avg_ratings['adherence_to_deadlines'] or 0,
+            avg_ratings['professionalism'] or 0,
+            avg_ratings['problem_solving_ability'] or 0
+        ]
+    }
+
     return render(request, 'freelancer/index.html', {
         'profile2': profile2,
         'profile1': profile1,
@@ -141,6 +206,9 @@ def freelancer_view(request):
         'completed_projects': completed_projects,
         'not_completed_projects': not_completed_projects,
         'project_progress_data': project_progress_data,
+        'earnings_data': json.dumps(earnings_data),
+        'top_clients_data': json.dumps(top_clients_data),
+        'rating_data': rating_data,
     })
 
 
@@ -241,44 +309,6 @@ def AddProfileFreelancer(request, uid):
     return render(request, 'freelancer/Add_profile.html', context)
 
 
-
-import fitz  # PyMuPDF
-import cv2
-import numpy as np
-from io import BytesIO
-from django.core.files.base import ContentFile
-
-def extract_image_from_pdf(pdf_file):
-    pdf_document = fitz.open(stream=pdf_file.read(), filetype='pdf')
-    
-    page = pdf_document.load_page(0)
-    images = page.get_images(full=True)
-    
-    if images:
-        xref = images[0][0] 
-        base_image = pdf_document.extract_image(xref)
-        image_bytes = base_image["image"]
-        
-        # Convert image bytes to a numpy array
-        image_array = np.asarray(bytearray(image_bytes), dtype=np.uint8)
-        image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
-        
-        # Load a pre-trained face detection model
-        face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-        
-        # Convert image to grayscale for face detection
-        gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        
-        # Detect faces
-        faces = face_cascade.detectMultiScale(gray_image, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
-        
-        if len(faces) > 0:
-            (x, y, w, h) = faces[0]
-            face_image = image[y:y+h, x:x+w]
-            _, buffer = cv2.imencode('.jpg', face_image)
-            return buffer.tobytes()
-        
-    return None
 
 
 @login_required
@@ -852,9 +882,25 @@ def delete_todo(request, todo_id):
         'freelancer': freelancer,
         'todos': todos
     })
+
         
         
-        
+from django.http import JsonResponse
+from django.views.decorators.http import require_POST
+from .models import Todo
+
+@require_POST
+def update_todo_status(request):
+    todo_id = request.POST.get('todo_id')
+    is_completed = request.POST.get('is_completed') == 'true'
+    
+    try:
+        todo = Todo.objects.get(id=todo_id)
+        todo.is_completed = is_completed
+        todo.save()
+        return JsonResponse({'status': 'success'})
+    except Todo.DoesNotExist:
+        return JsonResponse({'status': 'error', 'message': 'Todo not found'}, status=404)
                
         
 
@@ -1135,8 +1181,6 @@ def generate_proposal(request,pid):
      
   
 from django.core.files.base import ContentFile
-
-from bs4 import BeautifulSoup
 
 @login_required
 @nocache
@@ -1517,6 +1561,7 @@ def view_repository(request, repo_id):
             'profile2': profile2,
             'freelancer': freelancer,
         })
+        
 
 
 @login_required
@@ -2039,7 +2084,7 @@ def template_list(request):
         
     
     
-from .utils import extract_text_from_pdf, parse_achievements,process_resume_text, parse_skills,parse_projects,parse_contact,parse_education,parse_experience,parse_internships
+from .utils import extract_text_from_pdf, parse_achievements,process_resume_text, parse_skills,parse_projects,parse_contact,parse_education,parse_experience,parse_internships,calculate_accuracy
 
 from django.http import HttpResponse
 from django.shortcuts import render, redirect
@@ -2054,7 +2099,6 @@ from django.template import loader
 from io import BytesIO
 from django.conf import settings
 import os
-import imgkit
 from django.core.files.base import ContentFile
 
 from selenium import webdriver
@@ -2095,6 +2139,89 @@ def process_resume(request, document_id):
     extracted_info['Contact'] = parse_contact(extracted_info.get('Contact', ''))
     extracted_info['Achievements'] = parse_achievements(extracted_info.get('Achievements', ''))
 
+    ground_truth = {
+        "Experience": [],  # No experience entries in the extracted info
+        "Education": [
+            {
+                "degree": "• MCA (Integrated) | 2020 - 2025",
+                "institution": "Amal Jyothi College of Engineering (Autonomous)",
+                "university_board": "A P J Abdul Kalam Technological University",
+                "description": "8.79 CGPA"
+            },
+            {
+                "degree": "• Standard XII | 2018 - 2020",
+                "institution": "Govt. Higher Secondary School, Edakkunnam",
+                "university_board": "Board Of Higher Secondary Examination Kerala, India",
+                "description": "84 percentage"
+            },
+            {
+                "degree": "• Standard X (SSLC) | 2018",
+                "institution": "Assumption High School, Palambra",
+                "university_board": "Board of Public Examination, Kerala, India",
+                "description": "97 percentage"
+            }
+        ],
+        "Technical Skills": [
+            "MS Office (Word, Excel, Power Point)",
+            "HTML",
+            "CSS",
+            "JavaScript",
+            "PHP",
+            "Django",
+            "Python",
+            "C",
+            "C++",
+            "Java",
+            "Laravel",
+            "R",
+            "SQL",
+            "NoSQL"
+        ],
+        "Personal Skills": [
+            "Quick learner",
+            "Adaptive",
+            "Punctual",
+            "Communication Skills",
+            "Leadership",
+            "Time Management"
+        ],
+        "Projects": [
+            "\u2022 Jingle Joy | Online platform for buying Christmas related products with add to cart\nfunctionality.\nDjango | SQLite | HTML | CSS | jQuery | Bootstrap",
+            "Tuneify | Platform for music streaming, liked songs, playlist creation, and\npersonalized genre/language recommendations.\nPHP | MongoDB | HTML | CSS | jQuery | Bootstrap",
+            "Quillify | Website for buying journal supplies with add to cart functionality.\nLaravel | MySQL | HTML | CSS | jQuery | Bootstrap",
+            "Bakers Delight | Online platform for bakery shop management system with\npayment integration and ordering.\nPHP | MySQL | HTML | CSS | JS | AJAX | jQuery"
+        ],
+        "Certifications": [
+            "\u2022 Full Stack Web Development with Flask | LinkedIn learning | June 2024",
+            "\u2022 Django Essentials | LinkedIn learning | May 2024",
+            "\u2022 Cloud Computing | NPTEL | October 2023",
+            "\u2022 AWS Academy Cloud Foundations | AWS Academy | September 2021"
+        ],
+        "Achievements": [
+            "\u2022\nParticipated in old-school hackathon\n| hosted by Init() IT Association at\nAmal Jyothi College of Engineering |\nFebruary 2024",
+            "\u2022\nParticipated in Code girls 2021 | An\nindustrial exposure program for girl\nstudents organized by women cell,\nDepartment\nof\nComputer\nApplications, Amal Jyothi College of\nEngineering | May 2021",
+            "\u2022\nManager honor for Semester 1 to 2\nand 5 to 7",
+            "\u2022\nPrinciple honor for semester 3 and 4"
+        ],
+    
+        "Internships": [
+            {
+                "details": "Web Development | 1 month | January 2023\nExposys Data Labs, Bengaluru"
+            },
+            {
+                "details": "App Development in Flutter | 1 month | July 2024\nNezuware, Noida, Uttar Pradesh"
+            }
+        ],
+        "Contact": {
+            "email": "varshamariyashaji2002@gmail.com",
+            "phone": "+91 8078107428",
+            "linkedin": "",
+            "address": "Perumpalliyazhathu(H), Koovappally P.O, Kanjirappally, Kerala, India, 686518"
+        }
+    }
+
+    accuracy = calculate_accuracy(extracted_info, ground_truth)
+    print(accuracy)
     context = {
         'resume_data': extracted_info,
         'portfolio': document,
@@ -2149,9 +2276,6 @@ def process_resume(request, document_id):
 
 
 
-
-
-
 def upload_resume(request):
     if request.method == 'POST':
         if 'resume' in request.FILES and 'template_id' in request.POST:
@@ -2175,7 +2299,6 @@ def upload_resume(request):
             return redirect('freelancer:process_resume', document_id=document.id)
 
     return redirect("freelancer:template_list")
-
 
 from django.http import FileResponse, HttpResponse
 def download_resume(request, document_id):
@@ -2401,3 +2524,152 @@ def update_complaint_status(request):
     return JsonResponse({'success': False, 'error': 'Invalid request.'})
 
 
+
+
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib.auth.decorators import login_required
+from client.models import FreelanceContract, PaymentInstallment, Project
+from core.models import Register
+from core.models import RefundPayment
+
+@login_required
+@nocache
+def payments(request):
+    if not request.user.is_authenticated or request.user.role != 'freelancer':
+        return redirect('login')
+
+    uid = request.session['uid']
+    profile1 = CustomUser.objects.get(id=uid)
+    profile2 = Register.objects.get(user_id=uid)
+    freelancer = FreelancerProfile.objects.get(user_id=uid)
+
+    if profile1.permission:
+        # Get all refunds for projects where this user is the freelancer
+        refunds = RefundPayment.objects.filter(project__freelancer=request.user).select_related('project', 'project__user')
+        
+        refund_details = []
+
+        for refund in refunds:
+            project = refund.project
+            client_profile = ClientProfile.objects.get(user=project.user)
+            client_register = Register.objects.get(user=project.user)
+
+            if client_profile.client_type == 'Individual':
+                client_name = f"{client_register.first_name} {client_register.last_name}"
+            else:
+                client_name = client_profile.company_name
+
+            refund_details.append({
+                'project_name': project.title,
+                'client_name': client_name,
+                'amount': refund.amount,
+                'paid_date': refund.payment_date,
+                'status': refund.is_paid,
+                'id': refund.id
+            })
+
+        return render(request, 'freelancer/dues.html', {
+            'profile1': profile1,
+            'profile2': profile2,
+            'freelancer': freelancer,
+            'refund_details': refund_details,
+        })
+    else:
+        return render(request, 'freelancer/PermissionDenied.html', {
+            'profile1': profile1,
+            'profile2': profile2,
+            'freelancer': freelancer,
+        })
+    
+    
+
+from django.http import HttpResponse
+from django.template.loader import render_to_string
+from xhtml2pdf import pisa
+from django.shortcuts import get_object_or_404
+from client.models import FreelanceContract, PaymentInstallment
+from datetime import date
+
+@login_required
+@nocache
+def download_invoice(request, refund_id):
+    # Fetch the refund using the refund_id
+    refund = get_object_or_404(RefundPayment, id=refund_id)
+    
+    project = refund.project
+    freelancer = project.freelancer
+    client = project.user
+    today = date.today()
+
+    # Get freelancer name
+    freelancer_register = Register.objects.get(user=freelancer)
+    freelancer_name = f"{freelancer_register.first_name} {freelancer_register.last_name}"
+
+    # Get client name
+    client_profile = ClientProfile.objects.get(user=client)
+    if client_profile.client_type == 'Individual':
+        client_register = Register.objects.get(user=client)
+        client_name = f"{client_register.first_name} {client_register.last_name}"
+    else:
+        client_name = client_profile.company_name
+
+    context = {
+        'project': project,
+        'refund_amount': refund.amount,
+        'compensation_amount': refund.compensation_amount,
+        'total_amount': refund.amount + refund.compensation_amount,
+        'today': today,
+        'client_name': client_name,
+        'freelancer_name': freelancer_name
+    }
+
+    return render(request, 'freelancer/InvoiceDownload.html', context)
+
+
+from django.contrib import messages
+from django.shortcuts import redirect, get_object_or_404
+import logging  # Add this import
+
+logger = logging.getLogger(__name__)
+
+from django.core.files.base import ContentFile
+import os
+
+def edit_portfolio(request, portfolio_id):
+    portfolio = get_object_or_404(Document, id=portfolio_id, user=request.user)
+    
+    if request.method == 'POST':
+        try:
+            new_content = request.POST.get('content')
+            
+            # Create a new ContentFile with the updated content
+            content_file = ContentFile(new_content.encode('utf-8'))
+            
+            # Get the original filename
+            original_filename = os.path.basename(portfolio.portfolio_file.name)
+            
+            # Save the new content to the portfolio_file field
+            portfolio.portfolio_file.save(original_filename, content_file, save=False)
+            
+            # Save the portfolio object
+            portfolio.save()
+            
+            messages.success(request, 'Portfolio template updated successfully!')
+            return redirect('freelancer:my_portfolios')
+            
+        except Exception as e:
+            logger.error(f"Error updating portfolio: {str(e)}")
+            messages.error(request, f'Error updating template: {str(e)}')
+            return redirect('freelancer:edit_portfolio', portfolio_id=portfolio_id)
+    
+    # GET request handling
+    try:
+        content = portfolio.portfolio_file.read().decode('utf-8')
+    except Exception as e:
+        content = ''
+        messages.error(request, f'Error reading template: {str(e)}')
+    
+    return render(request, 'freelancer/edit_portfolio.html', {
+        'portfolio': portfolio,
+        'content': content
+    })

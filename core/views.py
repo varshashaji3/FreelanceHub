@@ -31,10 +31,16 @@ def index(request):
     close_expired_projects()
     reviews = SiteReview.objects.all().order_by('-created_at')
 
+    # Add counts for facts section
+    client_count = CustomUser.objects.filter(role='client', status='active').count()
+    freelancer_count = CustomUser.objects.filter(role='freelancer', status='active').count()
+    project_count = Project.objects.filter(project_status='Completed').count()  # Changed to 'Completed' with capital C
+
     if request.user.is_authenticated or 'uid' in request.session:
         uid = request.user
         print(uid)
         return redirect_based_on_user_type(request, request.user)
+        
     review_details = []
     for review in reviews:
         user = review.user
@@ -70,7 +76,14 @@ def index(request):
             'user_info': user_info
         })
 
-    return render(request, 'index.html', {'review_details': review_details})
+    context = {
+        'review_details': review_details,
+        'client_count': client_count,
+        'freelancer_count': freelancer_count,
+        'project_count': project_count,
+    }
+
+    return render(request, 'index.html', context)
 
 
 def check_email(request):
@@ -152,6 +165,8 @@ def faqs(request):
         return redirect_based_on_user_type(request, request.user)
     return render(request,'faqs.html')
 
+
+from allauth.socialaccount.models import SocialAccount
 def login(request):
     if request.method == 'POST':
         email = request.POST.get('mail')
@@ -174,9 +189,12 @@ def login(request):
     
     elif request.user.is_authenticated:
         user = request.user
-        user.email_verified = True
-        user.google = True
-        user.save()
+        user_id = user.id
+        socialacc = SocialAccount.objects.filter(user_id=user_id).first()
+        if socialacc:
+            user.email_verified = True
+            user.google = True
+            user.save()
         
         if not user.welcome_email_sent:
             user.welcome_email_sent = True
@@ -319,7 +337,9 @@ def send_forget_password_mail(request):
             email.attach_alternative(html_content, "text/html")
             email.send()
             
-            data = PasswordReset.objects.create(user_id=user, token=token)
+            # Add expiration time of 1 minute
+            expires_at = timezone.now() + timezone.timedelta(minutes=1)
+            data = PasswordReset.objects.create(user_id=user, token=token, expires_at=expires_at)
             return redirect('login_view')
         except CustomUser.DoesNotExist:
             return render(request, 'mail_read.html', {'error': 'User with this email does not exist'})
@@ -332,9 +352,10 @@ def reset_password(request, token):
     reset_user = PasswordReset.objects.filter(token=token).first()
 
     if reset_user is None:
-        return render(request, 'password_reset.html', {'message': 'Invalid or expired token'})
+        return render(request, 'password_reset.html', {'error': 'Invalid or expired token'})
 
     uid = reset_user.user_id.id
+    sent_time = reset_user.created_at  # Capture the sent time
 
     if request.method == 'POST':
         new_password = request.POST['new_password']
@@ -342,7 +363,7 @@ def reset_password(request, token):
         user_id = request.POST.get('user_id')
 
         if user_id is None:
-            return render(request, 'password_reset.html', {'message': 'No user found'})
+            return render(request, 'password_reset.html', {'error': 'No user found'})
 
         if new_password != confirm_password:
             return render(request, 'password_reset.html', {'error': 'Passwords do not match'})
@@ -351,10 +372,56 @@ def reset_password(request, token):
         user_obj.set_password(new_password)
         user_obj.save()
         
+        # Delete the token after password reset
+        reset_user.delete()  # Remove the PasswordReset entry
+        
         return redirect('login_view')
 
-    return render(request, 'password_reset.html', {'user_id': uid})
+    return render(request, 'password_reset.html', {'user_id': uid, 'sent_time': sent_time})  # Pass sent_time to the template
 
+def resend_password_link(request):
+    if request.method == 'POST':
+        reset_user_id = request.POST.get('user_id')  # Changed variable name for clarity
+        try:
+            # Ensure reset_user_id is not None
+            if reset_user_id is None:
+                return JsonResponse({'success': False, 'error': 'Invalid or expired token.'})
+
+            # Fetch the PasswordReset entry using the reset_user_id
+            reset_user = PasswordReset.objects.filter(user_id=reset_user_id).first()  
+            if reset_user is None:  # Check if reset_user exists
+                return JsonResponse({'success': False, 'error': 'Invalid or expired token.'})
+
+            user = reset_user.user_id  # Get the user associated with the reset request
+            
+            # Remove expired tokens
+            PasswordReset.objects.filter(user_id=user, expires_at__lt=timezone.now()).delete()
+
+            # Create a new token
+            new_token = str(uuid.uuid4())
+            expires_at = timezone.now() + timezone.timedelta(minutes=1)  # Set expiration time to 1 minute from now
+
+            # Create a new PasswordReset entry
+            PasswordReset.objects.create(user_id=user, token=new_token, expires_at=expires_at)
+
+            # Prepare the reset link
+            msg = f'http://127.0.0.1:8000/reset_password/{new_token}/'
+            context = {
+                'user': user,
+                'reset_link': msg
+            }
+            html_content = render_to_string('forgot_password.html', context)
+            text_content = strip_tags(html_content)
+            email_msg = EmailMultiAlternatives('Password Reset', text_content, settings.EMAIL_HOST_USER, [user.email])
+            email_msg.attach_alternative(html_content, "text/html")
+            email_msg.send(fail_silently=False)  # Ensure fail_silently is set to False for debugging
+
+            # Redirect to password_reset.html with success message
+            return render(request, 'password_reset.html', {'success_msg': 'New password reset link sent.'})
+        except CustomUser.DoesNotExist:
+            return render(request, 'password_reset.html', {'error': 'User not found.'})
+
+    return render(request, 'password_reset.html', {'error': 'Invalid request.'})
 
 
 
@@ -372,7 +439,6 @@ def send_verification_mail(request):
     context = {
         'user': user,
         'reset_link': verification_link,
-        
     }
     
     html_content = render_to_string('mail_send.html', context)
@@ -382,7 +448,9 @@ def send_verification_mail(request):
     email_msg.attach_alternative(html_content, "text/html")
     email_msg.send()
     
-    EmailVerification.objects.create(user_id=user, token=token)
+    # Add expiration time of 5 minutes
+    expires_at = timezone.now() + timezone.timedelta(minutes=5)
+    EmailVerification.objects.create(user_id=user, token=token, expires_at=expires_at)
     messages.success(request, 'Verification email sent. Please check your inbox.')
     
     return redirect('login_view')
@@ -391,18 +459,65 @@ def send_verification_mail(request):
 
 def email_verification(request, token):
     verification = EmailVerification.objects.filter(token=token).first()
-    uid=verification.user_id_id
     if not verification:
-        print(request, 'Invalid or expired token.')
+        print('Invalid or expired token.')
         return redirect('login_view')
+    
+    # Check if the token has expired
+    is_expired = False
+    if verification.expires_at:
+        is_expired = verification.expires_at < timezone.now()
+    else:
+        print('Expiration time not set for this token.')
+    
+    if is_expired:
+        print('Token has expired.')
+        return render(request, 'email_verification.html', {'expired': True})
+
+    uid = verification.user_id_id
     user = CustomUser.objects.get(id=uid) 
     user.email_verified = True
     user.save()
     verification.delete()
 
-    print( 'Email verified successfully.')
+    print('Email verified successfully.')
 
-    return render(request,'email_verification.html')
+    context = {
+        'token': token,
+        'expired': is_expired,
+        'verified': True
+    }
+    return render(request, 'email_verification.html', context)
+
+
+
+def resend_verification_email(request):
+    if request.method == 'POST':
+        token = request.POST.get('token')
+        verification = EmailVerification.objects.filter(token=token).first()
+        if verification:
+            user = verification.user_id  
+            
+            verification.delete()
+            
+            new_token = str(uuid.uuid4())
+            verification_link = f'http://127.0.0.1:8000/email_verification/{new_token}/'
+            context = {
+                'user': user,
+                'reset_link': verification_link,
+            }
+            
+            html_content = render_to_string('mail_send.html', context)
+            text_content = strip_tags(html_content)
+
+            email_msg = EmailMultiAlternatives('Email Verification', text_content, settings.EMAIL_HOST_USER, [user.email])
+            email_msg.attach_alternative(html_content, "text/html")
+            email_msg.send()
+
+            # Create a new EmailVerification entry with the new token
+            EmailVerification.objects.create(user_id=user, token=new_token)
+
+            return redirect('login_view')    
 
 
 
@@ -549,7 +664,8 @@ def update_cancellation_status(request, cancellation_id):
                             pay_to=project.user,  # Pay to client
                             amount=amount_due,
                             total_paid=total_paid,  # New entry
-                            compensation_amount=compensation_amount  # New entry
+                            compensation_amount=compensation_amount,  # New entry
+                            project=project  # New entry
                         )
                         print(f"Refund entry created: {amount_due} from freelancer {cancellation.requested_by.id} to client {project.user.id}")
                     else:
@@ -598,3 +714,20 @@ def payment_success(request):
         else:
             return JsonResponse({'status': 'failed', 'error': 'Invalid data received'}, status=400)
     
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -83,26 +83,27 @@ class Register(models.Model):
     instagram = models.URLField(max_length=255, blank=True, null=True)
     twitter = models.URLField(max_length=255, blank=True, null=True)
     
-    STATUS_ACTIVE = 'active'
-    STATUS_INACTIVE = 'inactive'
-    STATUS_CHOICES = [
-        (STATUS_ACTIVE, 'Active'),
-        (STATUS_INACTIVE, 'Inactive'),
-    ]
-    status = models.CharField(max_length=50, choices=STATUS_CHOICES, default=STATUS_ACTIVE)
     
     
     
 class PasswordReset(models.Model):
     user_id = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
-    token = models.CharField(max_length=50,default=None)
+    token = models.CharField(max_length=50, default=None)
     created_at = models.DateTimeField(auto_now_add=True)
-  
-  
+    expires_at = models.DateTimeField(blank=True, null=True)  # New field for expiration time
+
+    def is_expired(self):
+        return timezone.now() > self.expires_at  # Method to check if the token is expired
+
+
 class EmailVerification(models.Model):
     user_id = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
-    token = models.CharField(max_length=50,default=None)
-    created_at = models.DateTimeField(auto_now_add=True)  
+    token = models.CharField(max_length=50, default=None)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField(blank=True, null=True)  # New field for expiration time
+
+    def is_expired(self):
+        return timezone.now() > self.expires_at  # Method to check if the token is expired
     
     
     
@@ -173,6 +174,7 @@ class RefundPayment(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='created_refund_payments')
     total_paid = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     compensation_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    project = models.ForeignKey('client.Project', on_delete=models.CASCADE, null=True, blank=True)  # New field
 
     def __str__(self):
-        return f"Refund Payment of {self.amount} to {self.pay_to} for Contract {self.contract.id}"
+        return f"Refund Payment of {self.amount} to {self.pay_to} for Project {self.project.id}"

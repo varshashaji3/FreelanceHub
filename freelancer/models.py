@@ -8,10 +8,7 @@ from core.models import CustomUser
 from ckeditor.fields import RichTextField
 from django.utils import timezone
 class FreelancerProfile(models.Model):
-    STATUS_CHOICES = [
-        ('active', 'Active'),
-        ('inactive', 'Inactive'),
-    ]
+    
 
     WORK_TYPE_CHOICES = [
         ('full_time', 'Full-time'),
@@ -26,7 +23,6 @@ class FreelancerProfile(models.Model):
     education = models.TextField(blank=True, null=True)
     resume = models.FileField(upload_to='resumes/', blank=True, null=True)
     aadhaar_document = models.FileField(upload_to='aadhaar/', null=True, blank=True)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
     work_type = models.CharField(max_length=10, choices=WORK_TYPE_CHOICES, default='part_time')
 
     def __str__(self):
