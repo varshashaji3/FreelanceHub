@@ -116,17 +116,139 @@
     .modal-content{
         width:700px;
     }
+    /* Add these styles */
+    .pdf-container {
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);  /* Default shadow */
+    }
+
+    .pdf-container:hover {
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);  /* Deeper shadow on hover */
+        transform: translateY(-2px);  /* Slight lift effect */
+    }
+
+    .pdf-container {
+        position: relative;
+        min-height: 150px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 70%;
+    }
+
+    .pdf-background {
+        position: absolute;
+        z-index: 1;
+    }
+
+    .pdf-background i {
+        font-size: 64px;
+        color: #dc3545;
+        opacity: 0.8;
+    }
+
+    .file-actions-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+        z-index: 2;
+    }
+
+    .pdf-container:hover .file-actions-overlay {
+        opacity: 1;
+    }
+
+    .btn-file-action {
+        color: white;
+        padding: 10px;
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: transform 0.2s ease;
+    }
+
+    .btn-file-action:hover {
+        transform: scale(1.1);
+        color: white;
+    }
+
+    .btn-view {
+        background-color: #007bff;
+    }
+
+    .btn-download {
+        background-color: #28a745;
+    }
 </style>
 
 <div class="row" style="background-color:white;padding:10px;border-radius:10px;">
-    <div class="container" style="background-color:white;padding:20px;border-radius:10px;">
-        <br>
-        <h1>{{ project.title }}</h1>
-        <p><strong>Description:</strong> {{ project.description }}</p>
-        <p><strong>Budget:</strong> {{ project.budget }}</p>
-        <p><strong>Status:</strong> {{ project.status }}</p>
-        <br>
-        <a href="{% url 'client:project_list' %}" class="btn btn-primary">Back to Projects</a>
+    <div class="col-md-8">
+        <div class="container" style="background-color:white;padding:20px;border-radius:10px;">
+            <br>
+            <h1>{{ project.title }}</h1>
+            <p><strong>Description:</strong> {{ project.description }}</p>
+            <p><strong>Budget:</strong> {{ project.budget }}</p>
+            <p><strong>Category:</strong> {{ project.category }}</p>
+            <p><strong>Status:</strong> {{ project.status }}</p>
+            
+            {% if assigned_freelancer %}
+                <p><strong>Assigned Freelancer:</strong> {{ freelancer_first_name }} {{ freelancer_last_name }}</p>
+                <br>
+                <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                    {% if repository_id %}
+                        <a href="{% url 'client:view_repository' repository_id %}" class="btn btn-info" target="_blank">
+                            <i class="fab fa-github"></i> View Repository
+                        </a>
+                    {% endif %}
+                    <a href="{% url 'client:project_list' %}" class="btn btn-primary">Back to Projects</a>
+                </div>
+            {% else %}
+                <div style="margin-top: 15px;">
+                    <a href="{% url 'client:project_list' %}" class="btn btn-primary">Back to Projects</a>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <!-- Right side card remains the same -->
+    <div class="col-md-4">
+       
+        <div class="file-upload mb-4" style="margin-top: 120px;">
+            <h5><strong>Project File:</strong></h5>
+            <div class="card mb-3 file-card">
+                <div class="card-body">
+                    {% if project.file_upload %}
+                        <div class="pdf-container">
+                            <div class="pdf-background">
+                                <i class="fas fa-file-alt"></i>
+                            </div>
+                            <div class="file-actions-overlay">
+                                <a href="{{ project.file_upload.url }}" target="_blank" class="btn-file-action btn-view">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                                <a href="{{ project.file_upload.url }}" download class="btn-file-action btn-download">
+                                    <i class="fas fa-download"></i>
+                                </a>
+                            </div>
+                        </div>
+                    {% else %}
+                        <p class="text-muted mb-0">No file uploaded yet.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -286,3 +408,4 @@
 </script>
 
 {% endblock %}
+

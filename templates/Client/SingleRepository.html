@@ -17,21 +17,6 @@
 <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
 
 
-<script>
-    $(document).ready(function() {
-        $('#tasksTable').DataTable({
-            responsive: true,
-            autoWidth: false,
-            pagingType: "simple_numbers",
-            lengthMenu: [5, 10, 25, 50],
-            language: {
-                search: "_INPUT_",
-                searchPlaceholder: "Search tasks..."
-            }
-        });
-    });
-</script>
-
 <style>
      body {
         background-color: #f4f7f9;
@@ -455,6 +440,173 @@ th,td{
 }
 
 
+
+@import url('https://fonts.googleapis.com/css2?family=Raleway:wght@400;600;700&family=Assistant:wght@400;600&display=swap');
+
+#project-details-container {
+    background-color: #ffffff;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    overflow: hidden;
+    transition: max-height 0.3s ease-in-out;
+    max-height: 50px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+#project-details-container.expanded {
+    max-height: none;
+}
+
+#project-details-toggle {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 20px;
+    background-color: #f0f4f8;
+    cursor: pointer;
+    border-radius: 8px 8px 0 0;
+    font-family: 'Raleway', sans-serif;
+    font-weight: 600;
+    color: #2c3e50;
+}
+
+#project-details-content {
+    padding: 20px;
+}
+
+.project-details-card {
+    border: none;
+    box-shadow: none;
+}
+
+.project-details-card .card-title {
+    font-family: 'Raleway', sans-serif;
+    font-weight: 700;
+    color: #3498db;
+    margin-bottom: 20px;
+    font-size: 1.5rem;
+}
+
+.project-details-card .card-text {
+    font-family: 'Assistant', sans-serif;
+    margin-bottom: 10px;
+    color: #34495e;
+}
+
+.project-details-card .card-text strong {
+    font-weight: 600;
+    color: #2c3e50;
+}
+
+.file-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.file-actions-overlay {
+    display: flex;
+    gap: 10px;
+    margin-top: 15px;
+}
+
+.btn-file-action {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    text-decoration: none;
+    transition: all 0.3s ease;
+}
+
+.pdf-background {
+    background-color: #f8f9fa;
+    height: 120px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    margin-bottom: 15px;
+}
+
+.pdf-background i {
+    font-size: 48px;
+    color: #dc3545;
+    transition: transform 0.3s ease;
+}
+
+.file-card:hover .pdf-background i {
+    transform: scale(1.1);
+}
+
+/* Add these styles to your existing CSS section */
+.pdf-container {
+    text-align: center;
+}
+
+.btn-file-action {
+    padding: 8px;
+    border-radius: 50%;
+    transition: all 0.3s ease;
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    color: #6c757d;
+    width: 35px;
+    height: 35px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-view {
+    color: #4a17b8;
+}
+
+.btn-view:hover {
+    background-color: #4a17b8;
+    color: white;
+    border-color: #4a17b8;
+}
+
+.btn-download {
+    color: #28a745;
+}
+
+.btn-download:hover {
+    background-color: #28a745;
+    color: white;
+    border-color: #28a745;
+}
+
+.file-actions-overlay {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    margin-top: 15px;
+}
+
+.pdf-background {
+    background-color: #f8f9fa;
+    height: 100px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    border: 1px dashed #dee2e6;
+}
+
+.pdf-background i {
+    font-size: 40px;
+    color: #dc3545;
+    transition: transform 0.3s ease;
+}
+
+.file-card:hover .pdf-background i {
+    transform: scale(1.1);
+}
 </style>
 
 <script>
@@ -487,16 +639,20 @@ th,td{
         }
     
         function check_description() {
-            var pattern = /^(?!.*\d{3})(?=.*[a-zA-Z])[a-zA-Z0-9 .,!?\n]*$/;
-            var bio = $("#description").val();
-            if (pattern.test(bio) && bio !== "") {
+            var pattern = /^(?!.*\d{3})(?!^\s)(?!.*\s{2,})(?!.*\s$)[a-zA-Z\s]*$/;
+            var description = $("#description").val();
+            if (description.trim() === "") {
+                $("#error_des").html("Description cannot be empty").show();
+                $("#description").css("border", "2px solid red");
+                bio_error = true;
+            } else if (!pattern.test(description)) {
+                $("#error_des").html("Description should only contain letters with single spaces between words").show();
+                $("#description").css("border", "2px solid red");
+                bio_error = true;
+            } else {
                 $("#error_des").hide();
                 $("#description").css("border", "2px solid green");
                 bio_error = false;
-            } else {
-                $("#error_des").html("Invalid characters in bio").show();
-                $("#description").css("border", "2px solid red");
-                bio_error = true;
             }
         }
     
@@ -520,88 +676,6 @@ th,td{
 
 <script>
     $(document).ready(function () {
-        // Error state variables
-        var files_error = false;
-        var description_error = false;
-
-        // File validation function
-        function check_files() {
-            var allowedExtensions = ['jpg', 'jpeg', 'png', 'pdf'];
-            var files = $('#fileUpload')[0].files;
-            var isValid = true;
-
-            if (files.length === 0) {
-                $('#error_files').html("Please choose at least one file.").show();
-                $('#fileUpload').css("border", "2px solid red");
-                files_error = true;
-            } else {
-                for (var i = 0; i < files.length; i++) {
-                    var file = files[i];
-                    var fileExtension = file.name.split('.').pop().toLowerCase();
-                    if (!allowedExtensions.includes(fileExtension)) {
-                        $('#error_files').html("Invalid file type. Please upload files with extensions: .jpg, .jpeg, .png, .pdf").show();
-                        $('#fileUpload').css("border", "2px solid red");
-                        isValid = false;
-                        files_error = true;
-                        break;
-                    }
-                }
-                if (isValid) {
-                    $('#error_files').hide();
-                    $('#fileUpload').css("border", "2px solid green");
-                    files_error = false;
-                }
-            }
-        }
-
-        function check_description() {
-            var description = $('#fileDescription').val();
-            // Define your regex pattern here
-            var pattern = /^[a-zA-Z0-9\s.,!?]*$/; // Example pattern: allows letters, numbers, spaces, and some punctuation
-        
-            if (description.trim() === "") {
-                $('#error_file_description').html("Description cannot be empty.").show();
-                $('#fileDescription').css("border", "2px solid red");
-                description_error = true;
-            } else if (!pattern.test(description)) {
-                $('#error_file_description').html("Description contains invalid characters.").show();
-                $('#fileDescription').css("border", "2px solid red");
-                description_error = true;
-            } else {
-                $('#error_file_description').hide();
-                $('#fileDescription').css("border", "2px solid green");
-                description_error = false;
-            }
-        }
-
-        // On file input change
-        $('#fileUpload').change(function () {
-            check_files();
-        });
-
-        // On description input change
-        $('#fileDescription').keyup(function () {
-            check_description();
-        });
-
-        // On form submit
-        $('#addFilesForm').submit(function () {
-            check_files();
-            check_description();
-            if (files_error || description_error) {
-                $('#file_form_err').html("Please fill the form correctly.").show();
-                return false;
-            } else {
-                $('#file_form_err').hide();
-                return true;
-            }
-        });
-    });
-
-</script>
-
-<script>
-    $(document).ready(function () {
         // Variables for error tracking
         let title_error = false;
         let description_error = false;
@@ -610,8 +684,14 @@ th,td{
 
         function check_title(field_id, error_id) {
             var title = $(field_id).val().trim();
+            var pattern = /^(?!.*\d{3})(?!^\s)(?!.*\s{2,})(?!.*\s$)[a-zA-Z\s]*$/;
+            
             if (title === "") {
                 $(error_id).html("Title cannot be empty.").show();
+                $(field_id).css("border", "2px solid red");
+                title_error = true;
+            } else if (!pattern.test(title)) {
+                $(error_id).html("Title should only contain letters with single spaces between words.").show();
                 $(field_id).css("border", "2px solid red");
                 title_error = true;
             } else {
@@ -620,12 +700,18 @@ th,td{
                 title_error = false;
             }
         }
-
+        
         // Function to check task description
-        function check_descriptions(field_id, error_id) {
-            var description = $(field_id).val();
+        function check_description(field_id, error_id) {
+            var description = $(field_id).val().trim();
+            var pattern = /^(?!.*\d{3})(?!^\s)(?!.*\s{2,})(?!.*\s$)[a-zA-Z\s]*$/;
+            
             if (description === "") {
                 $(error_id).html("Description cannot be empty.").show();
+                $(field_id).css("border", "2px solid red");
+                description_error = true;
+            } else if (!pattern.test(description)) {
+                $(error_id).html("Description should only contain letters with single spaces between words.").show();
                 $(field_id).css("border", "2px solid red");
                 description_error = true;
             } else {
@@ -634,7 +720,6 @@ th,td{
                 description_error = false;
             }
         }
-
         // Function to check dates
         function check_dates(start_date_id, due_date_id, error_start_id, error_due_id) {
             var start_date = $(start_date_id).val();
@@ -668,8 +753,8 @@ th,td{
         $('#title').keyup(function () {
             check_title("#title", "#error_title");
         });
-        $('#description').keyup(function () {
-            check_descriptions("#descriptions", "#error_description");
+        $('#descriptions').keyup(function () {
+            check_description("#descriptions", "#error_description");
         });
         $('#start_date').change(function () {
             check_dates("#start_date", "#due_date", "#error_start_date", "#error_due_date");
@@ -687,7 +772,7 @@ th,td{
                 check_title("#title-" + task_id, "#error_title-" + task_id);
             });
             $('#description-' + task_id).keyup(function () {
-                check_descriptions("#description-" + task_id, "#error_description-" + task_id);
+                check_description("#description-" + task_id, "#error_description-" + task_id);
             });
             $('#start_date-' + task_id).change(function () {
                 check_dates("#start_date-" + task_id, "#due_date-" + task_id, "#error_start_date-" + task_id, "#error_due_date-" + task_id);
@@ -777,41 +862,6 @@ th,td{
 </script>
 
 
-
-
-{% if cancellation_details and cancellation_details.status == 'Approved' %}
-<!-- Modal for cancellation notice -->
-<div class="modal fade" id="cancellationNoticeModal" tabindex="-1" aria-labelledby="cancellationNoticeModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="cancellationNoticeModalLabel">Project Canceled</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <p>This project has been canceled. No further activities can be performed.</p>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<script>
-    $(document).ready(function() {
-        $('#addTaskButton, #addUrlButton, #addFileButton, #addNoteButton').prop('disabled', true);
-
-        $('#addTaskButton, #addUrlButton, #addFileButton, #addNoteButton').on('click', function(e) {
-            e.preventDefault(); 
-            $('#cancellationNoticeModal').modal('show'); 
-        });
-    });
-</script>
-{% endif %}
-
-
-
 {% if project.project_status != 'Completed' and not cancellation_details %}
 <div class="row" style="
     background-color: #fff; 
@@ -895,6 +945,58 @@ th,td{
 </div>
 {% endif %}
 
+
+
+<!-- Add this after your existing container div -->
+<div class="container-fluid row" style="width: 1000px;">
+    <div id="project-details-container" style="width: 930px; margin-left: -2px;">
+        <div id="project-details-toggle" class="cursor-pointer" style="width: 800px;color: #ff0057;margin-left: 300px;background-color: transparent;font-size: 20px;padding-bottom: 10px;">
+            Project Details <i class="fas fa-chevron-down"></i>
+        </div>
+        <div id="project-details-content">
+            <div class="row">
+                <div class="col-md-9">
+                    <div class="card mt-3 project-details-card" style="width: 600px;">
+                        <div class="card-body text-left">
+                            <h5 class="card-title" style="color: #4136b3;">{{ project.title }}</h5>
+                            <p class="card-text"><strong style="color: #800080;">Description:</strong> {{ project.description }}</p>
+                            <p class="card-text"><strong style="color: #ff0057;">Category:</strong> {{ project.category }}</p>
+                            <p class="card-text"><strong style="color: #800080;">Freelancer:</strong> {{ freelancer_name }}</p>
+                            <p class="card-text"><strong style="color: #ff0057;">Budget:</strong> ₹ {{ project.budget }}</p>
+                            <p class="card-text"><strong style="color: #800080;">Status:</strong> {{ project.project_status }}</p>
+                            <p class="card-text"><strong style="color: #ff0057;">Start Date:</strong> {{ project.start_date|date:"F j, Y" }}</p>
+                            <p class="card-text"><strong style="color: #800080;">End Date:</strong> {{ project.project_end_date|date:"F j, Y" }}</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <h6 class="mt-3" style="font-family: 'Raleway', sans-serif; font-weight: 600;">Uploaded File</h6>
+                    {% if project.file_upload %}
+                        <div class="card mb-3 file-card">
+                            <div class="card-body">
+                                <div class="pdf-container">
+                                    <div class="pdf-background">
+                                        <i class="fas fa-file-pdf"></i>
+                                    </div>
+                                    <div class="file-actions-overlay">
+                                        <a href="{{ project.file_upload.url }}" target="_blank" class="btn-file-action btn-view">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                        <a href="{{ project.file_upload.url }}" download class="btn-file-action btn-download">
+                                            <i class="fas fa-download"></i>
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    {% else %}
+                        <p style="font-family: 'Assistant', sans-serif; color: #7f8c8d;">No files uploaded yet.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 <div class="container mt-4">
     <div class="toggle-buttons">
         <button class="btn btn-outline-secondary" id="toggle-tasks">
@@ -949,9 +1051,28 @@ th,td{
 
     <div id="tasks-section">
         <h2>Project Tasks</h2>
-        <button class="btn btn-add-note" id="addTaskButton" data-bs-toggle="modal" data-bs-target="#addTaskModal">
-            <i class="fas fa-plus"></i> Add Task
-        </button><br><br><br>
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <button class="btn btn-add-note" id="addTaskButton" data-bs-toggle="modal" data-bs-target="#addTaskModal">
+                <i class="fas fa-plus"></i> Add Task
+            </button>
+            
+            <!-- Simplified filter buttons -->
+            <div class="task-filters">
+                <button class="btn btn-outline-primary filter-btn active" data-filter="all">
+                    All Tasks
+                </button>
+                <button class="btn btn-outline-info filter-btn" data-filter="In Progress">
+                    In Progress
+                </button>
+                <button class="btn btn-outline-success filter-btn" data-filter="Completed">
+                    Completed
+                </button>
+                <button class="btn btn-outline-warning filter-btn" data-filter="Pending">
+                    Pending
+                </button>
+            </div>
+        </div>
+
         <div id="task-container">
             <table id="tasksTable" class="display table table-hover table-bordered table-responsive-sm">
                 <thead>
@@ -1457,6 +1578,57 @@ th,td{
                     alert('Error updating cancellation status: ' + xhr.responseText);
                 }
             });
+        });
+    });
+</script>
+
+<script>
+    $(document).ready(function() {
+        // Check if DataTable is already initialized
+        if (!$.fn.DataTable.isDataTable('#tasksTable')) {
+            // Initialize DataTable with sorting
+            var table = $('#tasksTable').DataTable({
+                responsive: true,
+                autoWidth: false,
+                pagingType: "simple_numbers",
+                lengthMenu: [5, 10, 25, 50],
+                language: {
+                    search: "_INPUT_",
+                    searchPlaceholder: "Search tasks..."
+                },
+                order: [[1, 'desc']], // Sort by Due Date column in descending order (newest first)
+                columnDefs: [
+                    { type: 'date', targets: 1 } // Specify that column 1 (Due Date) contains date values
+                ]
+            });
+
+            // Task filtering
+            $('.filter-btn').on('click', function() {
+                var filterValue = $(this).data('filter');
+                
+                // Update active button state
+                $('.filter-btn').removeClass('active');
+                $(this).addClass('active');
+
+                // Apply filter
+                if (filterValue === 'all') {
+                    table.column(2).search('').draw(); // Assuming status is in column 2
+                } else if (filterValue === 'Pending') {
+                    // For Pending, show tasks that are either 'Not Started' or 'On Hold'
+                    table.column(2).search('Not Started|On Hold', true, false).draw();
+                } else {
+                    table.column(2).search(filterValue).draw();
+                }
+            });
+        }
+    });
+</script>
+<script>
+    $(document).ready(function() {
+        // Project Details toggle
+        $('#project-details-toggle').click(function() {
+            $('#project-details-container').toggleClass('expanded');
+            $(this).find('i').toggleClass('fa-chevron-down fa-chevron-up');
         });
     });
 </script>

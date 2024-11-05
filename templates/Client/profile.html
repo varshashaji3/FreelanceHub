@@ -563,8 +563,12 @@
       <div class="row" style="background-color:white;padding:10px;border-radius:10px;">
         <div class="profile-box">
           <div class="profile-pic" style="height:170px;border-radius:50px;">
+            {% if profile2.profile_picture %}
             <img id="profileImage" src="{{profile2.profile_picture.url}}" alt="Profile Picture"
-              style="object-fit:contain">
+            style="object-fit:contain">
+             
+              {% endif %}
+            
           </div>
 
 
@@ -630,7 +634,7 @@
               {% if client.client_type == "Individual" %}
               <p><strong>First Name:</strong> {{ profile2.first_name }}</p>
               <p><strong>Last Name:</strong> {{ profile2.last_name }}</p>
-              <p><strong>Aadhar:</strong>  <a href="{{ client.aadhaar_document.url}}" target="_blank">View Aadhar Document</a></p>
+              <p><strong>Aadhar:</strong>  {% if client.aadhaar_document %}<a href="{{ client.aadhaar_document.url}}" target="_blank">View Aadhar Document</a>{% endif %}</p>
               {% elif client.client_type == "Company" %}
               <p><strong>Company Name:</strong> {{ client.company_name }}</p>
 
@@ -655,27 +659,39 @@
 
     <!-- Update Profile Form -->
     <div class="tab-pane fade" id="update" role="tabpanel" aria-labelledby="update-tab">
+
+      <div class="row" style="background-color:white;padding:10px;border-radius:10px;margin-bottom:100px;">
+        <form action="{% url 'client:change_profile_image' profile1.id %}" method="post"
+          enctype="multipart/form-data" id="image-form">
+          {% csrf_token %}
+          <div class="profile-box">
+            <div class="profile-pic" style="height:170px;border-radius:50px;">
+              <img id="profileImage" src="{{profile2.profile_picture.url}}" alt="Profile Picture"
+                style="object-fit:contain">
+            </div>
+          </div>
+          <span class="change-photo">
+            <input type="file" class="form-control" id="profile_picture" name="profile_picture" style="width:300px;">
+            <span id="error_image" class="error"></span>
+
+            <button type=" button" class="btn btn-primary">Upload
+              New Picture</button>
+            <span id="imgform_err" class="error"></span>
+
+          </span>
+        </form>
+      </div>
       <div class="card">
+
         <div class="card-header bg-primary text-white">
           <h4 class="mb-0">Update Profile</h4>
         </div>
         <div class="card-body">
+
           <form method="post" action="{% url 'client:update_profile' profile1.id %}" enctype="multipart/form-data" id="profile_form">
             {% csrf_token %}
             <div class="row g-4">
-              <!-- Profile Picture Update -->
-              <div class="col-12 mb-4">
-                <div class="d-flex align-items-center">
-                  <div class="profile-pic me-4" style="width: 100px; height: 100px; border-radius: 50%; overflow: hidden;">
-                    <img id="profileImage" src="{{profile2.profile_picture.url}}" alt="Profile Picture" style="width: 100%; height: 100%; object-fit: cover;">
-                  </div>
-                  <div>
-                    <input type="file" class="form-control" id="profile_picture" name="profile_picture" style="width: 300px;">
-                    <span id="error_image" class="error"></span>
-                  </div>
-                </div>
-              </div>
-
+              
               <!-- Common Fields -->
               <div class="col-md-6">
                 <div class="form-floating">
@@ -708,7 +724,7 @@
                 </div>
                 <div class="col-md-6">
                   <div class="form-floating">
-                    <input type="file" class="form-control" id="aadhar" name="aadhar" placeholder="Aadhaar Card">
+                    <input type="file" class="form-control" id="aadhar" name="aadhar" placeholder="Aadhaar Card" value="{{client.aadhaar_document}}">
                     <label for="aadhar">Aadhaar Card</label>
                     <span id="error_aadhar" class="error"></span>
                   </div>

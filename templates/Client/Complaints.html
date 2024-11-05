@@ -53,10 +53,12 @@
         background-color: #4B49AC;
     }
 </style>
+<div class="row" style="background-color:white;padding:10px;border-radius:10px;">
+    <h3 align="center" style="margin:1% auto;color:#ff0057">Submitted Complaints</h3>
+</div><br>
 <div class="row" style="margin-right:-30px;background-color:white;">
     
 <div class="container">
-    <h2 class="text-center mb-4">Submitted Complaints</h2>
     
     <!-- Button to add new complaint -->
     <a href="{% url 'client:add_complaint' %}" class="btn btn-primary btn-add">Add New Complaint</a>
@@ -119,12 +121,14 @@
                 <p><strong>Subject:</strong> {{ complaint.subject }}</p>
                 <p><strong>Description:</strong> {{ complaint.description }}</p>
                 <p><strong>Solution:</strong> {{ complaint.resolution }}</p>
-                <form id="satisfactionForm{{ forloop.counter }}" {% if complaint.status == 'Resolved' %}style="display:none;"{% endif %}>
+                    {% if complaint.status == 'Pending'%}
+                    <form id="satisfactionForm{{ forloop.counter }}" {% if complaint.status == 'Resolved' %}style="display:none;"{% endif %}>
                     <label>Are you satisfied with the solution?</label><br> <br>
 
                     <button type="button" class="btn btn-success satisfaction-btn" data-value="Satisfactory" data-complaint-id="{{ complaint.id }}">Yes</button>
                     <button type="button" class="btn btn-danger satisfaction-btn" data-value="Unsatisfactory" data-complaint-id="{{ complaint.id }}">No</button>
                 </form>
+                {% endif %}
             </div>
         </div>
     </div>

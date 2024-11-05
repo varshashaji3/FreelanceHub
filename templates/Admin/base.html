@@ -33,6 +33,110 @@
   toastr{
     z-index:1000;
   }
+
+  body.dark-theme {
+    background-color: #1a1a1a;
+    color: #e0e0e0;
+  }
+
+  body.dark-theme .navbar,
+  body.dark-theme .sidebar,
+  body.dark-theme .content-wrapper,
+  body.dark-theme .footer {
+    background-color: #2a2a2a;
+    color: #e0e0e0;
+  }
+
+  body.dark-theme .card,
+  body.dark-theme .navbar-dropdown,
+  body.dark-theme .dropdown-menu {
+    background-color: #333;
+    color: #e0e0e0;
+  }
+
+  body.dark-theme .card-title,
+  body.dark-theme .card-description {
+    color: #e0e0e0;
+  }
+
+  body.dark-theme .text-muted,
+  body.dark-theme .menu-title,
+  body.dark-theme .nav-link {
+    color: #bbb !important;
+  }
+
+  body.dark-theme .form-control,
+  body.dark-theme .input-group-text {
+    background-color: #444;
+    color: #e0e0e0;
+    border-color: #555;
+  }
+
+  body.dark-theme .table {
+    color: #e0e0e0;
+  }
+
+  body.dark-theme .table-hover tbody tr:hover {
+    background-color: #3a3a3a;
+  }
+
+  body.dark-theme .border-bottom {
+    border-bottom-color: #444 !important;
+  }
+
+  body.dark-theme .bg-white {
+    background-color: #2a2a2a !important;
+  }
+
+  body.dark-theme .text-dark {
+    color: #e0e0e0 !important;
+  }
+
+  body.dark-theme .btn-light {
+    background-color: #444;
+    color: #e0e0e0;
+    border-color: #555;
+  }
+
+  body.dark-theme .btn-light:hover {
+    background-color: #555;
+  }
+
+  #theme-toggle {
+    background: none;
+    border: none;
+    color: inherit;
+    font-size: 1.2rem;
+  }
+
+  .sidebar {
+    position: fixed;
+    height: 100vh;
+    overflow-y: auto;
+    z-index: 999;
+  }
+
+  .main-panel {
+    margin-left: 260px; /* Adjust this value based on your sidebar width */
+    width: calc(100% - 260px);
+  }
+
+  @media (max-width: 991px) {
+    .sidebar {
+      position: fixed;
+      transform: translateX(-260px);
+      transition: transform 0.3s ease;
+    }
+
+    .sidebar.active {
+      transform: translateX(0);
+    }
+
+    .main-panel {
+      margin-left: 0;
+      width: 100%;
+    }
+  }
 </style>
   <script>
       toastr.options = {
@@ -53,6 +157,7 @@
           "hideMethod": "fadeOut"
       };
   </script>
+  
   <script>
         $(document).ready(function() {
             {% if messages %}
@@ -79,18 +184,7 @@
         <button class="navbar-toggler navbar-toggler align-self-center" type="button" data-toggle="minimize">
           <span class="icon-menu"></span>
         </button>
-        <ul class="navbar-nav mr-lg-2">
-          <li class="nav-item nav-search d-none d-lg-block">
-            <div class="input-group">
-              <div class="input-group-prepend hover-cursor" id="navbar-search-icon">
-                <span class="input-group-text" id="search">
-                  <i class="icon-search"></i>
-                </span>
-              </div>
-              <input type="text" class="form-control" id="navbar-search-input" placeholder="Search now" aria-label="search" aria-describedby="search">
-            </div>
-          </li>
-        </ul>
+        
         <ul class="navbar-nav navbar-nav-right">
           <li class="nav-item dropdown">
             <a class="nav-link count-indicator dropdown-toggle" id="notificationDropdown" href="#" data-toggle="dropdown">
@@ -121,15 +215,19 @@
                     
                   </div>
               </a>
+              {% empty %}
+              <p class="font-weight-light small -text mb-0 text-muted">No unread notifications</p>
               {% endfor %}
-              {% if not unread_notifications %}
-              <p class="font-weight-light small-text mb-0 text-muted">No unread notifications</p>
-              {% endif %}
           </div>
           </li>
           <li class="nav-item nav-search d-none d-lg-block">
             <p>Hi ,Admin</p>
           </li>
+          <!-- <li class="nav-item">
+            <button id="theme-toggle" class="btn btn-link nav-link">
+              <i class="fas fa-moon"></i>
+            </button>
+          </li> -->
           <li class="nav-item nav-profile dropdown">
             {% if profile.profile_picture %}
             <a class="nav-link dropdown-toggle" href="#" data-toggle="dropdown" id="profileDropdown">
@@ -138,14 +236,11 @@
             {% endif %}
             <div class="dropdown-menu dropdown-menu-right navbar-dropdown" aria-labelledby="profileDropdown">
               
-              <a class="dropdown-item">
+              <a class="dropdown-item" href="{% url 'administrator:account_settings' %}">
                 <i class="ti-settings text-primary"></i>
-                Update Profile Image
+                Profile
               </a>
-              <a class="dropdown-item">
-                <i class="ti-lock text-primary"></i>
-                Password Reset
-              </a>
+              
               <a class="dropdown-item">
                 <i class="ti-power-off text-primary"></i>
                 Logout
@@ -313,7 +408,25 @@
   <!-- Custom js for this page-->
   <script src="{%  static 'js/dashboard.js' %}"></script>
   <script src="{%  static 'js/Chart.roundedBarCharts.js' %} "></script>
+  <!-- Add this script before the closing </body> tag -->
+  <script>
+    document.addEventListener('DOMContentLoaded', (event) => {
+      const themeToggle = document.getElementById('theme-toggle');
+      const body = document.body;
+      const icon = themeToggle.querySelector('i');
+
+      themeToggle.addEventListener('click', () => {
+        body.classList.toggle('dark-theme');
+        if (body.classList.contains('dark-theme')) {
+          icon.classList.remove('fa-moon');
+          icon.classList.add('fa-sun');
+        } else {
+          icon.classList.remove('fa-sun');
+          icon.classList.add('fa-moon');
+        }
+      });
+    });
+  </script>
 </body>
 
 </html>
-

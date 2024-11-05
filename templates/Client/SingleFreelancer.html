@@ -109,32 +109,50 @@
     display: flex;
     flex-wrap: wrap;
     gap: 20px;
-    width:300px;
-    margin-top: 10px;
+    width: 100%;
+    margin-top: 20px;
 }
 
 .row1 .card {
+    flex: 0 0 calc(33.333% - 14px); /* Exactly one-third width minus gap */
+    max-width: calc(33.333% - 14px);
     background-color: #fff;
     border-radius: 10px;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
     overflow: hidden;
-    width: 100%;
-    max-width: 350px;
     position: relative;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.row1 .card:hover {
+  transform: scale(1.03);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
 }
 
 .row1 .card-body {
-    padding: 15px;
-    padding-bottom: 50px; /* Ensure space for the profile image */
+    padding: 20px;
     position: relative;
+    transition: background-color 0.3s ease;
+}
+
+.row1 .card:hover .card-body {
+  background-color: #f9f9f9;
 }
 
 .rating-section {
     margin-bottom: 10px;
+    text-align: left;
+    margin-left: -150px;
+}
+
+.star-rating {
+    display: flex;
+    align-items: center;
 }
 
 .star-rating i {
     color: #FFD700;
+    margin-right: 2px;
 }
 
 .row1  h2 {
@@ -159,50 +177,106 @@
 }
 
 
+/* Simplified Flex Layout for Reviews */
+.row1 .card-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    width: 100%;
+    margin-top: 20px;
+}
+
 .row1 .card {
-  background-color: #fff;
-  border-radius: 10px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-  overflow: hidden;
-  width: 100%;
-  max-width: 350px;
-  position: relative;
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
+    flex: 0 0 calc(33.333% - 14px); /* Exactly one-third width minus gap */
+    max-width: calc(33.333% - 14px);
 }
 
-.row1 .card:hover {
-  transform: scale(1.03);
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-}
-
+/* Basic card styling */
 .row1 .card-body {
-  padding: 15px;
-  padding-bottom: 50px; /* Ensure space for the profile image */
-  position: relative;
-  transition: background-color 0.3s ease;
+    padding: 20px;
 }
-
-.row1 .card:hover .card-body {
-  background-color: #f9f9f9;
-}
-
 
 .reviewer-info {
-  display: flex;
-  align-items: center;
-  margin-top: 15px;
-  margin-bottom: -20px;
+    display: flex;
+    align-items: center;
+    margin-top: 15px;
 }
 
 /* Style for the profile image */
 .profile-img {
-  width: 50px; /* Adjust size as needed */
-  height: 50px; /* Adjust size as needed */
-  border-radius: 50%;
-  margin-right: 15px; /* Space between image and text */
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    margin-right: 15px;
 }
 
+/* Responsive adjustment for smaller screens */
+@media (max-width: 992px) {
+    .row1 .card {
+        flex: 0 0 calc(50% - 10px);
+        max-width: calc(50% - 10px);
+    }
+}
 
+@media (max-width: 768px) {
+    .row1 .card {
+        flex: 0 0 100%;
+        max-width: 100%;
+    }
+}
+
+/* Styling for truncated text and read more button */
+.review-text {
+    margin-bottom: 10px;
+    overflow: hidden;
+    position: relative;
+    line-height: 1.5;
+}
+
+.read-more-btn {
+    color: #0066cc;
+    cursor: pointer;
+    display: inline-block;
+    margin-top: 5px;
+    font-size: 0.9em;
+    text-decoration: none;  /* Remove underline */
+    background-color: transparent;
+    border: none;
+    padding: 5px 10px;
+    border-radius: 4px;
+    transition: all 0.3s ease;
+}
+
+.read-more-btn:hover {
+    color: #004999;
+    background-color: #f0f7ff;  /* Light blue background on hover */
+    text-decoration: none;  /* Ensure no underline on hover */
+}
+
+/* Modal styles */
+.modal-dialog {
+    max-width: 600px;
+}
+
+.modal-body {
+    padding: 25px;
+}
+
+.modal-body .review-text {
+    font-size: 1.1em;
+    line-height: 1.6;
+    margin-bottom: 20px;
+}
+
+.modal-body .rating-section {
+    margin: 15px 0;
+}
+
+.modal-body .reviewer-info {
+    border-top: 1px solid #eee;
+    padding-top: 15px;
+    margin-top: 15px;
+}
 </style>
 
 <div class="row" style="background-color:white;padding:10px;border-radius:10px;">
@@ -299,9 +373,9 @@
         <h4>Skills</h4>
         <div class="card-body">
           <div class="row">
-            <div class="col-md-12">
+            <div class="col-md-12" style="display: flex; flex-wrap: wrap; gap: 10px;">
               {% for skill in skills %}
-              <span class="alert alert-warning" style="font-size:13px;margin-left:20px;padding:10px;">{{ skill }}</span>
+              <span class="alert alert-warning" style="font-size:13px; padding:10px; margin: 0;">{{ skill }}</span>
               {% endfor %}
             </div>
           </div>
@@ -322,28 +396,40 @@
   <section class="card-container">
     {% if reviews %}
     {% for detail in reviews %}
-      <article class="card">
-          <div class="card-body">
-              <p>{{ detail.review.review_text }}</p>
-              <div class="rating-section">
-                  <span class="star-rating">
-                      {% for i in 1|to:5 %}
-                          {% if i <= detail.review.overall_rating %}
-                              <i class="fas fa-star"></i> <!-- Full Star -->
-                          {% elif i == detail.review.overall_rating|floatformat:1|stringformat:".1"|slice:":-2" %}
-                              <i class="fas fa-star-half-alt"></i> <!-- Half Star -->
-                          {% else %}
-                              <i class="far fa-star"></i> <!-- Empty Star -->
-                          {% endif %}
-                      {% endfor %}
-                  </span>
-              </div>
-              <div class="reviewer-info">
-                  <img src="{{ detail.reviewer_image }}" alt="{{ detail.review.reviewer.first_name }}'s Profile Image" class="profile-img">
-                  <p>{{ detail.reviewer_name }}</p>
-              </div>
-          </div>
-      </article>
+        <article class="card">
+            <div class="card-body">
+                <div class="review-text" id="review-{{forloop.counter}}">
+                    {{ detail.review.review_text|truncatechars:100 }}
+                </div>
+                {% if detail.review.review_text|length > 150 %}
+                    <span class="read-more-btn" 
+                          onclick="showReviewModal('{{ detail.review.review_text|escapejs }}', 
+                                                 '{{ detail.reviewer_name }}', 
+                                                 '{{ detail.reviewer_image }}', 
+                                                 {{ detail.review.overall_rating }})">
+                        Read More
+                    </span>
+                {% endif %}
+                <br>
+                <div class="rating-section">
+                    <span class="star-rating">
+                        {% for i in 1|to:5 %}
+                            {% if i <= detail.review.overall_rating %}
+                                <i class="fas fa-star"></i> <!-- Full Star -->
+                            {% elif i == detail.review.overall_rating|floatformat:1|stringformat:".1"|slice:":-2" %}
+                                <i class="fas fa-star-half-alt"></i> <!-- Half Star -->
+                            {% else %}
+                                <i class="far fa-star"></i> <!-- Empty Star -->
+                            {% endif %}
+                        {% endfor %}
+                    </span>
+                </div>
+                <div class="reviewer-info">
+                    <img src="{{ detail.reviewer_image }}" alt="{{ detail.review.reviewer.first_name }}'s Profile Image" class="profile-img">
+                    <p>{{ detail.reviewer_name }}</p>
+                </div>
+            </div>
+        </article>
     {% endfor %}
     {% else %}
       <p>No reviews available for this freelancer.</p>
@@ -351,7 +437,64 @@
 </section>
 </div>
 
+<!-- Add this modal HTML at the bottom of your body tag -->
+<div class="modal fade" id="reviewModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Review Details</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" onclick="closeModal()"></button>
+      </div>
+      <div class="modal-body">
+        <div id="modalReviewText"></div>
+        <div class="rating-section mt-3" id="modalRating"></div>
+        <div class="reviewer-info mt-3" id="modalReviewer"></div>
+      </div>
+    </div>
+  </div>
+</div>
 
+<!-- Add Bootstrap JS before your closing body tag, after jQuery -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
+<script>
+// Add this at the top of your script section
+let reviewModal;
+
+function showReviewModal(reviewText, reviewerName, reviewerImage, rating) {
+    // Initialize modal if not already done
+    reviewModal = reviewModal || new bootstrap.Modal(document.getElementById('reviewModal'));
+    
+    // Set modal content
+    document.getElementById('modalReviewText').textContent = reviewText;
+    
+    // Set rating stars
+    let starsHtml = '';
+    for(let i = 1; i <= 5; i++) {
+        if(i <= rating) {
+            starsHtml += '<i class="fas fa-star"></i>';
+        } else {
+            starsHtml += '<i class="far fa-star"></i>';
+        }
+    }
+    document.getElementById('modalRating').innerHTML = `<span class="star-rating">${starsHtml}</span>`;
+    
+    // Set reviewer info
+    document.getElementById('modalReviewer').innerHTML = `
+        <img src="${reviewerImage}" alt="${reviewerName}'s Profile Image" class="profile-img">
+        <p>${reviewerName}</p>
+    `;
+    
+    // Show modal
+    reviewModal.show();
+}
+
+function closeModal() {
+    if (reviewModal) {
+        reviewModal.hide();
+    }
+}
+</script>
 
 {% endblock %}
+

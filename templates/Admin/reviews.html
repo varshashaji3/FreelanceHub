@@ -1,63 +1,90 @@
-
 {% extends 'Admin/base.html'%}
 {% block 'admin_content' %}
 {% load custom_filters %}
 <style>
+    /* Page Background */
+    body {
+        background-color: #f8f9fa;
+        font-family: Arial, sans-serif;
+    }
 
-    
     h1 {
         text-align: center;
         color: #007bff;
-        font-size: 2rem;
-        margin-bottom: 20px;
+        font-size: 2.5rem; /* Increased font size */
+        margin-bottom: 30px; /* Increased margin */
         animation: slideIn 1s ease-in-out;
     }
     
-    /* Filter Form */
+    /* Enhanced Filter Form Styles */
     #filter-form {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 15px;
-        margin-bottom: 20px;
-        animation: fadeIn 1s ease-in-out;
+        background: white;
+        padding: 25px;
+        border-radius: 15px;
+        margin: 20px auto;
+        width: 970px;
+        margin-left: -30px;
     }
     
     #filter-form label {
-        font-weight: bold;
-        color: #333;
-    }
-    
-    #filter-form select, #filter-form button {
-        padding: 10px;
-        border: 1px solid #ccc;
-        border-radius: 8px;
-        font-size: 1rem;
-        transition: all 0.3s ease;
+        font-weight: 600;
+        color: #2c3e50;
+        margin-right: 10px;
+        font-size: 0.95rem;
     }
     
     #filter-form select {
-        flex: 1 1 200px;
+        background-color: #f8f9fa;
+        border: 2px solid #e9ecef;
+        border-radius: 8px;
+        padding: 10px 15px;
+        margin-right: 20px;
+        color: #495057;
+        font-size: 0.95rem;
+        min-width: 150px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+    
+    #filter-form select:hover {
+        border-color: #007bff;
+    }
+    
+    #filter-form select:focus {
+        outline: none;
+        border-color: #007bff;
+        box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25);
     }
     
     #filter-form button {
-        background-color: #007bff;
-        color: #fff;
+        background: #103b69;
+        color: white;
         border: none;
+        padding: 10px 25px;
+        border-radius: 8px;
+        font-weight: 600;
         cursor: pointer;
-        width: 150px;
+        transition: all 0.3s ease;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        font-size: 0.9rem;
     }
     
     #filter-form button:hover {
-        background-color: #0056b3;
-        transform: scale(1.05);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 15px rgba(0, 123, 255, 0.4);
+    }
+    
+    #filter-form button:active {
+        transform: translateY(0);
     }
     
     /* Review Cards Container */
     #reviews-container {
         display: flex;
         flex-wrap: wrap;
-        gap: 10px;
-        justify-content: space-between;
+        gap: 20px; /* Increased gap */
+        justify-content: center; /* Centered cards */
     }
     
     /* Review Cards */
@@ -68,7 +95,7 @@
         padding: 20px;
         box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
         transition: all 0.3s ease;
-        width: calc(33% - 20px); /* Adjust based on desired card width */
+        width: calc(30% - 20px); /* Adjusted width */
         box-sizing: border-box;
         animation: fadeInUp 1s ease-in-out;
     }
@@ -81,11 +108,11 @@
     .review-card h3 {
         margin-top: 0;
         color: #007bff;
-        font-size: 1.2rem;
+        font-size: 1.5rem; /* Increased font size */
     }
     
     .review-card p {
-        margin: 5px 0;
+        margin: 10px 0; /* Increased margin */
     }
     
     /* Load More Button */
@@ -98,7 +125,7 @@
         border: none;
         border-radius: 8px;
         cursor: pointer;
-        font-size: 1rem;
+        font-size: 1.2rem; /* Increased font size */
         transition: background-color 0.3s ease, transform 0.3s ease;
         animation: fadeIn 1s ease-in-out;
     }
@@ -129,15 +156,15 @@
         }
     }
     
-    
-
     .star-rating i {
         color: #FFD700;
     }
 </style>
 
+<div class="row" style="background-color:white;padding:10px;border-radius:10px;">
+    <h3 align="center" style="margin:1% auto;color:#ff0057">Site Reviews</h3>
+</div>
 <div class="container">
-    <h1>Site Reviews</h1>
 
     <!-- Filter Form -->
     <form id="filter-form" method="GET" action="{% url 'administrator:reviews' %}">
@@ -158,7 +185,7 @@
         </select>
 
         <button type="submit">Apply Filters</button>
-    </form>
+    </form><br>
 
     <!-- Review Cards -->
      <div id="reviews-container">

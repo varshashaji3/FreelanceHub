@@ -242,6 +242,53 @@
 
   
   </style>
+
+  <style>
+    .sidebar {
+        position: fixed;
+        height: 100vh;
+        overflow-y: auto;
+        z-index: 999;
+        transition: width 0.25s ease, background 0.25s ease;
+        -webkit-transition: width 0.25s ease, background 0.25s ease;
+        -moz-transition: width 0.25s ease, background 0.25s ease;
+        -ms-transition: width 0.25s ease, background 0.25s ease;
+    }
+
+    .main-panel {
+        margin-left: 260px; /* Adjust this value based on your sidebar width */
+        transition: margin 0.25s ease;
+        width: calc(100% - 260px);
+    }
+
+    @media (max-width: 991px) {
+        .sidebar {
+            position: fixed;
+            z-index: 1030;
+        }
+        
+        .main-panel {
+            margin-left: 0;
+            width: 100%;
+        }
+        
+        .sidebar-offcanvas {
+            position: fixed;
+            max-height: calc(100vh - 70px); /* Adjust based on your navbar height */
+            top: 70px; /* Should match your navbar height */
+            bottom: 0;
+            overflow: auto;
+            right: -260px; /* Should match sidebar width */
+            -webkit-transition: all 0.25s ease-out;
+            -o-transition: all 0.25s ease-out;
+            transition: all 0.25s ease-out;
+        }
+        
+        .sidebar-offcanvas.active {
+            right: 0;
+        }
+    }
+  </style>
 </head>
 
 <body>
@@ -257,19 +304,7 @@
         <button class="navbar-toggler navbar-toggler align-self-center" type="button" data-toggle="minimize">
           <span class="icon-menu"></span>
         </button>
-        <ul class="navbar-nav mr-lg-2">
-          <li class="nav-item nav-search d-none d-lg-block">
-            <div class="input-group">
-              <div class="input-group-prepend hover-cursor" id="navbar-search-icon">
-                <span class="input-group-text" id="search">
-                  <i class="icon-search"></i>
-                </span>
-              </div>
-              <input type="text" class="form-control" id="navbar-search-input" placeholder="Search now"
-                aria-label="search" aria-describedby="search">
-            </div>
-          </li>
-        </ul>
+        
         <ul class="navbar-nav navbar-nav-right">
           <li class="nav-item dropdown">
             <a class="nav-link count-indicator dropdown-toggle" id="notificationDropdown" href="#"
@@ -324,22 +359,18 @@
           {% endif %}
           <li class="nav-item nav-profile dropdown">
             <a class="nav-link dropdown-toggle" href="#" data-toggle="dropdown" id="profileDropdown">
+              {% if profile2.profile_picture %}
               <img src="{{ profile2.profile_picture.url }}" alt="profile" />
-
+              {% else %}
+              <img src="{% static 'img/default.png' %}" alt="profile" />
+              {% endif %}
             </a>
             <div class="dropdown-menu dropdown-menu-right navbar-dropdown" aria-labelledby="profileDropdown">
-              <a class="dropdown-item">
+              <a class="dropdown-item" href="{% url 'client:account_settings' %}">
                 <i class="ti-profil text-primary"></i>
                 Profile
               </a>
-              <a class="dropdown-item">
-                <i class="ti-settings text-primary"></i>
-                Update Profile
-              </a>
-              <a class="dropdown-item">
-                <i class="ti-settings text-primary"></i>
-                Password Reset
-              </a>
+             
               <a class="dropdown-item" href="{% url 'logout' %}">
                 <i class="ti-power-off text-primary"></i>
                 Logout
@@ -519,7 +550,7 @@
  
   <script>
     $(document).ready(function () {
-      {% if project_status and not project_status.client_review_given %}
+      {% if project_status.status == 'Completed' and not project_status.client_review_given %}
       $('#freelancerName').text('{{ project_status.freelancer_name }}');
       $('#clientName').text('{{ project_status.client_name }}');
       $('#projectId').val('{{ project_status.project_id }}');
@@ -804,7 +835,115 @@ document.getElementById("payButton").addEventListener("click", function() {
 });
 </script>
 
+{% if projects_completed %}
+{% for project in projects_completed %}
+<div class="modal fade" id="projectCompletionModal{{ project.id }}" data-backdrop="static" data-keyboard="false" tabindex="-1" role="dialog" aria-labelledby="projectCompletionModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="projectCompletionModalLabel">Project Completion</h5>
+            </div>
+            <div class="modal-body">
+                <p>The project "<span id="projectTitle" style="font-weight: bold;color: #a3064f;">{{ project.title }}</span>" has completed all tasks!</p>
+                <div class="project-details">
+                    <p><strong>Total Tasks:</strong> <span id="totalTasks">{{ project.total_tasks }}</span></p>
+                    <p><strong>Budget:</strong> ₹ <span id="projectBudget">{{ project.budget }}</span></p>
+                    <p><strong>Freelancer:</strong> <span id="freelancerName">{{ project.freelancer_first_name }} {{ project.freelancer_last_name }}</span></p>
+                </div>
+                <p>Please mark this project as completed to proceed.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" onclick="markProjectCompleted({{ project.id }})">Mark as Completed</button>
+                <button type="button" class="btn btn-secondary" onclick="dismissProjectModal({{ project.id }})">Not Now</button>
+            </div>
+        </div>
+    </div>
+</div>
 
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.4.0/dist/confetti.browser.min.js"></script>
+<script>
+$(document).ready(function() {
+    const projectId = {{ project.id }};
+    $('#projectCompletionModal' + projectId).modal({
+        show: true,
+        backdrop: 'static',  // This prevents closing when clicking outside
+        keyboard: false      // This prevents closing with keyboard
+    });
+});
+
+function dismissProjectModal(projectId) {
+    $('#projectCompletionModal' + projectId).modal('hide');
+    
+}
+
+function markProjectCompleted(projectId) {
+    $.ajax({
+        url: "{% url 'client:mark_project_completed' %}",
+        type: "POST",
+        data: {
+            'project_id': projectId,
+            'csrfmiddlewaretoken': '{{ csrf_token }}'
+        },
+        success: function(response) {
+            $('#projectCompletionModal' + projectId).modal('hide');
+            
+            // Create a confetti canvas with a high z-index
+            const confettiCanvas = document.createElement('canvas');
+            confettiCanvas.style.position = 'fixed';
+            confettiCanvas.style.top = '0';
+            confettiCanvas.style.left = '0';
+            confettiCanvas.style.width = '100%';
+            confettiCanvas.style.height = '100%';
+            confettiCanvas.style.zIndex = '9999';
+            document.body.appendChild(confettiCanvas);
+
+            const myConfetti = confetti.create(confettiCanvas, {
+                resize: true,
+                useWorker: true
+            });
+
+            myConfetti({
+                particleCount: 1000,
+                spread: 160,
+                startVelocity: 60,
+                origin: { y: 0.6 }
+            });
+
+            // Remove the confetti canvas after animation
+            setTimeout(() => {
+                document.body.removeChild(confettiCanvas);
+            }, 3000);
+
+            Swal.fire({
+                title: 'Congratulations!',
+                text: 'Project has been successfully marked as completed!',
+                icon: 'success',
+                confirmButtonText: 'OK'
+            }).then(() => {
+                location.reload(); // Reload the page to update the UI
+            });
+        },
+        error: function(xhr, errmsg, err) {
+            // Add detailed error logging
+            console.error("Error details:", {
+                status: xhr.status,
+                responseText: xhr.responseText,
+                error: err
+            });
+            
+            Swal.fire({
+                title: 'Error!',
+                text: `Error marking project as completed: ${xhr.responseText || 'Unknown error'}`,
+                icon: 'error',
+                confirmButtonText: 'OK'
+            });
+        }
+    });
+}
+</script>
+{% endfor %}
+{% endif %}
 
 
 
@@ -835,3 +974,17 @@ document.getElementById("payButton").addEventListener("click", function() {
 
 
 </html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -54,10 +54,12 @@
         background-color: #4B49AC;
     }
 </style>
+<div class="row" style="background-color:white;padding:10px;border-radius:10px;">
+    <h3 align="center" style="margin:1% auto;color:#ff0057">Received Complaints</h3>
+</div><br>
 <div class="row" style="margin-right:-30px;background-color:white;">
     
 <div class="container">
-    <h2 class="text-center mb-4">Recieved Complaints</h2>
     
     <!-- Button to add new complaint -->
     <a href="{% url 'client:add_complaint' %}" class="btn btn-primary btn-add">Add New Complaint</a>
@@ -96,10 +98,14 @@
                 </td>  <!-- Display Status with background color -->
                
                 <td>
-                    {% if complaint.resolution_status == 'Unsatisfactory' or complaint.resolution_status == 'Pending' %}
-                        <a href="#" class="btn btn-success btn-sm" data-toggle="modal" data-target="#solutionModal{{ complaint.id }}">
-                            <i class="fas fa-plus"></i> {% if complaint.resolution %} Edit Solution {% else %} Add Solution {% endif %}
-                        </a>
+                    {% if complaint.status == 'Rejected' or complaint.status == 'Resolved' %}
+                        <span class="text-muted">No Action Required</span>
+                    {% else %}
+                        {% if complaint.resolution_status == 'Unsatisfactory' or complaint.resolution_status == 'Pending' %}
+                            <a href="#" class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#solutionModal{{ complaint.id }}">
+                                <i class="fas fa-plus"></i> {% if complaint.resolution %} Edit Solution {% else %} Add Solution {% endif %}
+                            </a>
+                        {% endif %}
                     {% endif %}
                 </td> <!-- Action button for adding/editing solution -->
             </tr>
@@ -179,14 +185,12 @@ $(document).ready(function () {
 
 <!-- Modal for adding/editing solution -->
 {% for complaint in complaints %}
-<div class="modal fade" id="solutionModal{{ complaint.id }}" tabindex="-1" role="dialog" aria-labelledby="solutionModalLabel{{ complaint.id }}" aria-hidden="true">
-    <div class="modal-dialog" role="document">
+<div class="modal fade" id="solutionModal{{ complaint.id }}" tabindex="-1" aria-labelledby="solutionModalLabel{{ complaint.id }}" aria-hidden="true">
+    <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="solutionModalLabel{{ complaint.id }}">Add/Edit Solution for Complaint #{{ complaint.id }}</h5>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                </button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
                 <p><strong>Subject:</strong> {{ complaint.subject }}</p> <!-- Display Subject -->
@@ -198,7 +202,7 @@ $(document).ready(function () {
                     <span id="error_solution" class="error" style="color:red;"></span> <!-- Error message placeholder -->
                     <div class="modal-footer">
                         <button type="button" id="save_solution_btn" class="btn btn-primary">Save Solution</button>
-                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                     </div>
                 </form>
             </div>

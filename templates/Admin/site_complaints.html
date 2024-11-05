@@ -54,12 +54,13 @@
         background-color: #4B49AC;
     }
 </style>
+
+<div class="row" style="background-color:white;padding:10px;border-radius:10px;">
+    <h3 align="center" style="margin:1% auto;color:#ff0057">Recieved Complaints</h3>
+</div><br>
 <div class="row" style="margin-right:-30px;background-color:white;">
     
 <div class="container">
-    <h2 class="text-center mb-4">Recieved Complaints</h2>
-    
-  
     <!-- DataTable for displaying complaints -->
     <table id="complaintsTable" class="display table table-striped table-bordered">
         <thead>
@@ -71,6 +72,7 @@
                 <th>Solution</th> <!-- New column for Solution -->
                 <th>Status</th>   <!-- New column for Status -->
                 <th>Solution Status</th> <!-- New column for Resolution Status -->
+                
                 <th>Actions</th>  <!-- New column for Actions -->
             </tr>
         </thead>
@@ -94,10 +96,12 @@
                 </td>  <!-- Display Status with background color -->
                
                 <td>
-                    {% if complaint.resolution_status == 'Unsatisfactory' or complaint.resolution_status == 'Pending' %}
+                    {% if complaint.resolution_status == 'Unsatisfactory' or complaint.resolution_status == 'Pending' and complaint.status != 'Rejected'%}
                         <a href="#" class="btn btn-success btn-sm" data-toggle="modal" data-target="#solutionModal{{ complaint.id }}">
                             <i class="fas fa-plus"></i> {% if complaint.resolution %} Edit Solution {% else %} Add Solution {% endif %}
                         </a>
+                    {% else %}
+                        <p>No Action Required</p>
                     {% endif %}
                 </td> <!-- Action button for adding/editing solution -->
             </tr>

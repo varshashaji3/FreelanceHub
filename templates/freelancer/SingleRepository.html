@@ -17,9 +17,12 @@
 
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
 
+<!-- Add this line in the <head> section of your base template or at the top of this file -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
 <script>
     $(document).ready(function() {
-        $('#tasksTable').DataTable({
+        var table = $('#tasksTable').DataTable({
             responsive: true,
             autoWidth: false,
             pagingType: "simple_numbers",
@@ -27,6 +30,27 @@
             language: {
                 search: "_INPUT_",
                 searchPlaceholder: "Search tasks..."
+            },
+            order: [[2, 'desc']], // Sort by the 'Due Date' column (index 2) in descending order
+            columnDefs: [
+                { type: 'date', targets: 2 } // Specify that column 2 (Due Date) contains date values
+            ]
+        });
+
+        // Add click event for filter buttons
+        $('.filter-btn').on('click', function() {
+            var filterValue = $(this).data('filter');
+            
+            // Remove 'active' class from all buttons and add to clicked button
+            $('.filter-btn').removeClass('active');
+            $(this).addClass('active');
+
+            if (filterValue === 'all') {
+                table.column(3).search('').draw(); // Clear any existing filter
+            } else if (filterValue === 'Pending') {
+                table.column(3).search('^((?!In Progress|Completed).)*$', true, false).draw();
+            } else {
+                table.column(3).search(filterValue).draw();
             }
         });
     });
@@ -449,6 +473,109 @@ font-size: 12px;
 
 
 
+/* Add this to your existing styles */
+.task-filter-buttons {
+    margin-bottom: 20px;
+}
+
+.task-filter-buttons .btn {
+    margin-right: 10px;
+}
+
+.task-filter-buttons .btn.active {
+    background-color: #007bff;
+    color: white;
+}
+
+/* Add this to your existing styles */
+.cursor-pointer {
+    cursor: pointer;
+}
+
+#project-summary-toggle {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+    background-color: #f8f9fa;
+    border-radius: 5px;
+    margin-bottom: 10px;
+}
+
+#project-summary-toggle:hover {
+    background-color: #e9ecef;
+}
+
+    /* Add this to your existing styles */
+    #project-summary-container {
+        position: fixed;
+        top: 0;
+        right: -350px; /* Adjust based on your desired width */
+        width: 350px; /* Adjust as needed */
+        height: 100vh;
+        background-color: #ffffff;
+        box-shadow: -2px 0 5px rgba(0, 0, 0, 0.1);
+        transition: right 0.3s ease-in-out;
+        z-index: 1000;
+    }
+
+    #project-summary-container.expanded {
+        right: 0;
+    }
+
+    #project-summary-toggle {
+        position: absolute;
+        top: 50%;
+        left: -40px; /* Adjust based on the toggle button width */
+        transform: translateY(-50%);
+        cursor: pointer;
+        background-color: #f8f9fa;
+        padding: 10px;
+        border-radius: 5px 0 0 5px;
+        box-shadow: -2px 0 5px rgba(0, 0, 0, 0.1);
+    }
+
+    #project-summary-content {
+        height: 100%;
+        overflow-y: auto;
+        padding: 20px;
+    }
+
+    .cursor-pointer {
+        cursor: pointer;
+    }
+
+    #project-summary-toggle:hover {
+        background-color: #e9ecef;
+    }
+    .btn-outline-primary:hover{
+        background-color: #4B49AC;
+    }
+
+    .project-details-card {
+        border: none;
+        box-shadow: none;
+        background-color: transparent;
+    }
+
+    .project-details-card .card-body {
+        padding: 0;
+    }
+
+    .pdf-icon-background {
+        width: 48px;
+        height: 48px;
+        background-color: #f8f9fa;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .pdf-icon-background i {
+        font-size: 24px;
+        color: #dc3545;
+    }
 </style>
 
 
@@ -509,7 +636,7 @@ font-size: 12px;
             }
         });
     });
-    
+   
 </script>
 
 
@@ -677,247 +804,314 @@ font-size: 12px;
 {% endif %}
 
 
-<div class="container mt-4">
-    <div class="toggle-buttons">
-        <button class="btn btn-outline-secondary" id="toggle-tasks">
-            <i class="fas fa-tasks"></i> Tasks
-        </button>
-        <button class="btn btn-outline-secondary" id="toggle-activities">
-            <i class="fas fa-bell"></i> Activities
-        </button>
-        <button class="btn btn-outline-secondary" id="toggle-notes">
-            <i class="fas fa-sticky-note"></i> Meeting Notes
-        </button>
-        <button class="btn btn-outline-secondary" id="toggle-docs">
-            <i class="fas fa-document"></i> Documents
-        </button>
-        {% if project.git_repo_link %}
-        <a href="{{ project.git_repo_link }}" target="_blank" class="btn btn-outline-secondary">
-            <i class="fab fa-github"></i> GitHub Repository
-        </a>
-        {% else %}
-        <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#addGitHubLinkModal">
-            <i class="fab fa-github"></i> Add GitHub Repository
-        </button>
-        {% endif %}
-    </div>
-
-    <div id="tasks-section">
-        <h2>Project Tasks</h2>
-      
-        <div id="task-container">
-            <table id="tasksTable" class="display" style="width:100%">
-                <thead>
-                    <tr>
-                        <th>Task Title</th>
-                        <th>Description</th>
-                        <th>Due Date</th>
-                        <th>Status</th>
-                        <th>Progress</th>
-                        <th>Action</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for task in tasks %}
-                    <tr>
-                        <td>{{ task.title }}</td>
-                        <td>{{ task.description }}</td>
-                        <td>{{ task.due_date|date:"Y-m-d" }}</td>
-                        <td style="color: {% if task.status == 'Completed' %}green{% elif task.status == 'In Progress' %}blue{% elif task.status == 'On Hold' %}orange{% else %}red{% endif %};">
-                            {{ task.status }}
-                        </td>
-                        <td>
-                            <div style="display: flex; align-items: center; justify-content: space-between;">
-                                <div class="progress" style="flex-grow: 1; margin-left: 10px; height: 10px;">
-                                    <div class="progress-bar 
-                                        {% if task.progress_percentage <= 33 %}
-                                            progress-bar-low
-                                        {% elif task.progress_percentage <= 66 %}
-                                            progress-bar-medium
-                                        {% else %}
-                                            progress-bar-high
-                                        {% endif %}"
-                                        role="progressbar"
-                                        style="width: {{ task.progress_percentage }}%"
-                                        aria-valuenow="{{ task.progress_percentage }}"
-                                        aria-valuemin="0"
-                                        aria-valuemax="100">
+<div class="container-fluid row" style="width: 1000px;">
+    <div id="project-details-container" style="width: 930px; margin-left: -2px;">
+        <div id="project-details-toggle" class="cursor-pointer" style="width: 800px;color: #ff0057;margin-left: 300px;background-color: transparent;font-size: 20px;padding-bottom: 10px;">
+            Project Details <i class="fas fa-chevron-down"></i>
+        </div>
+        <div id="project-details-content">
+            <div class="row">
+                <div class="col-md-9">
+                    <div class="card mt-3 project-details-card" style="width: 600px;">
+                        <div class="card-body text-left">
+                            <h5 class="card-title" style="color: #4136b3;">{{ project.title }}</h5>
+                            <p class="card-text"><strong style="color: #800080;">Description:</strong> {{ project.description }}</p>
+                            <p class="card-text"><strong style="color: #ff0057;">Category:</strong> {{ project.category }}</p>
+                            <p class="card-text"><strong style="color: #800080;">Client:</strong> {{ client_name}}</p>
+                            <p class="card-text"><strong style="color: #ff0057;">Budget:</strong> ₹ {{ project.budget }}</p>
+                            <p class="card-text"><strong style="color: #800080;">Status:</strong> {{ project.project_status }}</p>
+                            <p class="card-text"><strong style="color: #ff0057;">Start Date:</strong> {{ project.start_date|date:"F j, Y" }}</p>
+                            <p class="card-text"><strong style="color: #800080;">End Date:</strong> {{ project.project_end_date|date:"F j, Y" }}</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <h6 class="mt-3" style="font-family: 'Raleway', sans-serif; font-weight: 600;">Uploaded File</h6>
+                    {% if project.file_upload %}
+                        <div class="card mb-3 file-card">
+                            <div class="card-body">
+                                <div class="pdf-container">
+                                    <div class="pdf-background">
+                                        <i class="fas fa-file-pdf"></i>
+                                    </div>
+                                    <div class="file-actions-overlay">
+                                        <a href="{{ project.file_upload.url }}" target="_blank" class="btn-file-action btn-view">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                        <a href="{{ project.file_upload.url }}" download class="btn-file-action btn-download">
+                                            <i class="fas fa-download"></i>
+                                        </a>
                                     </div>
                                 </div>
-                                <span>{{ task.progress_percentage }}%</span>
                             </div>
-                        </td>
-                        <td>
-                            <button class="btn btn-icon" data-bs-toggle="modal" data-bs-target="#viewTaskModal-{{ task.id }}">
-                                <i class="fas fa-eye view-icon"></i>
-                            </button>
-                        </td>
-                    </tr>
+                        </div>
+                    {% else %}
+                        <p style="font-family: 'Assistant', sans-serif; color: #7f8c8d;">No files uploaded yet.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Left column (existing content) -->
+        <div class="col-md-12">
+            <div class="container">
+                <div class="toggle-buttons">
+                    <button class="btn btn-outline-secondary" id="toggle-tasks">
+                        <i class="fas fa-tasks"></i> Tasks
+                    </button>
+                    <button class="btn btn-outline-secondary" id="toggle-activities">
+                        <i class="fas fa-bell"></i> Activities
+                    </button>
+                    <button class="btn btn-outline-secondary" id="toggle-notes">
+                        <i class="fas fa-sticky-note"></i> Meeting Notes
+                    </button>
+                    <button class="btn btn-outline-secondary" id="toggle-docs">
+                        <i class="fas fa-document"></i> Documents
+                    </button>
+                    {% if project.git_repo_link %}
+                    <a href="{{ project.git_repo_link }}" target="_blank" class="btn btn-outline-secondary">
+                        <i class="fab fa-github"></i> GitHub Repository
+                    </a>
+                    {% else %}
+                    <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#addGitHubLinkModal">
+                        <i class="fab fa-github"></i> Add GitHub Repository
+                    </button>
+                    {% endif %}
+                </div>
+
+                <div id="tasks-section">
+                    <h2>Project Tasks</h2>
+                    <br>
+                    <!-- Add these buttons above the table -->
+                    <div class="task-filter-buttons mb-3">
+                        <button class="btn btn-outline-primary filter-btn active" data-filter="all">All Tasks</button>
+                        <button class="btn btn-outline-primary filter-btn" data-filter="In Progress">In Progress</button>
+                        <button class="btn btn-outline-primary filter-btn" data-filter="Completed">Completed</button>
+                        <button class="btn btn-outline-primary filter-btn" data-filter="Pending">Pending</button>
+                    </div>
+                    <br>
+                    <div id="task-container">
+                        <table id="tasksTable" class="display" style="width:100%">
+                            <thead>
+                                <tr>
+                                    <th>Task Title</th>
+                                    <th>Description</th>
+                                    <th>Due Date</th>
+                                    <th>Status</th>
+                                    <th>Progress</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for task in tasks %}
+                                <tr>
+                                    <td>{{ task.title }}</td>
+                                    <td>{{ task.description }}</td>
+                                    <td>{{ task.due_date|date:"Y-m-d" }}</td>
+                                    <td style="color: {% if task.status == 'Completed' %}green{% elif task.status == 'In Progress' %}blue{% elif task.status == 'On Hold' %}orange{% else %}red{% endif %};">
+                                        {{ task.status }}
+                                    </td>
+                                    <td>
+                                        <div style="display: flex; align-items: center; justify-content: space-between;">
+                                            <div class="progress" style="flex-grow: 1; margin-left: 10px; height: 10px;">
+                                                <div class="progress-bar 
+                                                    {% if task.progress_percentage <= 33 %}
+                                                        progress-bar-low
+                                                    {% elif task.progress_percentage <= 66 %}
+                                                        progress-bar-medium
+                                                    {% else %}
+                                                        progress-bar-high
+                                                    {% endif %}"
+                                                    role="progressbar"
+                                                    style="width: {{ task.progress_percentage }}%"
+                                                    aria-valuenow="{{ task.progress_percentage }}"
+                                                    aria-valuemin="0"
+                                                    aria-valuemax="100">
+                                                </div>
+                                            </div>
+                                            <span>{{ task.progress_percentage }}%</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-icon" data-bs-toggle="modal" data-bs-target="#viewTaskModal-{{ task.id }}">
+                                            <i class="fas fa-eye view-icon"></i>
+                                        </button>
+                                    </td>
+                                </tr>
 
 
 
+
+                                
+    <div class="modal fade" id="viewTaskModal-{{ task.id }}" tabindex="-1" aria-labelledby="viewTaskModalLabel-{{ task.id }}" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="viewTaskModalLabel-{{ task.id }}">Task Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p><strong>Title:</strong> {{ task.title }}</p><p><strong>Description:</strong> {{ task.description|truncatechars:10 }}</p>
+
+                    <p><strong>Start Date:</strong> {{ task.start_date|date:"Y-m-d" }}</p>
+                    <p><strong>Due Date:</strong> {{ task.due_date|date:"Y-m-d" }}</p>
+                    <p><strong>Status:</strong> {{ task.status }}</p>
+                    <p><strong>Progress:</strong> {{ task.progress_percentage }}%</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="4">No tasks found.</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                            
+                        </table>
+                    
+                    </div>
+                </div>
+
+                <div id="activity-section" style="display: none;">
+                    <div class="action-buttons mb-4">
+                        <a href="#" class="btn btn-add-url me-2" data-bs-toggle="modal" data-bs-target="#addUrlModal">
+                            <i class="fas fa-link"></i> Add URL
+                        </a>
+                        <a href="#" class="btn btn-add-files" data-bs-toggle="modal" data-bs-target="#addFilesModal">
+                            <i class="fas fa-file-upload"></i> Add Files
+                        </a>
+                    </div>
+    <br>
+                    <h2>Recent Activity</h2>
+    <ul class="recent-activity">
+      {% for item in items %}
+      {% if item.type == 'file' %}
+      <li class="activity-item {% if item.uploaded_by == user.id %}logged-in-user{% else %}freelancer{% endif %}">
+        <div class="user-logo">
+          <img src="{% if item.uploaded_by == user.id %}{{ profile2.profile_picture.url }}{% else %}{{ client_profile_picture.url }}{% endif %}" alt="{{ item.user_name }}'s logo">
+        </div>
+        <div class="activity-content">
+          <div class="activity-header">
+            <strong>File:</strong> 
+            <a href="{{ item.url }}" target="_blank">{{ item.path }}</a>
+          </div>
+          <p class="activity-description">{{ item.description }}</p>
+          <div class="activity-meta">
+            Uploaded by {% if item.uploaded_by == user.id %}you{% else %}{{ freelancer_name }}{% endif %} on {{ item.date|date:"F j, Y, g:i a" }}
+          </div>
+        </div>
+      </li>
+
+
+
+      {% elif item.type == 'url' %}
+      <li class="activity-item {% if item.shared_by == user.id %}logged-in-user{% else %}freelancer{% endif %}">
+        <div class="user-logo">
+          <img src="{% if item.shared_by == user.id %}{{ profile2.profile_picture.url }}{% else %}{{ client_profile_picture.url }}{% endif %}" alt="{{ item.user_name }}'s logo">
+        </div>
+        <div class="activity-content">
+          <div class="activity-header">
+            <strong>URL:</strong> <a href="{{ item.path }}" target="_blank">{{ item.path }}</a>
+          </div>
+          
+          <p class="activity-description">{{ item.description }}</p>
+          <div class="activity-meta">
+            Shared by {% if item.shared_by == user.id %}you{% else %}{{ freelancer_name }}{% endif %} on {{ item.date|date:"F j, Y, g:i a" }}
+          </div>
+        </div>
+      </li>
+      {% endif %}
+      {% empty %}
+      <li>No activity found.</li>
+      {% endfor %}
+    </ul>
+                </div>
+
+                <div id="notes-section" style="display: none;">
+                    <h2>Meeting Notes</h2>
+                   
+                    <div id="note-container"></div>
 
                     
-<div class="modal fade" id="viewTaskModal-{{ task.id }}" tabindex="-1" aria-labelledby="viewTaskModalLabel-{{ task.id }}" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="viewTaskModalLabel-{{ task.id }}">Task Details</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <p><strong>Title:</strong> {{ task.title }}</p><p><strong>Description:</strong> {{ task.description|truncatechars:10 }}</p>
+                    <ul class="recent-notes">
+                        {% for note in notes %}
+                            <br><li class="note-item">
+                                <div class="note-content">
+                                    <div class="note-header">{{ note.note }}</div>
+                                    <div class="note-meta">Added by you on {{ note.added_at|date:"F j, Y, g:i a" }}</div>
+                                    <p class="note-description">{{ note.content }}</p>
+                                </div>
+                            </li>
+                        {% empty %}
+                        <li>No notes found.</li>
+                        {% endfor %}
+                    </ul>
+                </div>
 
-                <p><strong>Start Date:</strong> {{ task.start_date|date:"Y-m-d" }}</p>
-                <p><strong>Due Date:</strong> {{ task.due_date|date:"Y-m-d" }}</p>
-                <p><strong>Status:</strong> {{ task.status }}</p>
-                <p><strong>Progress:</strong> {{ task.progress_percentage }}%</p>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                
+                <div id="docs-section" style="display: none;">
+                    <h2>Documents</h2>
+                
+                    <section class="card-container">
+                        {% if proposals %}
+                            {% for proposal in proposals %}
+                                <article class="card">
+                                    <img src="{% static 'img/proposal.png' %}" alt="Proposal Image">
+                                    <div class="card-body">
+                                        <h3>Proposal</h3>
+                                        <div class="icon-group">
+                                            <a href="{{ proposal.proposal_file.url }}" target="_blank" class="icon-view" title="View Proposal">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                            <a href="{{ proposal.proposal_file.url }}" download title="Download Proposal">
+                                                <i class="fas fa-download"></i>
+                                            </a>
+                                        </div>
+                                    </div>
+                                </article>
+                            {% endfor %}
+                        {% else %}
+                            <p>No proposals available for this project.</p>
+                        {% endif %}
+                
+                        {% if contracts %}
+                            {% for contract in contracts %}
+                            {% if contract.pdf_version %}
+                                <article class="card">
+                                    <div class="pdf-background">
+                                        <i class="fas fa-file-pdf fa-3x"></i>
+                                    </div>
+                                    <div class="card-body">
+                                        <h3>Document</h3>
+                                        <div class="icon-group">
+                                            <a href="{{ contract.pdf_version.url }}" target="_blank" class="icon-view" title="View Document">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                            <a href="{{ contract.pdf_version.url }}" download title="Download Document">
+                                                <i class="fas fa-download"></i>
+                                            </a>
+                                        </div>
+                                    </div>
+                                </article>
+                                {% endif %}
+                            {% endfor %}
+                        {% else %}
+                            <p>No contracts available for this project.</p>
+                        {% endif %}
+                    </section>
+                </div>
             </div>
         </div>
+
+        
     </div>
 </div>
-                    {% empty %}
-                    <tr>
-                        <td colspan="4">No tasks found.</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-                
-            </table>
-        
-        </div>
-    </div>
-
-    <div id="activity-section" style="display: none;">
-        <div class="action-buttons mb-4">
-            <a href="#" class="btn btn-add-url me-2" data-bs-toggle="modal" data-bs-target="#addUrlModal">
-                <i class="fas fa-link"></i> Add URL
-            </a>
-            <a href="#" class="btn btn-add-files" data-bs-toggle="modal" data-bs-target="#addFilesModal">
-                <i class="fas fa-file-upload"></i> Add Files
-            </a>
-        </div>
-<br>
-        <h2>Recent Activity</h2>
-<ul class="recent-activity">
-  {% for item in items %}
-  {% if item.type == 'file' %}
-  <li class="activity-item {% if item.uploaded_by == user.id %}logged-in-user{% else %}freelancer{% endif %}">
-    <div class="user-logo">
-      <img src="{% if item.uploaded_by == user.id %}{{ profile2.profile_picture.url }}{% else %}{{ client_profile_picture.url }}{% endif %}" alt="{{ item.user_name }}'s logo">
-    </div>
-    <div class="activity-content">
-      <div class="activity-header">
-        <strong>File:</strong> 
-        <a href="{{ item.url }}" target="_blank">{{ item.path }}</a>
-      </div>
-      <p class="activity-description">{{ item.description }}</p>
-      <div class="activity-meta">
-        Uploaded by {% if item.uploaded_by == user.id %}you{% else %}{{ freelancer_name }}{% endif %} on {{ item.date|date:"F j, Y, g:i a" }}
-      </div>
-    </div>
-  </li>
-
-
-
-  {% elif item.type == 'url' %}
-  <li class="activity-item {% if item.shared_by == user.id %}logged-in-user{% else %}freelancer{% endif %}">
-    <div class="user-logo">
-      <img src="{% if item.shared_by == user.id %}{{ profile2.profile_picture.url }}{% else %}{{ client_profile_picture.url }}{% endif %}" alt="{{ item.user_name }}'s logo">
-    </div>
-    <div class="activity-content">
-      <div class="activity-header">
-        <strong>URL:</strong> <a href="{{ item.path }}" target="_blank">{{ item.path }}</a>
-      </div>
-      
-      <p class="activity-description">{{ item.description }}</p>
-      <div class="activity-meta">
-        Shared by {% if item.shared_by == user.id %}you{% else %}{{ freelancer_name }}{% endif %} on {{ item.date|date:"F j, Y, g:i a" }}
-      </div>
-    </div>
-  </li>
-  {% endif %}
-  {% empty %}
-  <li>No activity found.</li>
-  {% endfor %}
-</ul>
-    </div>
-
-    <div id="notes-section" style="display: none;">
-        <h2>Meeting Notes</h2>
-       
-        <div id="note-container"></div>
-
-        
-        <ul class="recent-notes">
-            {% for note in notes %}
-                <br><li class="note-item">
-                    <div class="note-content">
-                        <div class="note-header">{{ note.note }}</div>
-                        <div class="note-meta">Added by you on {{ note.added_at|date:"F j, Y, g:i a" }}</div>
-                        <p class="note-description">{{ note.content }}</p>
-                    </div>
-                </li>
-            {% empty %}
-            <li>No notes found.</li>
-            {% endfor %}
-        </ul>
-    </div>
-
-    
-    <div id="docs-section" style="display: none;">
-        <h2>Documents</h2>
-    
-        <section class="card-container">
-            {% if proposals %}
-                {% for proposal in proposals %}
-                    <article class="card">
-                        <img src="{% static 'img/proposal.png' %}" alt="Proposal Image">
-                        <div class="card-body">
-                            <h3>Proposal</h3>
-                            <div class="icon-group">
-                                <a href="{{ proposal.proposal_file.url }}" target="_blank" class="icon-view" title="View Proposal">
-                                    <i class="fas fa-eye"></i>
-                                </a>
-                                <a href="{{ proposal.proposal_file.url }}" download title="Download Proposal">
-                                    <i class="fas fa-download"></i>
-                                </a>
-                            </div>
-                        </div>
-                    </article>
-                {% endfor %}
-            {% else %}
-                <p>No proposals available for this project.</p>
-            {% endif %}
-    
-            {% if contracts %}
-                {% for contract in contracts %}
-                {% if contract.pdf_version %}
-                    <article class="card">
-                        <img src="{% static 'img/contract.png' %}" alt="Agreement Image">
-                        <div class="card-body">
-                            <h3>Agreement</h3>
-                            <div class="icon-group">
-                                <a href="{{ contract.pdf_version.url }}" target="_blank" class="icon-view" title="View Agreement">
-                                    <i class="fas fa-eye"></i>
-                                </a>
-                                <a href="{{ contract.pdf_version.url }}" download title="Download Agreement">
-                                    <i class="fas fa-download"></i>
-                                </a>
-                            </div>
-                        </div>
-                    </article>
-                    {% endif %}
-                {% endfor %}
-            {% else %}
-                <p>No contracts available for this project.</p>
-            {% endif %}
-        </section>
-    </div>
-    
 
 <!-- Add URL Modal -->
 <div class="modal fade" id="addUrlModal" tabindex="-1" aria-labelledby="addUrlModalLabel" aria-hidden="true">
@@ -1021,6 +1215,12 @@ font-size: 12px;
         $('#clearNoteButton').click(function() {
             $('#noteTextArea').val('');
         });
+
+        // Project Summary toggle
+        $('#project-summary-toggle').click(function() {
+            $('#project-summary-container').toggleClass('expanded');
+            $(this).find('i').toggleClass('fa-chevron-left fa-chevron-right');
+        });
     });
 </script>
 
@@ -1059,5 +1259,191 @@ font-size: 12px;
     });
 </script>
 
+<script>
+    $(document).ready(function() {
+        // Existing code...
+
+        // Project Details toggle
+        $('#project-details-toggle').click(function() {
+            $('#project-details-container').toggleClass('expanded');
+            $(this).find('i').toggleClass('fa-chevron-down fa-chevron-up');
+        });
+    });
+</script>
+
+<style>
+    /* Import fonts */
+    @import url('https://fonts.googleapis.com/css2?family=Raleway:wght@400;600;700&family=Assistant:wght@400;600&display=swap');
+
+    /* Add this to your existing styles */
+    #project-details-container {
+        background-color: #ffffff;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        overflow: hidden;
+        transition: max-height 0.3s ease-in-out;
+        max-height: 50px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    #project-details-container.expanded {
+        max-height: none;
+    }
+
+    #project-details-toggle {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 15px 20px;
+        background-color: #f0f4f8;
+        cursor: pointer;
+        border-radius: 8px 8px 0 0;
+        font-family: 'Raleway', sans-serif;
+        font-weight: 600;
+        color: #2c3e50;
+    }
+
+    #project-details-content {
+        padding: 20px;
+    }
+
+    .project-details-card {
+        border: none;
+        box-shadow: none;
+    }
+
+    .project-details-card .card-title {
+        font-family: 'Raleway', sans-serif;
+        font-weight: 700;
+        color: #3498db;
+        margin-bottom: 20px;
+        font-size: 1.5rem;
+    }
+
+    .project-details-card .card-text {
+        font-family: 'Assistant', sans-serif;
+        margin-bottom: 10px;
+        color: #34495e;
+    }
+
+    .project-details-card .card-text strong {
+        font-weight: 600;
+        color: #2c3e50;
+    }
+
+    .file-card {
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        border-radius: 12px;
+    }
+
+    .file-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    }
+
+    .file-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .btn-file-action {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 8px 16px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        text-decoration: none;
+        transition: all 0.3s ease;
+    }
+
+    .btn-view {
+        background-color: #f8f9fa;
+        color: #4a5568;
+        border: 1px solid #e2e8f0;
+    }
+
+    .btn-view:hover {
+        background-color: #e2e8f0;
+        color: #2d3748;
+    }
+
+    .btn-download {
+        background-color: #4299e1;
+        color: white;
+        border: 1px solid #4299e1;
+    }
+
+    .btn-download:hover {
+        background-color: #3182ce;
+        border-color: #3182ce;
+        color: white;
+    }
+
+    .card-body {
+        padding: 1.25rem;
+    }
+
+    .card-title {
+        color: #2d3748;
+        font-size: 0.95rem;
+        font-weight: 500;
+        line-height: 1.2;
+    }
+
+    /* Animation for icons */
+    .btn-file-action i {
+        transition: transform 0.2s ease;
+    }
+
+    .btn-file-action:hover i {
+        transform: scale(1.1);
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 768px) {
+        .file-actions {
+            flex-direction: row;
+            gap: 10px;
+        }
+
+        .btn-file-action {
+            flex: 1;
+            font-size: 13px;
+            padding: 6px 12px;
+        }
+    }
+
+    .pdf-background {
+        background-color: #f8f9fa;
+        height: 120px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        margin-bottom: 15px;
+    }
+
+    .pdf-background i {
+        font-size: 48px;
+        color: #dc3545;
+        transition: transform 0.3s ease;
+    }
+
+    .file-card:hover .pdf-background i {
+        transform: scale(1.1);
+    }
+</style>
+
 
 {% endblock %}
+
+
+
+
+
+
+
+

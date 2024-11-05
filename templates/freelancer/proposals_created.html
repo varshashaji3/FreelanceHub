@@ -153,7 +153,7 @@
                         <a href="{% url 'freelancer:proposal_detail2' detail.proposal.id %}" class="btn btn-primary">View</a>
                         <a href="{% url 'freelancer:edit_created_proposal' detail.proposal.id %}" 
                            class="btn btn-primary" 
-                           {% if detail.proposal.locked %} 
+                           {% if detail.proposal.locked or detail.proposal.status == 'Accepted' %} 
                                onclick="return false;" 
                                style="pointer-events: none; opacity: 0.5;" 
                            {% endif %}>
@@ -169,9 +169,9 @@
                         
 
 
-                        <div class="modal fade" id="agreementModal{{ detail.proposal.id }}" tabindex="-1" role="dialog" aria-labelledby="agreementModalLabel{{ detail.proposal.id }}" aria-hidden="true">
-                            <div class="modal-dialog" role="document">
-                                <div class="modal-content" style="width:800px;margin-left:-150px;">
+                        <div class="modal fade" id="agreementModal{{ detail.proposal.id }}" tabindex="-1" role="dialog" aria-labelledby="agreementModalLabel{{ detail.proposal.id }}" aria-hidden="true" >
+                            <div class="modal-dialog modal-xl" role="document" >
+                                <div class="modal-content" style="width: 100%;">
                                     <div class="modal-header">
                                         <h5 class="modal-title" id="agreementModalLabel{{ detail.proposal.id }}">Agreement for {{ detail.project.title }}</h5>
                                         <button type="button" class="close" data-dismiss="modal" aria-label="Close">

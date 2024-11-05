@@ -119,12 +119,14 @@
                 <p><strong>Subject:</strong> {{ complaint.subject }}</p>
                 <p><strong>Description:</strong> {{ complaint.description }}</p>
                 <p><strong>Solution:</strong> {{ complaint.resolution }}</p>
+                {% if complaint.status == 'Pending'%}
                 <form id="satisfactionForm{{ forloop.counter }}" {% if complaint.status == 'Resolved' %}style="display:none;"{% endif %}>
                     <label>Are you satisfied with the solution?</label><br> <br>
 
                     <button type="button" class="btn btn-success satisfaction-btn" data-value="Satisfactory" data-complaint-id="{{ complaint.id }}">Yes</button>
                     <button type="button" class="btn btn-danger satisfaction-btn" data-value="Unsatisfactory" data-complaint-id="{{ complaint.id }}">No</button>
                 </form>
+                {% endif %}
             </div>
         </div>
     </div>
