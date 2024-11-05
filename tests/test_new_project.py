@@ -20,7 +20,7 @@ try:
     password_input.send_keys('Tech@123')
     password_input.send_keys(Keys.RETURN)
     WebDriverWait(driver, 10).until(EC.url_contains('/client/client_view/'))
-    print("Logged in successfully. Current URL:", driver.current_url)
+    print("Logged in successfully")
     driver.get('http://127.0.0.1:8000/client/add_new_project/')
     WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.ID, 'project_form')))
     title_input = WebDriverWait(driver, 10).until(
@@ -46,12 +46,12 @@ try:
     submit_button = driver.find_element(By.ID, 'addProject')
     WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, 'addProject'))).click()
     if driver.current_url == 'http://127.0.0.1:8000/client/add_new_project/':
-        driver.execute_script("alert(' Test Passed!');")
+        print('Test passed!New project not aaded beacause of error in form filling!')
     elif driver.current_url == 'http://127.0.0.1:8000/client/project_list/':
-        driver.execute_script("alert(' Test was successful!');")
+        print('Test was successful! New project added')
 
 except Exception as e:
-    print(f"Test Failed: {e}")
+    print(f"Test Failed")
 
 finally:
     time.sleep(3)

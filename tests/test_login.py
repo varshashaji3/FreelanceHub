@@ -37,21 +37,16 @@ try:
 
         time.sleep(2) 
 
-        if driver.current_url == credentials['expected_url']:
-            driver.execute_script(f'alert("Login successful for {credentials["email"]}.");')
-        else:
-            driver.execute_script(f'alert("Login failed for {credentials["email"]}. Incorrect URL after login.");')
-
-        alert = WebDriverWait(driver, 15).until(EC.alert_is_present())
-        alert.accept()
-
-        if driver.current_url == credentials['expected_url']:
+        if driver.current_url == credentials['expected_url'] and driver.current_url!="http://127.0.0.1:8000/login/":
+            print(f"Test Paased.Login successful for {credentials['email']}.")
             time.sleep(2)
             logout_button = WebDriverWait(driver, 10).until(
-                EC.element_to_be_clickable((By.LINK_TEXT, "Logout"))  # Modify based on your actual selector
+                EC.element_to_be_clickable((By.LINK_TEXT, "Logout"))  
             )
             logout_button.click()
-            time.sleep(3) 
+        else:
+            print(f"Test failed. Incorrect Credentials.")
+
 
 finally:
     driver.quit()
