@@ -26,7 +26,9 @@ SECRET_KEY = 'django-insecure--vamx(qq%e)g0=)b$17dg&4kj0&%73+wztckvwmj8b%(8m3k-p
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['*']
+# ALLOWED_HOSTS = ['freelancehub-production.up.railway.app', 'localhost', '127.0.0.1']
+ALLOWED_HOSTS = ['freelancehub.koyeb.app', 'localhost', '127.0.0.1','freelancehub-5tya.onrender.com','freelancehub-production.up.railway.app']
+
 
 
 # Application definition
@@ -52,6 +54,8 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -74,7 +78,7 @@ CACHE_MIDDLEWARE_KEY_PREFIX = ''
 
 ROOT_URLCONF = 'freelancehub.urls'
 
-CSRF_TRUSTED_ORIGINS = ['http://127.0.0.1:8000']
+CSRF_TRUSTED_ORIGINS = ['http://127.0.0.1:8000','https://freelancehub.koyeb.app','https://freelancehub-5tya.onrender.com','https://freelancehub-production.up.railway.app']
 
 TEMPLATES = [
     {
@@ -90,12 +94,13 @@ TEMPLATES = [
                 'django.contrib.messages.context_processors.messages',
                 'core.context_processors.unread_notifications',
                 'core.context_processors.repository_list',
-                'core.context_processors.project_status' ,
+                'core.context_processors.project_status',
                 'core.context_processors.review_due',
                 'administrator.context_processors.user_profile',
                 'client.context_processors.client_context',
                 'freelancer.context_processors.freelancer_context',
                 'core.context_processors.refund_payment_context',
+                'client.context_processors.project_completion_status',
             ],
         },
     },
@@ -125,6 +130,22 @@ DATABASES = {
     }
 }
 
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.mysql',
+#         'NAME': 'freelancehub_strangergo',
+#         'USER': 'freelancehub_strangergo',
+#         'PASSWORD': '739cd32a2c6f51df7fce54d52ff39b748c14c6c8',
+#         'HOST': 'l9i84.h.filess.io',
+#         'PORT': '3305',
+#         'OPTIONS': {
+#             'charset': 'utf8mb4',
+#         },
+#     }
+# }
+
+
+
 
 # Password validation
 # https://docs.djangoproject.com/en/5.0/ref/settings/#auth-password-validators
@@ -144,14 +165,16 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
+ACCOUNT_DEFAULT_HTTP_PROTOCOL = "https"
+
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
-EMAIL_USE_TLS = True
-EMAIL_PORT = 587
-EMAIL_HOST_USER='freelancehub76@gmail.com'
-EMAIL_HOST_PASSWORD='bzhvkfwdwxslblbm'
-
+EMAIL_USE_TLS = True  # Use TLS for a secure connection
+EMAIL_PORT = 587      # Port for TLS
+EMAIL_HOST_USER = 'freelancehub76@gmail.com'  # Your Gmail address
+EMAIL_HOST_PASSWORD = 'slekgltdnkmvbmha'  # Your app password (ensure it's correct)
 DEFAULT_FROM_EMAIL = 'freelancehub76@gmail.com'
+
 
 
 
@@ -174,11 +197,14 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')  # Adjust as necessary
 STATICFILES_DIRS = [
     os.path.join(BASE_DIR, "static"),
 ]
+
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 AUTH_USER_MODEL='core.CustomUser'
 
-SITE_ID = 1
+SITE_ID = 2
 
 AUTHENTICATION_BACKENDS = [
     'django.contrib.auth.backends.ModelBackend',
