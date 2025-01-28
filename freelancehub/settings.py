@@ -172,7 +172,7 @@ EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_USE_TLS = True  # Use TLS for a secure connection
 EMAIL_PORT = 587      # Port for TLS
 EMAIL_HOST_USER = 'freelancehub76@gmail.com'  # Your Gmail address
-EMAIL_HOST_PASSWORD = 'slekgltdnkmvbmha'  # Your app password (ensure it's correct)
+EMAIL_HOST_PASSWORD = 'dvpokhgveibeawrk'  # Your app password (ensure it's correct)
 DEFAULT_FROM_EMAIL = 'freelancehub76@gmail.com'
 
 
@@ -204,7 +204,7 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 AUTH_USER_MODEL='core.CustomUser'
 
-SITE_ID = 2
+SITE_ID = 1
 
 AUTHENTICATION_BACKENDS = [
     'django.contrib.auth.backends.ModelBackend',

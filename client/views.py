@@ -1,6 +1,3 @@
-
-
-
 import datetime
 import os
 from django.contrib import messages
@@ -13,7 +10,7 @@ from core.models import CustomUser, Event, Notification, Register
 
 from django.contrib.auth.decorators import login_required
 
-from freelancer.models import FreelancerProfile, Proposal, ProposalFile
+from freelancer.models import FreelancerProfile, Proposal, ProposalFile,Team,TeamMember
 from django.utils import timezone
 from django.db.models import Q
 from django.shortcuts import render, redirect, get_object_or_404
@@ -1035,17 +1032,20 @@ def project_list(request):
     profile1 = CustomUser.objects.get(id=uid)
     profile2 = Register.objects.get(user_id=uid)
     client = ClientProfile.objects.get(user_id=uid)
+    
     if profile1.permission:
         search_query = request.GET.get('search', '')
         if search_query:
-            projects = Project.objects.filter(user_id=uid, title__istartswith=search_query).select_related('freelancer')
-
+            projects = Project.objects.filter(user_id=uid, title__istartswith=search_query).select_related('freelancer', 'team')
         else:
-            projects = Project.objects.filter(user_id=uid).select_related('freelancer')
+            projects = Project.objects.filter(user_id=uid).select_related('freelancer', 'team')
+            
         freelancer_names = {}
         project_repos = {}
+        team_details = {}  # New dictionary to hold team details
 
         for project in projects:
+            # Handle freelancer assignment
             if project.freelancer:
                 register = Register.objects.filter(user=project.freelancer).first()
                 if register:
@@ -1053,9 +1053,13 @@ def project_list(request):
                     freelancer_names[project.id] = full_name
                 else:
                     freelancer_names[project.id] = 'No name available'
+            
+                
+            elif project.team:
+                team_owner = Register.objects.get(user_id=project.team.created_by.id)  # Fetch the owner from CustomUser
+                team_details[project.id] = project.team.name 
             else:
                 freelancer_names[project.id] = 'No freelancer assigned'
-                
             repository = Repository.objects.filter(project=project).first()
             project_repos[project.id] = repository.id if repository else None
 
@@ -1066,6 +1070,7 @@ def project_list(request):
             'projects': projects,
             'freelancer_names': freelancer_names,
             'project_repos': project_repos,
+            'team_details': team_details,  # Pass team details to the template
         })
     else:
         return render(request, 'Client/PermissionDenied.html', {
@@ -1074,19 +1079,18 @@ def project_list(request):
             'client': client,
         })
 
-        
 
 
 @login_required
 @nocache
-def single_project_view(request,pid):
-    if 'uid' not in request.session and not request.user.is_authenticated and request.user.role!='client':
+def single_project_view(request, pid):
+    if 'uid' not in request.session and not request.user.is_authenticated and request.user.role != 'client':
         return redirect('login')
 
     uid = request.session['uid']
     profile1 = CustomUser.objects.get(id=uid)
-    profile2=Register.objects.get(user_id=uid)
-    client=ClientProfile.objects.get(user_id=uid)
+    profile2 = Register.objects.get(user_id=uid)
+    client = ClientProfile.objects.get(user_id=uid)
     
     if profile1.permission:
         project = get_object_or_404(Project, id=pid)
@@ -1110,6 +1114,19 @@ def single_project_view(request,pid):
         freelancer_ids = proposals.values_list('freelancer__id', flat=True)
         reg_details = Register.objects.filter(user_id__in=freelancer_ids)
         freelancer_profiles = FreelancerProfile.objects.filter(user_id__in=freelancer_ids)
+
+        # Check for team details in proposals
+        team_name = None  
+        team_proposal = proposals.filter(team_id__isnull=False).first()
+        if team_proposal and hasattr(team_proposal, 'team_id_id'):  # Check if team_id_id exists
+            try:
+                team = Team.objects.get(id=team_proposal.team_id_id)  # Use team_id_id instead of team_id
+                team_name = team.name  # Assuming the `Team` model has a `name` field.
+            except Team.DoesNotExist:
+                team_name = None  # Handle missing team case gracefully.
+        else:
+            # Handle case where team_id_id does not exist
+            team_name = None  # or set a default value or message
         
         for profile in freelancer_profiles:
             profile.skills = profile.skills.strip('[]').replace("'", "").split(', ')
@@ -1129,14 +1146,17 @@ def single_project_view(request,pid):
             'freelancer_first_name': freelancer_first_name,
             'freelancer_last_name': freelancer_last_name,
             'repository_id': repository_id,
+            'team_name': team_name,  
         })
         
     else:
-        return render(request, 'Client/PermissionDenied.html',{
+        return render(request, 'Client/PermissionDenied.html', {
             'profile1': profile1,
             'profile2': profile2,
             'client': client,
         })
+
+
 
 
         
@@ -1164,7 +1184,14 @@ def update_proposal_status(request, pro_id):
             proposal.save()
 
             if new_status == 'Accepted':
-                project.freelancer = proposal.freelancer
+                # Set either freelancer or team based on proposal type
+                if proposal.team_id_id:
+                    project.team = Team.objects.get(id=proposal.team_id_id)  # Retrieve the Team instance
+                    project.freelancer = None
+                else:
+                    project.freelancer = proposal.freelancer
+                    project.team = None
+                
                 project.budget = proposal.budget
                 project.project_status = 'In Progress'
                 project.status = 'closed'
@@ -1178,10 +1205,27 @@ def update_proposal_status(request, pro_id):
                 project.total_including_gst = total_including_gst
                 project.save()
                 
-                Notification.objects.create(
-                    user=proposal.freelancer,
-                    message=f'Congratulations! Your proposal for project "{project.title}" has been accepted.'
-                )
+                # Create notification for team or freelancer
+                if proposal.team_id:
+                    team_members = TeamMember.objects.filter(team_id=proposal.team_id)
+                    if team_members.exists():  # Add check if team has members
+                        for member in team_members:
+                            Notification.objects.create(
+                                user=member.user,
+                                message=f'Congratulations! Your team\'s proposal for project "{project.title}" has been accepted.'
+                            )
+                    else:
+                        # Log or handle case where team has no members
+                        print(f"Warning: Team {proposal.team_id} has no members")
+                else:
+                    if proposal.freelancer:  # Add check if freelancer exists
+                        Notification.objects.create(
+                            user=proposal.freelancer,
+                            message=f'Congratulations! Your proposal for project "{project.title}" has been accepted.'
+                        )
+                    else:
+                        # Log or handle case where proposal has no freelancer
+                        print(f"Warning: Proposal {proposal.id} has no freelancer")
                 
                 chatroom = ChatRoom.objects.filter(
                     participants=proposal.freelancer
@@ -1203,7 +1247,8 @@ def update_proposal_status(request, pro_id):
                     )
                 else:
                     chatroom = ChatRoom.objects.create(
-                        project=project
+                        project=project,
+                        chat_type = 'private' 
                     )
                     chatroom.participants.add(proposal.freelancer, project.user)  
                     
@@ -1216,23 +1261,39 @@ def update_proposal_status(request, pro_id):
                         user=project.user,
                         message=f'A new chatroom has been created for your project "{project.title}".'
                     )
-                
+                    
+                # Handle rejection notifications
                 Proposal.objects.filter(project=project).exclude(id=pro_id).update(status='Rejected')
                 rejected_proposals = Proposal.objects.filter(project=project, status='Rejected')
                 for other_proposal in rejected_proposals:
-                    Notification.objects.create(
-                        user=other_proposal.freelancer,
-                        message=f'Your proposal for project "{project.title}" has been rejected.'
-                    )
+                    if other_proposal.team_id:
+                        for member in other_proposal.team_id.members.all():
+                            Notification.objects.create(
+                                user=member.user,  # Access the CustomUser through TeamMember
+                                message=f'Your team\'s proposal for project "{project.title}" has been rejected.'
+                            )
+                    else:
+                        Notification.objects.create(
+                            user=other_proposal.freelancer,
+                            message=f'Your proposal for project "{project.title}" has been rejected.'
+                        )
                 
-                messages.success(request, 'Yeyy.. you selected a Freelancer for this project.')
+                messages.success(request, 'You have successfully selected a Freelancer/Team for this project.')
             else:
+                # Handle rejection notifications
                 Proposal.objects.filter(project=project).exclude(id=pro_id).update(status='Rejected')
                 for other_proposal in Proposal.objects.filter(project=project, status='Rejected'):
-                    Notification.objects.create(
-                        user=other_proposal.freelancer,
-                        message=f'Your proposal for project "{project.title}" has been rejected.'
-                    )
+                    if other_proposal.team_id:
+                        for member in other_proposal.team_id.members.all():
+                            Notification.objects.create(
+                                user=member.user,  # Access the CustomUser through TeamMember
+                                message=f'Your team\'s proposal for project "{project.title}" has been rejected.'
+                            )
+                    else:
+                        Notification.objects.create(
+                            user=other_proposal.freelancer,
+                            message=f'Your proposal for project "{project.title}" has been rejected.'
+                        )
 
     return redirect('client:single_project_view', pid=project.id)
 
@@ -1286,6 +1347,8 @@ def acc_deactivate(request):
 from client.models import Repository
 from django.contrib import messages
 
+from django.http import JsonResponse
+
 @login_required
 @nocache
 def create_repository(request):
@@ -1302,34 +1365,46 @@ def create_repository(request):
             title = request.POST.get('repoName')
             project_id = request.POST.get('project_id')
             project = get_object_or_404(Project, id=project_id)
+            # Step 1: Check if a repository with the same name exists across all projects
+            if title and Repository.objects.filter(name__iexact=title).exists():
+                return JsonResponse({'status': 'error', 'message': 'A repository with this name already exists.'})
+
+            # Step 2: Check if there are any existing repositories for the specified project
+            if title and Repository.objects.filter(project=project).exists():
+                return JsonResponse({'status': 'error', 'message': 'A repository already exists for this project.'})
 
             if title:
-                if Repository.objects.filter(name__iexact=title).exists():
-                    messages.error(request, 'A repository with this name already exists for this project.')
-                    return redirect('client:project_list')  
-
+                # Ensure to set the user field when creating the repository
                 repository = Repository.objects.create(
                     name=title,
                     project=project,
-                    created_by=request.user
+                    created_by=profile1  # Set the user who created the repository
                 )
                 if repository:
-                    freelancer = project.freelancer 
-                    Notification.objects.get_or_create(
-                        user=freelancer,  
-                        message=f"A new repository '{title}' has been created for the project '{project.title}'.",
-                        is_read=False
-                    )
+                    if project.team:  # Check if the project has a team
+                        team_members = TeamMember.objects.filter(team=project.team)  # Get all team members
+                        for member in team_members:
+                            Notification.objects.get_or_create(
+                                user=member.user,  
+                                message=f"A new repository '{title}' has been created for the project '{project.title}'.",
+                                is_read=False
+                            )
+                    else:
+                        
+                        freelancer = project.freelancer 
+                        Notification.objects.get_or_create(
+                            user=freelancer,  
+                            message=f"A new repository '{title}' has been created for the project '{project.title}'.",
+                            is_read=False
+                        )
 
-                messages.success(request, 'Repository created successfully.')
-                return redirect('client:project_list')
+                return JsonResponse({'status': 'success', 'message': 'Repository created successfully.'})
         
-    else:
-        return render(request, 'Client/PermissionDenied.html', {
-            'profile1': profile1,
-            'profile2': profile2,
-            'client': client,
-        })
+    return render(request, 'Client/PermissionDenied.html', {
+        'profile1': profile1,
+        'profile2': profile2,
+        'client': client,
+    })
 
 @login_required
 @nocache
@@ -1337,31 +1412,23 @@ def download_invoice(request, contract_id):
     # Fetch the contract using the contract_id
     contract = get_object_or_404(FreelanceContract, id=contract_id)
     
-    # Fetch related project and payment details
     project = contract.project
     payments = PaymentInstallment.objects.filter(contract_id=contract_id)
-    today = date.today()  # Get today's date
+    today = date.today() 
 
-    # Render the HTML template with context
-    html_content = render_to_string('Client/InvoiceDownload.html', {
+    client_profile = ClientProfile.objects.get(user=request.user.id)
+    if client_profile.client_type == 'Individual':
+        register_info = Register.objects.get(user=request.user.id)
+        client_name = f"{register_info.first_name} {register_info.last_name}"
+    else:
+        client_name = client_profile.company_name
+
+    return render(request, 'Client/InvoiceDownload.html', {
         'project': project,
         'payments': payments,
-        'today': today
+        'today': today,
+        'client_name': client_name  
     })
-
-    # Create a PDF response
-    response = HttpResponse(content_type='application/pdf')
-    response['Content-Disposition'] = f'attachment; filename="invoice_{contract_id}.pdf"'
-
-    # Convert HTML to PDF
-    pisa_status = pisa.CreatePDF(
-       html_content, dest=response
-    )
-
-    # Return the response
-    if pisa_status.err:
-       return HttpResponse('We had some errors <pre>' + html_content + '</pre>')
-    return response
         
 from core.models import CancellationRequest
 @login_required
@@ -1527,6 +1594,7 @@ def add_file(request,repo_id):
 
 
 
+
 @login_required
 @nocache
 def add_url(request,repo_id):
@@ -1559,6 +1627,7 @@ def add_url(request,repo_id):
             'profile2': profile2,
             'client': client,
         })       
+
 
 
 
@@ -1786,11 +1855,18 @@ def submit_contract(request, pro_id):
     
     if profile1.permission:
         project = Project.objects.get(id=pro_id) 
-        freelancer = project.freelancer 
+        if project.team:  
+            team = project.team 
+            team_data = Team.objects.get(id=team.id)  # Ensure to use team.id
+            user = CustomUser.objects.get(id=team_data.created_by.id)
+            freelancer = user.id
+            proposal = Proposal.objects.get(project=project, team_id=freelancer)  # Ensure to use freelancer ID
+        else:
+            freelancer = project.freelancer 
+            proposal = Proposal.objects.get(project=project, freelancer=project.freelancer)
         freelancer_data = Register.objects.get(user_id=freelancer)
         freelancer_name = f"{freelancer_data.first_name} {freelancer_data.last_name}"
-        proposal = Proposal.objects.get(project=project, freelancer=project.freelancer)
-
+        
         existing_contract = FreelanceContract.objects.filter(client=profile1, project=project).first()
 
         if request.method == 'POST' and not existing_contract:
@@ -1799,25 +1875,31 @@ def submit_contract(request, pro_id):
             signature = request.FILES.get('client_signature')
             project_instance = Project.objects.get(id=request.POST.get('project_id'))
 
-            contract = FreelanceContract(
-                client=client_instance,
-                freelancer=freelancer_instance,
-                project=project_instance,
-                client_signature=signature
-            )
-            contract.save()
+            # Ensure that the instances are not None
+            if client_instance and freelancer_instance and project_instance:
+                contract = FreelanceContract(
+                    client=client_instance,
+                    freelancer=freelancer_instance,
+                    project=project_instance,
+                    client_signature=signature
+                )
+                contract.save()
 
-            amounts = request.POST.getlist('installment_amount[]')
-            due_dates = request.POST.getlist('installment_due_date[]')
+                amounts = request.POST.getlist('installment_amount[]')
+                due_dates = request.POST.getlist('installment_due_date[]')
 
-            for amount, due_date in zip(amounts, due_dates):
-                PaymentInstallment.objects.create(contract=contract, amount=amount, due_date=due_date)
+                for amount, due_date in zip(amounts, due_dates):
+                    PaymentInstallment.objects.create(contract=contract, amount=amount, due_date=due_date)
 
-            Notification.objects.create(
-                user=freelancer_instance,
-                message=f'You have received a new agreement for the project "{project.title}" from the client.'
-            )
-            return redirect('client:project_list')
+                Notification.objects.create(
+                    user=freelancer_instance,
+                    message=f'You have received a new agreement for the project "{project.title}" from the client.'
+                )
+                return redirect('client:project_list')
+            else:
+                # Handle the case where one of the instances is None
+                messages.error(request, 'Invalid data provided. Please check your inputs.')
+                return redirect('client:some_view')  # Redirect to an appropriate view
 
         payment_installments = PaymentInstallment.objects.filter(contract=existing_contract) if existing_contract else None
         
@@ -1830,7 +1912,8 @@ def submit_contract(request, pro_id):
             'proposal': proposal,
             'freelancer': freelancer_data,
             'existing_contract': existing_contract,  # Pass existing contract to the template
-            'payment_installments': payment_installments,  # Pass payment installments to the template
+            'payment_installments': payment_installments, 
+            'team_name':team_data.name # Pass payment installments to the template
         })
     else:
         return render(request, 'Client/PermissionDenied.html', {

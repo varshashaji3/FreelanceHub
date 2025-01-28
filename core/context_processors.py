@@ -2,6 +2,7 @@ from client.models import Repository
 from core.decorators import nocache
 from core.models import CustomUser, Notification, Register, SiteReview
 from client.models import Project
+from freelancer.models import TeamMember
 
 def unread_notifications(request):
     if request.user.is_authenticated:
@@ -13,16 +14,25 @@ def unread_notifications(request):
 
 def repository_list(request):
     if request.user.is_authenticated:
-        assigned_projects = Project.objects.filter(freelancer=request.user)
+        # Get projects where the user is the freelancer or is a member of the assigned team
+        assigned_projects = Project.objects.filter(
+            freelancer=request.user
+        ) | Project.objects.filter(
+            team_id__in=TeamMember.objects.filter(user=request.user).values('team_id')
+        )
         
         client_projects = Project.objects.filter(user=request.user)
         
         repositories = Repository.objects.filter(
             project__in=assigned_projects | client_projects
         ).distinct()
+        is_project_manager = TeamMember.objects.filter(user=request.user, role='PROJECT_MANAGER').exists()
+        
     else:
         repositories = []
-    return {'repositories': repositories}
+        is_project_manager = False
+        
+    return {'repositories': repositories, 'is_project_manager': is_project_manager}
 
 
 

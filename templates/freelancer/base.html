@@ -231,10 +231,13 @@
           <span class="icon-menu"></span>
         </button>
         <ul class="navbar-nav mr-lg-2">
-
+          <!-- Remove these items from here -->
         </ul>
         <ul class="navbar-nav navbar-nav-right">
+          <!-- Add the renamed items here -->
+          
 
+          <!-- Existing notification dropdown and other items -->
           <li class="nav-item dropdown">
             <a class="nav-link count-indicator dropdown-toggle" id="notificationDropdown" href="#" data-toggle="dropdown">
                 <i class="icon-bell mx-0"></i>
@@ -256,12 +259,10 @@
                                 {{ notification.created_at|timesince }} ago
                             </p>
                         </div>
-                        <form action="{% url 'freelancer:notification_mark_as_read' not_id=notification.id %}?next={{ request.path }}" method="post">
-
+                        <form action="{% url 'freelancer:notification_mark_as_read' notification.id %}" method="post">
                           {% csrf_token %}
-                          <button type="submit" class="btn btn-sm btn-link">Mark as Read</button>
+                          <input type="submit" class="btn btn-success btn-sm" value="Mark as Read">
                       </form>
-                      
                     </div>
                 </a>
                 {% endfor %}
@@ -438,12 +439,12 @@
             </div>
           </li>
       
-          <li class="nav-item">
+          <!-- <li class="nav-item">
             <a class="nav-link" href="{% url 'freelancer:tasks_list' %}">
               <i class="fas fa-tasks menu-icon"></i> <!-- Tasks Icon -->
-              <span class="menu-title">Tasks</span>
+              <!-- <span class="menu-title">Tasks</span>
             </a>
-          </li>
+          </li> --> 
       
           <li class="nav-item">
             <a class="nav-link" href="{% url 'freelancer:client_list' %}">
@@ -512,6 +513,13 @@
           </li>
       
           <li class="nav-item">
+            <a class="nav-link" href="{% url 'freelancer:my_teams' %}">
+              <i class="fas fa-users-cog menu-icon"></i> <!-- Team Management Icon -->
+              <span class="menu-title">Manage Team</span>
+            </a>
+          </li>
+      
+          <li class="nav-item">
             <a class="nav-link" href="{% url 'logout'%}">
               <i class="fas fa-sign-out-alt menu-icon"></i> <!-- Logout Icon -->
               <span class="menu-title">Logout</span>
@@ -540,14 +548,14 @@
 
 
 
+ 
   <div id="siteReviewModal" class="modal">
     <div class="modal-content">
         <h2>We Value Your Feedback</h2>
         <img src="{% static 'img/review.png' %}" alt="Feedback Image" class="modal-image">
-        <form id="SiteReviewForm" method="post" action="{% url 'site_review' %}?next={{ request.path }}">
+        <form id="reviewForm" method="post" action="{% url 'site_review' %}?next={{ request.path }}">
             {% csrf_token %}
             <textarea name="review_text" placeholder="Your review" required></textarea>
-            <span id="siteReviewError" class="error"></span>
             <p>Please rate your experience with FreelanceHub on a scale from 1 to 5</p>
             <div class="star-rating">
               <input type="radio" id="star5" name="rating" value="5">
@@ -561,7 +569,8 @@
               <input type="radio" id="star1" name="rating" value="1">
               <label for="star1" title="1 star">&#9733;</label>
             </div>
-            <span id="siteRatingError" class="error"></span>
+            
+          
             <button type="submit">Submit Review</button>
         </form>
     </div>
@@ -628,7 +637,7 @@
         {% endif %}
       });
       </script>
-      <script>
+      <!-- <script>
         $(document).ready(function() {
           $("#reviewForm").submit(function(event) {
               var isValid = validateForm();
@@ -686,7 +695,7 @@
               }
           });
       });
-      </script>
+      </script> -->
 
       <div class="modal fade" id="reviewModal" tabindex="-1" role="dialog" aria-labelledby="reviewModalLabel" aria-hidden="true">
         <div class="modal-dialog" role="document">

@@ -41,7 +41,7 @@
         <div class="col-12" style="margin-top:10px;">
             
             <div class="table-responsive" style="margin-top:-10px;">
-                <form method="GET" id="filterForm" class="form-row align-items-center" style="margin-right:10px;width:350px;margin-left:790px;">
+                <form method="GET" id="filterForm" class="form-row align-items-right" style="margin-right:10px;width:250px;margin-left:630px;">
                     <div class="col-md-6 mb-2">
                         <input type="text" name="search" id="searchInput" placeholder="Search by title..." class="form-control" value="{{ request.GET.search }}">
                     </div>
@@ -55,7 +55,7 @@
                             <th>Description</th>
                             <th>Budget</th>
                             <th>Status</th>
-                            <th>Assigned To (Freelancer)</th>
+                            <th>Assigned To (Freelancer/Team)</th>
                             <th class="actions-column text-center">Actions</th>
                         </tr>
                     </thead>
@@ -77,10 +77,13 @@
                                 </form>
                             </td>
                             <td>
-                                {% if project.id in freelancer_names %}
-                                    {{ freelancer_names|get_item:project.id }}
+                                
+                                {% if project.id in team_details %}
+                                    {{ team_details|get_item:project.id }} 
+                                {% elif project.id in freelancer_names %}
+                                    {{ freelancer_names|get_item:project.id }} (Individual)
                                 {% else %}
-                                    <span class="text-muted">No freelancer assigned</span>
+                                    <span class="text-muted">No assignment</span>
                                 {% endif %}
                             </td>
                             <td class="actions-column text-center">
@@ -91,7 +94,7 @@
                                     <a href="{% url 'client:view_repository' project_repos|get_item:project.id %}" title="View Repository" class="btn btn-sm btn-info view-repo-btn" data-project-id="{{ project.id }}" data-repo-id="{{ project_repos|get_item:project.id }}">
                                         <i class="fa-solid fa-folder-open"></i>
                                     </a>
-                                    {% elif project.freelancer %}
+                                    {% elif project.freelancer or project.team  %}
                                     <a href="#" class="btn btn-sm btn-info github-icon" title="Create Repository" data-project-id="{{ project.id }}">
                                         <i class="fa-brands fa-github"></i>
                                     </a>
@@ -207,18 +210,28 @@
             }
         }
     
-        $("#repoform").submit(function () {
-            repoName_error = false; // Reset error flag
-    
-            check_repoName(); // Validate repository name
-    
-            if (repoName_error) {
-                $("#repo_err").html("Please fill the form correctly.").show();
-                return false; 
-            } else {
-                $("#repo_err").hide(); 
-                return true; 
-                        }
+        $("#repoform").submit(function (event) {
+            event.preventDefault(); // Prevent the default form submission
+
+            $.ajax({
+                type: "POST",
+                url: $(this).attr('action'),
+                data: $(this).serialize(),
+                success: function (response) {
+                    if (response.status === 'success') {
+                        toastr.success(response.message);
+                        // Optionally, redirect or update the UI
+                        setTimeout(function() {
+                            window.location.href = "{% url 'client:project_list' %}"; // Redirect to project list
+                        }, 2000);
+                    } else {
+                        toastr.error(response.message);
+                    }
+                },
+                error: function () {
+                    toastr.error('An error occurred while processing your request.');
+                }
+            });
         });
     
     });

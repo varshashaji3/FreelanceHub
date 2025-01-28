@@ -236,11 +236,18 @@
                     {% if clients %}
                         {% for client in clients %}
                         <li class="contact" data-chat-room-id="{{ client.chat_room_id }}">
-                            <img src="{{ client.register.profile_picture.url }}" alt="{{ client.register.first_name }}">
+                            {% if client.register.profile_picture.url %}
+                                <img src="{{ client.register.profile_picture.url }}" alt="{{ client.register.first_name }}">
+                            {% endif %}
                             <div class="contact-info">
                                 
+                                
+                                {% if client.chat_type == 'group'%}
+                                   <p>{{ client.chat_name }}</p>
+                                {% else %}
                                 <p>{{ client.register.first_name }} {{ client.register.last_name }}</p>
-                                <span>{{ client.last_message }}</span>
+                    
+                                {% endif %}
                             </div>
                             {% if client.message_count %}
                             <div class="message-count">{{ client.message_count }}</div>
@@ -338,7 +345,10 @@
                             </a>
                         </p>`;
                     }
-                    // Otherwise, display the message content
+                    else if (msg.senderUsername) {
+                        console.log(msg.senderUsername); // Print sender_username in console
+                        messageContent += `<p><strong>${msg.senderUsername}:</strong> ${msg.content}</p>`;
+                    }
                     else {
                         messageContent += `<p>${msg.content}</p>`;
                     }
@@ -405,12 +415,22 @@
         contact.addEventListener('click', function() {
             const ChatRoomId = this.getAttribute('data-chat-room-id');
             const userName = this.querySelector('.contact-info p').innerText;
-            const userImage = this.querySelector('img').src;
-            document.getElementById('chatRoomId').value=ChatRoomId;
-            // Update chat header with selected user info
+            const userImageElement = this.querySelector('img'); // Get the image element
+            const userImage = userImageElement ? userImageElement.src : ''; // Check if it exists
+
+            document.getElementById('chatRoomId').value = ChatRoomId;
             document.getElementById('chatUserName').innerText = userName;
-            document.getElementById('chatUserImage').src = userImage;
-            document.getElementById('chatUserImage').style.display = 'block';
+
+            // Only set the user image if it exists
+            if (userImage) {
+                document.getElementById('chatUserImage').src = userImage;
+                document.getElementById('chatUserImage').style.display = 'block';
+            } else {
+                document.getElementById('chatUserImage').style.display = 'none'; // Hide if no image
+            }
+
+            // Print the username to the console
+            console.log(userName);
 
             // Load messages for the selected user (this is a placeholder, implement your logic)
             document.getElementById('chatMessages').innerHTML = `<div class="message received"><p>Loading messages for ${userName}...</p></div>`;

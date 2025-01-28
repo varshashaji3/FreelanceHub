@@ -36,6 +36,8 @@ from django.utils import timezone
 
 from django.db.models import Sum,Avg
 from django.db.models.functions import TruncMonth
+from django.urls import reverse  # Add this import
+
 @login_required
 @nocache
 def freelancer_view(request):
@@ -1008,7 +1010,7 @@ def view_project(request):
 @login_required
 @nocache
 def single_project_view(request, pid):
-    uid = request.user.id  # Use request.user.id to get the logged-in user's ID
+    uid = request.user.id
     
     # Fetch user profiles and project
     profile1 = get_object_or_404(CustomUser, id=uid)
@@ -1023,6 +1025,18 @@ def single_project_view(request, pid):
         
         proposal_exists = Proposal.objects.filter(freelancer=uid, project_id=pid).exists()
         
+        # Get owned teams with exactly 5 members
+        owned_teams = Team.objects.filter(created_by=profile1)
+        complete_teams = []
+        
+        for team in owned_teams:
+            # Count unique users in the team
+            member_count = TeamMember.objects.filter(team=team).values('user').distinct().count()
+            
+            # Only add teams with exactly 5 members
+            if member_count == 5:
+                complete_teams.append(team)
+        
         todos = Todo.objects.filter(user_id=uid)
         
         context = {
@@ -1034,10 +1048,15 @@ def single_project_view(request, pid):
             'client_profile': client_profile,
             'client_register': client_register,
             'proposal_exists': proposal_exists,
+            'complete_teams': complete_teams,  # Only teams with exactly 5 members
         }
         return render(request, 'freelancer/SingleProject.html', context)
     else:
-        return render(request, 'freelancer/PermissionDenied.html',{'profile1':profile1,'profile2':profile2,'freelancer':freelancer})
+        return render(request, 'freelancer/PermissionDenied.html',{
+            'profile1':profile1,
+            'profile2':profile2,
+            'freelancer':freelancer
+        })
         
     
     
@@ -1104,8 +1123,6 @@ def proposal_list(request):
             project = proposal.project
             client_profile = ClientProfile.objects.get(user_id=project.user_id)
             reg = Register.objects.get(user_id=project.user_id)
-            
-            print(f"Proposal: {proposal}, Project: {project}, Client: {reg.first_name} {reg.last_name}")
 
             if client_profile.client_type == 'Individual':
                 client_name = f"{reg.first_name} {reg.last_name}"
@@ -1137,25 +1154,30 @@ def proposal_list(request):
         
 @login_required
 @nocache        
-def generate_proposal(request,pid):
+def generate_proposal(request, pid):
     
     if 'uid' not in request.session:
         return redirect('login')
 
     uid = request.session['uid']
     profile1 = CustomUser.objects.get(id=uid)
-    profile2=Register.objects.get(user_id=uid)
-    freelancer=FreelancerProfile.objects.get(user_id=uid)
+    profile2 = Register.objects.get(user_id=uid)
+    freelancer = FreelancerProfile.objects.get(user_id=uid)
     
-    if profile1.permission==True:
+    if profile1.permission == True:
         todos = Todo.objects.filter(user_id=uid)
-        project=Project.objects.get(id=pid)
-        uid=project.user_id
+        project = Project.objects.get(id=pid)
+        uid = project.user_id
         client_profile = ClientProfile.objects.get(user_id=uid)
         client_register = Register.objects.get(user_id=uid)
-        userprofile=CustomUser.objects.get(id=uid)
-        fancy_id=generate_fancy_proposal_id()
+        userprofile = CustomUser.objects.get(id=uid)
+        fancy_id = generate_fancy_proposal_id()
+
+        team_id = request.GET.get('team_id')  #
+        team_details = None
         
+        if team_id:
+            team_details = get_object_or_404(Team, id=team_id)
         if request.method == 'POST':
             description = request.POST.get('proposal_description')
             if project.allow_bid:
@@ -1170,13 +1192,30 @@ def generate_proposal(request,pid):
                 proposal_details=description,
                 budget=budget,
                 deadline=end_date,
-                fancy_num=fancy_id
+                fancy_num=fancy_id,
+                team_id=team_details 
             )
             proposal.save()
             return redirect('freelancer:proposal_detail1', prop_id=proposal.id)
-        return render(request, 'freelancer/template.html',{'profile1':profile1,'profile2':profile2,'freelancer':freelancer,'todos':todos,'project':project,'client_profile':client_profile,'client_register':client_register,'userprofile':userprofile,'number':fancy_id})
+
+        return render(request, 'freelancer/template.html', {
+            'profile1': profile1,
+            'profile2': profile2,
+            'freelancer': freelancer,
+            'todos': todos,
+            'project': project,
+            'client_profile': client_profile,
+            'client_register': client_register,
+            'userprofile': userprofile,
+            'number': fancy_id,
+            'team_details': team_details  # Pass team details to the template
+        })
     else:
-        return render(request, 'freelancer/PermissionDenied.html',{'profile1':profile1,'profile2':profile2,'freelancer':freelancer})
+        return render(request, 'freelancer/PermissionDenied.html', {
+            'profile1': profile1,
+            'profile2': profile2,
+            'freelancer': freelancer
+        })
          
      
   
@@ -1201,6 +1240,10 @@ def proposal_detail1(request, prop_id):
     if profile1.permission:
         todos = Todo.objects.filter(user_id=uid)
 
+        team_id = proposal.team_id_id  
+        team_details = None
+        if team_id:
+            team_details = get_object_or_404(Team, id=team_id)  
         if request.method == 'POST':
             # Handle additional file uploads
             files = request.FILES.getlist('additional_files[]')
@@ -1221,7 +1264,8 @@ def proposal_detail1(request, prop_id):
             'freelancer': freelancer,
             'client_profile': client_profile,
             'client_register': client_register,
-            'userprofile': userprofile
+            'userprofile': userprofile,
+            'team_details': team_details  # Pass team details to the template
         })
 
     return render(request, 'freelancer/PermissionDenied.html', {
@@ -1258,6 +1302,12 @@ def proposal_detail2(request, prop_id):
     if profile1.permission:
         todos = Todo.objects.filter(user_id=uid)
 
+        # Get team details if associated with the proposal
+        team_id = proposal.team_id_id  
+        team_details = None
+        if team_id:
+            team_details = get_object_or_404(Team, id=team_id)
+
         return render(request, 'freelancer/single_proposal.html', {
             'proposal': proposal,
             'profile1': profile1,
@@ -1265,7 +1315,8 @@ def proposal_detail2(request, prop_id):
             'freelancer': freelancer,
             'client_profile': client_profile,
             'client_register': client_register,
-            'userprofile': userprofile
+            'userprofile': userprofile,
+            'team_details': team_details  # Pass team details to the template
         })
 
     return render(request, 'freelancer/PermissionDenied.html', {
@@ -1501,6 +1552,7 @@ def view_repository(request, repo_id):
             client_name = client_profile.company_name
         
         client_profile_picture = client_register.profile_picture if client_register.profile_picture else None
+        client_email = client_profile.user.email
 
         shared_files = SharedFile.objects.filter(repository=repository).values(
             'file', 'uploaded_at', 'uploaded_by', 'description'
@@ -1549,6 +1601,7 @@ def view_repository(request, repo_id):
             'tasks':tasks,
             'client_name': client_name,
             'client_profile_picture': client_profile_picture,
+            'client_email': client_email,
             'proposals': proposals,
             'contracts': contracts,
             
@@ -1777,28 +1830,14 @@ def submit_user_review(request):
         project_id = int(request.POST.get('project_id'))
         overall_rating = int(request.POST.get('overall_rating'))
         client_id = int(client_id)
-        
-        # Debugging prints
-        print(f"Review Text: {review_text}")
-        print(f"Reviewer ID: {reviewer_id}")
-        print(f"Reviewee ID: {client_id}")
-        print(f"Project ID: {project_id}")
-        print(f"Overall Rating: {overall_rating}S")
-
-        # Fetch the related objects
         try:
             project = get_object_or_404(Project, id=project_id)
             freelancer = get_object_or_404(CustomUser, id=reviewer_id)
             client = get_object_or_404(CustomUser, id=client_id)
         except Exception as e:
-            print(f"Error fetching data: {e}")
             return HttpResponse(status=404, content=f"Error: {e}")
 
-        print(f"Project: {project}")
-        print(f"Freelancer: {freelancer}")
-        print(f"Client: {client}")
-
-        # Create and save the review
+      
         review = Review(
             reviewer=freelancer,
             reviewee=client,
@@ -1808,12 +1847,9 @@ def submit_user_review(request):
         )
         review.save()
 
-        print("Review saved successfully.")
-
         if project.freelancer and project.freelancer == freelancer:
             project.freelancer_review_given = True
             project.save()
-            print(f"Project updated with freelancer review: {project.freelancer_review_given}")
         else:
             print(f"Freelancer ID mismatch. Expected: {project.freelancer.id}, Found: {freelancer.id}")
 
@@ -1821,16 +1857,6 @@ def submit_user_review(request):
         return redirect('freelancer:freelancer_view')
 
     return HttpResponse(status=405, content="Method Not Allowed")
-
-
-
-
-
-
-
-
-
-
 
 
 from client.models import ChatRoom 
@@ -1848,28 +1874,47 @@ def chat_view(request):
 
     if profile1.permission: 
         
-        # Fetch chat rooms associated with the freelancer
         chat_rooms = ChatRoom.objects.filter(participants=freelancer.user_id).prefetch_related('participants')
 
-        # Debugging: Check if chat_rooms are fetched
-        print(f"Chat Rooms: {chat_rooms}")  # Debugging line
-
-        # Fetch client details for each chat room
         clients = []
+        group_chats = []  
         for chat in chat_rooms:
-            # Exclude the freelancer from the participants to get only clients
-            for participant in chat.participants.exclude(id=freelancer.user_id):
-                client_profile = ClientProfile.objects.get(user=participant)
-                client_register = Register.objects.get(user_id=participant.id)
+            if chat.chat_type == 'private':  
+                for participant in chat.participants.all().exclude(id=freelancer.user_id):  
+                    try:
+                        client_profile = ClientProfile.objects.get(user=participant)
+                        client_register = Register.objects.get(user_id=participant.id)
+                        clients.append({
+                            'user': participant,
+                            'profile': client_profile,
+                            'register': client_register,
+                            'chat_room_id': chat.id
+                        })
+                    except ClientProfile.DoesNotExist:
+                        continue 
+            elif chat.chat_type == 'group':  
+                members = []
+                for participant in chat.participants.all():  
+                    members.append({
+                        'user': participant,
+                        'user_id': participant.id,
+                        'name': f"{participant.register.first_name} {participant.register.last_name}",
+                        'profile_picture': participant.register.profile_picture.url if participant.register.profile_picture else None
+                    })
+                group_chats.append({
+                    'chat_room_id': chat.id,
+                    'chat_name': chat.name,  
+                    'chat_type': chat.chat_type,
+                    'members': members
+                })
+                
                 clients.append({
-                    'user': participant,
-                    'profile': client_profile,
-                    'register': client_register,
-                    'chat_room_id': chat.id
-                })  # Store user, profile, and register details
-        
-        # Debugging: Check if clients are being populated
-        print(f"Clients: {clients}")  # Debugging line
+                    'chat_room_id': chat.id,
+                    'chat_name': chat.name,  
+                    'chat_type': chat.chat_type,
+                    'members': members
+                })
+
         
         return render(request, 'freelancer/chat.html', {
             'profile1': profile1,
@@ -1877,7 +1922,7 @@ def chat_view(request):
             'freelancer': freelancer,
             'chat_rooms': chat_rooms,
             'clients': clients,  
-            # Ensure clients are passed to the template
+            'group_chats': group_chats,  
         })
     else:
         return render(request, 'freelancer/PermissionDenied.html', {
@@ -1885,7 +1930,6 @@ def chat_view(request):
             'profile2': profile2,
             'freelancer': freelancer,
         })
-        
         
         
         
@@ -1898,7 +1942,6 @@ def send_message(request):
             chat_room_id = data.get('chat_room_id')
             content = data.get('content')
 
-            # Validate inputs
             if not chat_room_id or not content:
                 return JsonResponse({'success': False, 'error': 'Missing chat_room_id or content'}, status=400)
 
@@ -1933,23 +1976,31 @@ def fetch_messages(request):
         data = json.loads(request.body)
         chat_room_id = data.get('chat_room_id')
 
-        # Fetch messages for the given chat room
         messages = Message.objects.filter(chat_room_id=chat_room_id).order_by('timestamp')
 
-        # Prepare messages for response
         messages_list = []
         for message in messages:
-            print(f"Message ID: {message.id}, Content: {message.content}, Image: {message.image}, File: {message.file}")  # Debugging line
+            # Determine the sender's username and profile picture
+            if message.sender:
+                sender_username = message.sender.username  # Get the username of the sender
+                sender_id = message.sender.id  # Get the sender's ID
+                sender_profile_picture = message.sender.register.profile_picture.url if message.sender.register.profile_picture else None  # Get the sender's profile picture
+            else:
+                sender_username = 'Unknown'  # Fallback if sender is not found
+                sender_id = None
+                sender_profile_picture = None
 
+            
             msg_data = {
-                'content': message.content if message.content else '',  # Ensure content is not None
+                'content': message.content if message.content else '',
                 'type': 'sent' if message.sender == request.user else 'received',
-                'image': message.image.url if message.image and hasattr(message.image, 'url') else None,  # Check if image exists
-                'file': message.file.url if message.file and hasattr(message.file, 'url') else None,    # Check if file exists
+                'image': message.image.url if message.image and hasattr(message.image, 'url') else None,
+                'file': message.file.url if message.file and hasattr(message.file, 'url') else None,
+                'senderUsername': sender_username, 
+                'senderId': sender_id,  
+                'senderProfilePicture': sender_profile_picture,  
             }
             messages_list.append(msg_data)
-
-        print(messages_list)  # Debugging line to check the messages list
 
         return JsonResponse({'success': True, 'messages': messages_list})
 
@@ -2673,3 +2724,518 @@ def edit_portfolio(request, portfolio_id):
         'portfolio': portfolio,
         'content': content
     })
+
+@login_required
+@nocache
+def my_teams(request):
+    if 'uid' not in request.session:
+        return redirect('login')
+
+    uid = request.session['uid']
+    profile1 = CustomUser.objects.get(id=uid)
+    profile2 = Register.objects.get(user_id=uid)
+    freelancer = FreelancerProfile.objects.get(user_id=uid)
+
+    if profile1.permission:
+        owned_teams = Team.objects.filter(created_by=request.user)
+        
+        return render(request, 'freelancer/my_teams.html', {
+            'profile1': profile1,
+            'profile2': profile2,
+            'freelancer': freelancer,
+            'owned_teams': owned_teams,
+        })
+    else:
+        return render(request, 'freelancer/PermissionDenied.html', {
+            'profile1': profile1,
+            'profile2': profile2,
+            'freelancer': freelancer,
+        })
+
+from django.contrib import messages
+from django.shortcuts import redirect
+from .models import Team,TeamMember
+import uuid
+
+def create_team(request):
+    if request.method == 'POST':
+        team_name = request.POST.get('team_name')
+        try:
+            # Generate join code
+            while True:
+                join_code = str(uuid.uuid4())[:8]
+                # Check if this code already exists
+                if not Team.objects.filter(join_code=join_code).exists():
+                    break
+            
+            # Create team with the generated join code
+            team = Team.objects.create(
+                name=team_name,
+                created_by=request.user,
+                join_code=join_code
+            )
+
+            # Add the team creator as a project manager
+            TeamMember.objects.create(
+                team=team,
+                user=request.user,
+                role='PROJECT_MANAGER'
+            )
+
+            messages.success(request, f'Team "{team_name}" created successfully! Join code: {team.join_code}')
+        except Exception as e:
+            messages.error(request, f'Failed to create team: {str(e)}')
+            
+        
+    return redirect('freelancer:my_teams')
+
+
+def edit_team(request, team_id):
+    team = get_object_or_404(Team, id=team_id)
+    if request.method == 'POST':
+        team_name = request.POST.get('team_name')  # Get the team name from the POST data
+        if team_name:  # Validate that the team name is provided
+            team.name = team_name  # Update the team name
+            team.save()  # Save the changes
+            return redirect('freelancer:my_teams')  # Redirect to the team management page
+    
+    return redirect('freelancer:my_teams')
+
+
+def delete_team(request, team_id):
+    team = get_object_or_404(Team, id=team_id)
+    if request.method == 'POST':
+        team.delete()
+        return redirect('freelancer:my_teams')  # Redirect to the team management page
+    return redirect('freelancer:my_teams')
+
+from django.shortcuts import render, get_object_or_404
+from .models import Team 
+
+def manage_team(request, team_id):
+    if not request.user.is_authenticated or request.user.role != 'freelancer':
+        return redirect('login')
+
+    team = get_object_or_404(Team, id=team_id)
+    team_projects = Project.objects.filter(team=team)  
+    client_details = []
+
+    for project in team_projects:
+        print(f"Debug: Processing project {project.title} for team {team.name}")
+        client_profile = ClientProfile.objects.get(user=project.user)  # Get client profile for each project
+        client_register = None 
+
+        if client_profile.client_type == 'Individual':
+            client_register = Register.objects.get(user=project.user)  # Get the register info
+            client_name = f"{client_register.first_name} {client_register.last_name}"
+           
+        else:
+            client_register = Register.objects.get(user=project.user) 
+            client_name = client_profile.company_name  
+
+        client_details.append({
+            'client_name': client_name,
+            'client_profile_picture': client_register.profile_picture.url if  client_register.profile_picture else None,
+            'client_email': client_profile.user.email  # Get email from CustomUser
+        })
+
+    team_members = TeamMember.objects.filter(team=team).select_related(
+        'user',
+        'user__register',
+        'user__freelancerprofile'
+    )
+
+    # Fetch all available freelancers excluding the current user
+    available_freelancers = CustomUser.objects.filter(role='freelancer').exclude(id=request.user.id).select_related('register', 'freelancerprofile')
+
+    # Check if all roles are assigned
+    roles = TeamMember.objects.filter(team=team).values_list('role', flat=True)
+    unassigned_roles = TeamMember.objects.filter(team=team, user__isnull=True).values_list('role', flat=True)
+
+    all_roles_assigned = len(unassigned_roles) == 0
+
+    # Format team member data
+    team_members_data = []
+    for member in team_members:
+        if member.user:
+            profile = getattr(member.user, 'freelancerprofile', None)
+            titles = []
+            if profile and profile.professional_title:
+                titles = profile.professional_title.strip('[]').replace("'", "").split(', ')
+            
+            team_members_data.append({
+                'id': member.user.id,
+                'name': f"{member.user.register.first_name} {member.user.register.last_name}",
+                'profession': ', '.join(titles) if titles else "No profession listed",
+                'role': member.role,
+                'join_date': member.joined_at,
+                'status': member.is_active,
+                'email': member.user.email,
+                'profile_picture': member.user.register.profile_picture.url if member.user.register.profile_picture else None
+            })
+
+    # Format available freelancers data with professions
+    available_freelancers_data = []
+    for freelancer in available_freelancers:
+        profile = getattr(freelancer, 'freelancerprofile', None)
+        titles = []
+        if profile and profile.professional_title:
+            titles = profile.professional_title.strip('[]').replace("'", "").split(', ')
+        
+        available_freelancers_data.append({
+            'id': freelancer.id,
+            'name': f"{freelancer.register.first_name} {freelancer.register.last_name}",
+            'profession': ', '.join(titles) if titles else "No profession listed",
+            'email': freelancer.email,
+            'profile_picture': freelancer.register.profile_picture.url if freelancer.register.profile_picture else None
+        })
+
+    # Get current salary percentages for the form
+    current_percentages = {
+        member.role: member.salary_percentage 
+        for member in TeamMember.objects.filter(team=team)
+    }
+
+    # Fetch invitations sent by the user for this team
+    invitations_sent = TeamInvitation.objects.filter(invited_by=request.user, team=team)
+
+    # Prepare invitations data
+    invitations_data = []
+    for invitation in invitations_sent:
+        expired = timezone.now() > invitation.expires_at  # Check if the token has expired
+        invitations_data.append({
+            'email': invitation.email,
+            'role': invitation.role,
+            'status': invitation.status,
+            'invitation_date': invitation.created_at,  # Assuming you have a created_at field
+            'expired': expired,
+            'invitation_id': invitation.id  # Pass the expired status
+        })
+
+    context = {
+        'team': team,
+        'team_members': team_members_data,
+        'current_percentages': current_percentages,
+        'is_manager': TeamMember.objects.filter(
+            team=team,
+            user=request.user,
+            role='PROJECT_MANAGER'
+        ).exists(),
+        'all_roles_assigned': all_roles_assigned,
+        'unassigned_roles': list(unassigned_roles),  
+        'available_freelancers': available_freelancers_data,  
+        'invitations': invitations_data,
+        'team_projects': team_projects,  # Include team projects in the context
+        'client_details': client_details,  # Pass client details to the template
+    }
+    return render(request, 'freelancer/manage_team.html', context)
+
+
+
+from django.shortcuts import render, redirect
+from django.core.mail import send_mail
+from django.conf import settings
+import uuid
+from .models import TeamInvitation
+from django.core.signing import Signer, BadSignature
+import secrets
+
+def send_team_invitation(request):
+    if request.method == 'POST':
+        freelancer_id = request.POST.get('freelancer')
+        role = request.POST.get('role')
+        team_id = request.POST.get('team_id')
+        team = Team.objects.get(id=team_id)
+
+        # Check if the selected freelancer is "other"
+        if freelancer_id == "other":
+            email = request.POST.get('email')  # Get the email from the input
+            if not email:
+                messages.error(request, 'Email is required for non-registered members.')
+                return redirect('freelancer:manage_team', team_id=team_id)
+        else:
+            freelancer = get_object_or_404(CustomUser, id=freelancer_id)
+            email = freelancer.email
+
+        # Generate a secure token
+        token = secrets.token_urlsafe(32)
+        signer = Signer()
+        signed_token = signer.sign(token)
+
+        # Save invitation to database with the signed token
+        invitation = TeamInvitation.objects.create(
+            team=team,
+            email=email,
+            role=role,
+            invited_by=request.user,
+            token=signed_token,
+            expires_at=timezone.now() + timezone.timedelta(days=15)  # Set expiration to 15 days from now
+        )
+
+        # Generate invitation link using the secure token
+        invite_link = f"http://127.0.0.1:8000/freelancer/join_team/{token}/"
+        decline_link = f"http://127.0.0.1:8000/freelancer/decline_invitation/{invitation.id}/"  # Link to decline invitation
+
+        # Send the email
+        send_mail(
+            subject=f'Invitation to join {team.name}',
+            message='',
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[email],
+            html_message=render_to_string('freelancer/team_invitation.html', {
+                'team': team,
+                'invitation': invitation,
+                'invite_link': invite_link,
+                'decline_link': decline_link,  # Pass the decline link
+                'join_code': team.join_code
+            })
+        )
+
+        messages.success(request, f'Invitation sent to {email}')
+        return redirect('freelancer:manage_team', team_id=team_id)
+
+    return redirect('freelancer:manage_team', team_id=team_id)
+
+@login_required
+def join_team(request, token):
+    if request.method == 'GET':
+        if not token:
+            return JsonResponse({
+                'status': 'error',
+                'message': 'Invalid invitation link'
+            })
+            
+        signer = Signer()
+        
+        try:
+            # Correctly filter invitations by status
+            invitations = TeamInvitation.objects.filter(status='pending')  # Specify the status here
+            invitation = None
+            
+            for inv in invitations:
+                try:
+                    # Verify the token signature
+                    original_token = signer.unsign(inv.token)
+                    if original_token == token:
+                        invitation = inv
+                        break
+                except BadSignature:
+                    continue
+            
+            if not invitation:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Invalid or expired invitation'
+                })
+                
+            # Check if the user exists using the email from the invitation
+            email = invitation.email
+            
+            if not CustomUser.objects.filter(email=email).exists():
+                return redirect('register')  
+            return render(request, 'freelancer/join_team.html', {
+                'team': invitation.team,
+                'invitation': invitation
+            })
+            
+        except Exception as e:
+            return JsonResponse({
+                'status': 'error',
+                'message': f'Error verifying invitation: {str(e)}'
+            })
+            
+    elif request.method == 'POST':
+        return handle_join_team_post(request)
+
+def handle_join_team_post(request):
+    join_code = request.POST.get('join_code')
+    team_id = request.POST.get('team_id')
+    invitation_id = request.POST.get('invitation_id')
+    
+    if not all([join_code, team_id, invitation_id]):
+        return JsonResponse({
+            'status': 'error',
+            'message': 'Missing required information'
+        })
+        
+    try:
+        team = Team.objects.get(id=team_id)
+        invitation = TeamInvitation.objects.get(id=invitation_id, status='pending')
+        
+        if join_code != team.join_code:
+            return JsonResponse({
+                'status': 'error',
+                'message': 'Invalid join code'
+            })
+        if TeamMember.objects.filter(team=team, user=request.user).exists():
+            return JsonResponse({
+                'status': 'warning',
+                'message': 'You are already a member of this team'
+            })
+        
+        TeamMember.objects.filter(
+            team=team,
+            role=invitation.role
+        ).update(user=request.user,joined_at=timezone.now())  
+        
+        TeamInvitation.objects.filter(
+            team=team,
+            role=invitation.role,
+            status='pending'
+        ).exclude(id=invitation.id).update(status='rejected')  
+        
+        invitation.status = 'accepted'  
+        invitation.save()
+        return JsonResponse({
+            'status': 'success',
+            'message': 'Successfully joined the team',
+            'redirect_url': reverse('freelancer:freelancer_view')  
+        })
+        
+    except (Team.DoesNotExist, TeamInvitation.DoesNotExist):
+        return JsonResponse({
+            'status': 'error',
+            'message': 'Invalid team or invitation'
+        })
+    except Exception as e:
+        return JsonResponse({
+            'status': 'error',
+            'message': f'Error joining team: {str(e)}'
+        })
+
+from django.http import JsonResponse
+from .models import Team  
+
+def check_team_name(request):
+    if request.method == 'GET':
+        team_name = request.GET.get('team_name', '')
+        exists = Team.objects.filter(name=team_name).exists()
+        return JsonResponse({'exists': exists})
+
+from django.utils import timezone
+from django.core.mail import send_mail
+import secrets
+
+@login_required
+def resend_invitation(request, invitation_id):
+    if request.method == 'POST':
+        invitation = get_object_or_404(TeamInvitation, id=invitation_id)
+
+        new_token = secrets.token_urlsafe(32)
+        signer = Signer()
+        signed_token = signer.sign(new_token)
+
+        invitation.token = signed_token
+        invitation.expires_at = timezone.now() + timedelta(days=15)  # Set expiration to 7 days from now
+        invitation.save()
+
+        invite_link = f"http://127.0.0.1:8000/freelancer/join_team/{new_token}/"
+        decline_link = f"http://127.0.0.1:8000/freelancer/decline_invitation/{invitation.id}/"  # Link to decline invitation
+
+        # Send the email
+        send_mail(
+            subject=f'Invitation to join {invitation.team.name}',
+            message='',
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[invitation.email],
+            html_message=render_to_string('freelancer/team_invitation.html', {
+                'team': invitation.team,
+                'invitation': invitation,
+                'invite_link': invite_link,
+                'decline_link': decline_link, 
+                'join_code': invitation.team.join_code
+            })
+        )
+ 
+        messages.success(request, f'Invitation resent to {invitation.email}')
+        return redirect('freelancer:manage_team', team_id=invitation.team.id)
+
+    return redirect('freelancer:manage_team', team_id=invitation.team.id)
+
+@login_required
+def decline_invitation(request, invitation_id):
+    invitation = get_object_or_404(TeamInvitation, id=invitation_id)
+    invitation.status = 'rejected'
+    invitation.save()
+    
+    messages.success(request, 'Invitation declined successfully.')
+    
+    return render(request, 'freelancer/decline_confirmation.html')
+
+from django.shortcuts import render, redirect
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from django.db import transaction
+from .models import Team, TeamMember
+
+@login_required
+def save_team_salaries(request):
+    if request.method != 'POST':
+        messages.error(request, 'Invalid request method')
+        return redirect('freelancer:manage_team')
+
+    try:
+        team_id = request.POST.get('team_id')
+        team = Team.objects.get(id=team_id)
+        
+        # Update PROJECT_MANAGER percentage
+        pm_percentage = int(request.POST.get('PROJECT_MANAGER', 0))
+        TeamMember.objects.filter(
+            team=team,
+            role='PROJECT_MANAGER'
+        ).update(salary_percentage=pm_percentage)
+
+        # Update or create other roles
+        other_roles = ['DESIGNER', 'FRONTEND_DEV', 'BACKEND_DEV', 'QA_TESTER']
+        for role in other_roles:
+            percentage = int(request.POST.get(role, 0))
+            TeamMember.objects.update_or_create(
+                team=team,
+                role=role,
+                defaults={
+                    'salary_percentage': percentage,
+                    'is_active': True  # Using is_active instead of status
+                }
+            )
+
+        messages.success(request, 'Salary percentages updated successfully')
+        
+    except Team.DoesNotExist:
+        messages.error(request, 'Team not found')
+    except ValueError as e:
+        messages.error(request, f'Invalid percentage value provided: {str(e)}')
+    except Exception as e:
+        messages.error(request, f'An error occurred: {str(e)}')
+
+    return redirect('freelancer:manage_team', team_id=team_id)
+
+
+from django.http import Http404
+import json  # Import json to parse the request body
+
+def create_chatroom(request):
+    if request.method == 'POST':
+        data = json.loads(request.body) 
+        team_id = data.get('team_id') 
+        try:
+            team = get_object_or_404(Team, id=team_id)  
+           
+            existing_chatroom = ChatRoom.objects.filter(name=team.name).first()
+            if existing_chatroom:
+                return JsonResponse({'status': 'error', 'message': 'Chatroom already exists.', 'chatroom_id': existing_chatroom.id})
+
+            participants = TeamMember.objects.filter(team=team).values_list('user', flat=True)  
+            if not participants:
+                print("Warning: No participants found for the team.")  
+
+            chat_type = 'group' 
+            chatroom = ChatRoom.objects.create(name=team.name, chat_type=chat_type)
+            chatroom.participants.set(participants) 
+            chatroom.save()
+
+            return JsonResponse({'status': 'success', 'chatroom_id': chatroom.id})
+
+        except Http404:
+            return JsonResponse({'status': 'error', 'message': 'Team not found.'}, status=404)
+
+    return JsonResponse({'status': 'error'}, status=400)

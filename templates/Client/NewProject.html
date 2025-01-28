@@ -54,7 +54,7 @@
     var scope_error = false;
 
     function check_title() {
-      var pattern = /^[a-zA-Z-/ ]*$/;
+      var pattern = /^(?!.*([a-zA-Z])\1\1)(?!.* {2,})[a-zA-Z]+( [a-zA-Z]+)*$/;
       var title = $("#title").val();
       if (pattern.test(title) && title !== "") {
         $("#error_title").hide();
@@ -70,7 +70,7 @@
     
 
     function check_description() {
-      var pattern = /^(?!.*\d{3})(?=.*[a-zA-Z])[a-zA-Z0-9 -.,_'!""/?\n]*$/;
+      var pattern =/^(?!.*([a-zA-Z])\1\1)(?!.* {2,})[a-zA-Z!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]+( [a-zA-Z!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]+)*$/;
       var description = $("#description").val();
       if (pattern.test(description) && description !== "") {
         $("#error_des").hide();

@@ -125,11 +125,12 @@
                             {{ notification.message }}</td>
                           <td>
                             {% if not notification.is_read %}
-                            <form action="{% url 'freelancer:notification_mark_as_read' notification.id %}"
-                              method="post">
+                            <form action="{% url 'freelancer:notification_mark_as_read' notification.id %}" method="post">
                               {% csrf_token %}
-                              <button type="submit" class="btn btn-success btn-sm">Mark as Read</button>
-                            </form>
+                              <input type="submit" class="btn btn-success btn-sm" value="Mark as Read">
+                          </form>
+                          
+
                             {% endif %}
                           </td>
                         </tr>

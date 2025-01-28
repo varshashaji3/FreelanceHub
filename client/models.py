@@ -64,6 +64,7 @@ class Project(models.Model):
     freelancer_review_given = models.BooleanField(default=False)
     
     scope = models.CharField(max_length=10, choices=SCOPE_CHOICES, default='medium')
+    team = models.ForeignKey('freelancer.Team', on_delete=models.SET_NULL, null=True, blank=True, related_name='projects')
 
     def save(self, *args, **kwargs):
         if isinstance(self.budget, str):
@@ -240,11 +241,18 @@ class Review(models.Model):
     
 
 class ChatRoom(models.Model):
+    CHAT_TYPE_CHOICES = [
+        ('group', 'Group Chat'),
+        ('private', 'Private Chat'),
+    ]
+    
     participants = models.ManyToManyField('core.CustomUser', related_name='chat_rooms')
-    project = models.ForeignKey('client.Project', on_delete=models.CASCADE, related_name='chat_rooms')
+    project = models.ForeignKey('client.Project', on_delete=models.CASCADE, related_name='chat_rooms', null=True, blank=True)
+    name = models.CharField(max_length=255, null=True, blank=True)
+    chat_type = models.CharField(max_length=10, choices=CHAT_TYPE_CHOICES, default='private')
 
     def __str__(self):
-        return f"Chat Room {self.id} for Project {self.project.id}"
+        return f"{self.get_chat_type_display()} - {self.name} for Project {self.project.id if self.project else 'General'}"
 
     
     

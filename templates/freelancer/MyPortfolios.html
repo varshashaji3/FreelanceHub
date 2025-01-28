@@ -172,6 +172,11 @@
     }
 </script>
 
+<!-- New button to create a portfolio -->
+<div class="row" >
+    <a href="{% url 'freelancer:template_list' %}" class="btn" style="width: auto;margin-left:820px;margin-top:20px;">Create New Portfolio</a>
+</div>
+
     {% if portfolios %}
     <div id="template-container">
         {% for portfolio in portfolios %}
