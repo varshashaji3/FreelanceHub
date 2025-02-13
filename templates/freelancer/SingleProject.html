@@ -1,0 +1,124 @@
+{% extends 'freelancer/base.html' %}
+{% block 'freelancer_content' %}
+{% load static %}
+
+<style>
+    h1{
+        color: #dc3545;
+        font-family: 'Dancing script',Courier New;
+        font-weight: 600;
+        margin-top: -10px;
+        text-transform: uppercase;
+        margin-bottom: 20px;
+    }
+    strong{
+        color: blueviolet;
+        font-size: 17px;
+    }
+    p{
+        line-height: 27px;
+    }
+    h5{
+        color: #dc3545;
+        font-family: 'Dancing script',Courier New;
+        font-weight: 600;
+        font-size: 20px;
+        margin-left: 280px;
+    }
+    img{
+        width:200px;
+        height:200px;
+        border-radius:50%;
+        margin-top:-620px;
+        margin-right:50px;
+    }
+</style>
+<div class="row" style="background-color:white;padding:10px;border-radius:10px;display:flex;align-items:center;">
+    <div class="container" style="background-color:white;padding:20px;border-radius:10px;">
+        <br>
+        <h1>{{ project.title }}</h1>
+        <p style="max-width:700px;"><strong>Description:</strong> {{ project.description }}</p>
+        <p><strong>Budget:</strong> {{ project.budget }}</p>
+        <p><strong>Status:</strong> {{ project.status }}</p>
+        <p><strong>Category:</strong> {{ project.category }}</p>
+        <p><strong>Proposal Start Date:</strong> {{ project.created_at }}</p>
+        <p><strong>Proposal End Date:</strong> {{ project.end_date }}</p>
+
+        <br>    <br>    
+        {% if project.status == "closed" %}
+            <p><strong style="color:red;">This project is closed.</strong></p>
+        {% else %}
+            {% if proposal_exists %}
+                <p><strong style="color:green;">You have already submitted a proposal for this project.</strong></p>
+            {% else %}
+                <a class="btn btn-primary" href="#" onclick="showSubmissionOptions(event)">Submit Proposal</a>
+            {% endif %}
+        {% endif %}
+    </div>
+    <div style="margin-left:auto;">
+        <img src="{{ client_register.profile_picture.url }}" alt="Client Profile Picture">
+    </div>
+
+    
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script>
+    function showSubmissionOptions(event) {
+        event.preventDefault();
+        const projectId = {{ project.id }};
+        const hasCompleteTeams = {% if complete_teams %}true{% else %}false{% endif %};
+        
+        Swal.fire({
+            title: 'Submit as',
+            text: "Choose your submission type:",
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Individual',
+            cancelButtonText: 'Team',
+            cancelButtonColor: hasCompleteTeams ? '#6e7881' : '#d3d3d3',
+            showCancelButton: true,
+            didOpen: () => {
+                const cancelButton = Swal.getCancelButton();
+                if (!hasCompleteTeams) {
+                    cancelButton.style.cursor = 'not-allowed';
+                    cancelButton.title = 'You need  at least one complete team to submit as a team';
+                }
+            },
+            preDeny: () => {
+                if (!hasCompleteTeams) {
+                    Swal.showValidationMessage('You need to be part of at least one complete team to submit as a team');
+                    return false;
+                }
+                return true;
+            }
+        }).then((result) => {
+            if (result.isConfirmed) {
+                window.location.href = "{% url 'freelancer:generate_proposal' project.id %}";
+            } else if (result.dismiss === Swal.DismissReason.cancel && hasCompleteTeams) {
+                // Only show team selection if there are complete teams
+                Swal.fire({
+                    title: 'Team Submission',
+                    text: "Please select your team:",
+                    icon: 'info',
+                    input: 'select',
+                    inputOptions: {
+                        {% for team in complete_teams %}
+                            '{{ team.id }}': '{{ team.name }}',
+                        {% endfor %}
+                        '': 'Select a team'
+                    },
+                    showCancelButton: true,
+                    confirmButtonText: 'Submit',
+                }).then((teamResult) => {
+                    if (teamResult.isConfirmed && teamResult.value) {
+                        const selectedTeamId = teamResult.value;
+                        window.location.href = "{% url 'freelancer:generate_proposal' project.id %}?team_id=" + selectedTeamId;
+                    }
+                });
+            }
+        });
+    }
+</script>
+
+{% endblock %}
