@@ -38,7 +38,7 @@ def index(request):
 
     if request.user.is_authenticated or 'uid' in request.session:
         uid = request.user
-        print(uid)
+        
         return redirect_based_on_user_type(request, request.user)
         
     review_details = []
@@ -145,7 +145,6 @@ def service(request):
 
 def login_view(request):
     if request.user.is_authenticated and request.user.status=='active' :
-        print(f"User {request.user} is already authenticated, redirecting...")
         return redirect_based_on_user_type(request, request.user)
     
     return render(request, 'login.html', {'page': 'sign-in'})
@@ -154,9 +153,7 @@ def login_view(request):
 
 def register_view(request):
     if request.user.is_authenticated:
-        print(f"User {request.user} is already authenticated, redirecting...")
         return redirect_based_on_user_type(request, request.user)
-    print("Rendering register page")
     return render(request, 'login.html', {'page': 'sign-up'})
 
 def faqs(request):
@@ -218,41 +215,32 @@ def login(request):
 
 def redirect_based_on_user_type(request, user):
     user.backend = 'django.contrib.auth.backends.ModelBackend'
-    print(f"Redirecting user: {user}")
     
     existing_entry = Register.objects.filter(user_id=user.id).first()
     if not existing_entry:
         user2 = Register(user_id=user.id)
         user2.save()
-        print(f"Created Register entry for user: {user}")
     
-    print(f"User role: {user.role}")
     if not user.role:
-        print(f"User role not set, redirecting to add_user_type for user: {user}")
         return add_user_type(request, user.id)
     
     if user.status != 'active':
-        print(f"User status is not active, logging out user: {user}")
         return redirect('logout')
     
     
     if user.role == 'admin':
         auth_login(request, user)
         request.session['uid'] = user.id
-        print(f"Redirecting admin user: {user}")
         return redirect('administrator:admin_view')
     elif user.role == 'client':
         auth_login(request, user)
         request.session['uid'] = user.id
-        print(f"Redirecting client user: {user}")
         return redirect('client:client_view')
     elif user.role == 'freelancer':
         auth_login(request, user)
         request.session['uid'] = user.id
-        print(f"Redirecting freelancer user: {user}")
         return redirect('freelancer:freelancer_view')
     else:
-        print(f"User role is undefined, redirecting to login for user: {user}")
         return redirect('login')
 
 
@@ -460,7 +448,6 @@ def send_verification_mail(request):
 def email_verification(request, token):
     verification = EmailVerification.objects.filter(token=token).first()
     if not verification:
-        print('Invalid or expired token.')
         return redirect('login_view')
     
     # Check if the token has expired
@@ -471,7 +458,6 @@ def email_verification(request, token):
         print('Expiration time not set for this token.')
     
     if is_expired:
-        print('Token has expired.')
         return render(request, 'email_verification.html', {'expired': True})
 
     uid = verification.user_id_id
@@ -480,7 +466,6 @@ def email_verification(request, token):
     user.save()
     verification.delete()
 
-    print('Email verified successfully.')
 
     context = {
         'token': token,
@@ -591,7 +576,7 @@ from django.http import JsonResponse
 from django.utils import timezone
 from django.db.models import Sum
 
-from decimal import Decimal  # Make sure Decimal is imported
+from decimal import Decimal 
 
 def update_cancellation_status(request, cancellation_id):
     if request.method == 'POST':
@@ -623,32 +608,30 @@ def update_cancellation_status(request, cancellation_id):
                 total_paid = total_paid_result['amount__sum'] or Decimal('0')
                 total_paid -= project.gst_amount
                 
-                # Determine if the requester is a client or freelancer
-                if cancellation.requested_by == project.user:  # Client cancels
+                if cancellation.requested_by == project.user:  
                     if total_paid > total_completed_amount:
                         overpayment = total_paid - total_completed_amount
                         if overpayment >= compensation_amount:
-                            # Sufficient overpayment for compensation, refund excess overpayment
+
                             amount_due = Decimal('0')
                             refund_amount = overpayment - compensation_amount
                             if refund_amount > Decimal('0'):
                                 RefundPayment.objects.create(
                                     user_id=project.freelancer.id,
-                                    pay_to=cancellation.requested_by,  # Refund to client
+                                    pay_to=cancellation.requested_by,  
                                     amount=refund_amount,
-                                    total_paid=total_paid,  # New entry
-                                    compensation_amount=compensation_amount  # New entry
+                                    total_paid=total_paid,  
+                                    compensation_amount=compensation_amount 
                                 )
                                 print(f"Refund entry created: {refund_amount} from freelancer {project.freelancer.id} to client {cancellation.requested_by.id}")
                         else:
-                            # Not enough overpayment for compensation
                             amount_due = compensation_amount - overpayment
                             RefundPayment.objects.create(
                                 user_id=cancellation.requested_by.id,
-                                pay_to=project.freelancer,  # Pay to freelancer
+                                pay_to=project.freelancer,  
                                 amount=overpayment,
-                                total_paid=total_paid,  # New entry
-                                compensation_amount=compensation_amount  # New entry
+                                total_paid=total_paid,  
+                                compensation_amount=compensation_amount  
                             )
                             print(f"Refund entry created: {overpayment} from client {cancellation.requested_by.id} to freelancer {project.freelancer.id}")
                     else:
@@ -688,11 +671,6 @@ from .models import RefundPayment  # Update the import to match your model path
 @csrf_exempt
 def payment_success(request):
     if request.method == 'POST':
-        # Debug print statements to check the received data
-        print("Received POST request for payment success")
-        print(request.POST)
-
-        # Get payment details from the request
         refund_payment_id = request.POST.get('refund_payment_id')
         payment_id = request.POST.get('payment_id')
         order_id = request.POST.get('order_id')

@@ -23,7 +23,11 @@ class FreelancerProfile(models.Model):
     resume = models.FileField(upload_to='resumes/', blank=True, null=True)
     aadhaar_document = models.FileField(upload_to='aadhaar/', null=True, blank=True)
     work_type = models.CharField(max_length=10, choices=WORK_TYPE_CHOICES, default='part_time')
-
+    is_open_to_work = models.BooleanField(default=False)  # New field added
+    hiring_status = models.CharField(max_length=20, choices=[
+        ('NOT_HIRED', 'Not Hired'),
+        ('HIRED', 'Hired'),
+    ], default='NOT_HIRED')
     def __str__(self):
         return f"{self.user.username}'s Profile"
 
@@ -167,3 +171,14 @@ class TeamInvitation(models.Model):
     def check_expired_invitations(cls):
         expired_invitations = cls.objects.filter(expires_at__lt=timezone.now(), status='pending')
         expired_invitations.update(status='rejected')
+
+class SalaryPayment(models.Model):
+    team_member = models.ForeignKey(TeamMember, on_delete=models.CASCADE)  
+    project = models.ForeignKey(Project, on_delete=models.CASCADE) 
+    amount_paid = models.DecimalField(max_digits=10, decimal_places=2) 
+    payment_date = models.DateTimeField(auto_now_add=True) 
+    paid_by = models.ForeignKey(CustomUser, on_delete=models.SET_NULL, null=True)  
+    status = models.CharField(max_length=20, default='pending')
+
+    def __str__(self):
+        return f"{self.team_member.user.username} - {self.amount_paid} on {self.payment_date} by {self.paid_by.username if self.paid_by else 'Unknown'}"

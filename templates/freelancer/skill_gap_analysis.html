@@ -1,0 +1,133 @@
+{% extends 'freelancer/base.html' %}
+{% load static %}
+
+{% block 'freelancer_content' %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="card-title">Skill Gap Analysis</h4>
+                </div>
+                <div class="card-body">
+                    <!-- Debug info -->
+                    {% if debug %}
+                    <div class="alert alert-info">
+                        <pre>{{ context|pprint }}</pre>
+                    </div>
+                    {% endif %}
+
+                    <!-- Current Skills Section -->
+                    <div class="mb-4">
+                        <h5>Your Current Skills</h5>
+                        <div class="d-flex flex-wrap gap-2">
+                            {% if current_skills %}
+                                {% for skill in current_skills %}
+                                    <span class="badge bg-primary m-1" style="color: white;">{{ skill }}</span>
+                                {% endfor %}
+                            {% else %}
+                                <p>No skills listed in your profile.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Professional Titles Section -->
+                    <div class="mb-4">
+                        <h5>Your Professional Titles</h5>
+                        <div class="d-flex flex-wrap gap-2">
+                            {% if professional_titles %}
+                                {% for title in professional_titles %}
+                                    <span class="badge bg-info m-1" style="color: white;">{{ title }}</span>
+                                {% endfor %}
+                            {% else %}
+                                <p>No professional titles listed.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Skill Gaps Section -->
+                    <!-- <div class="mb-4">
+                        <h5>Recommended Skills to Learn</h5>
+                        {% if skill_gaps %}
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Skill</th>
+                                            <th>Trend Score</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for gap in skill_gaps %}
+                                            <tr>
+                                                <td>{{ gap.skill }}</td>
+                                                <td>{{ gap.trend_score }}</td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% else %}
+                            <div class="alert alert-success">
+                                Great job! You're up to date with the trending skills in your field.
+                            </div>
+                        {% endif %}
+                    </div> -->
+
+                    <!-- Course Recommendations Section -->
+                    <div class="mb-4">
+                        <h5>Recommended Courses</h5>
+                        {% if course_recommendations %}
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Skill</th>
+                                            <th>Platform</th>
+                                            <th>Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for course in course_recommendations %}
+                                            <tr>
+                                                <td>{{ course.skill }}</td>
+                                                <td>{{ course.platform }}</td>
+                                                <td>
+                                                    <a href="{{ course.url }}" target="_blank" class="btn btn-primary btn-sm">
+                                                        View Courses
+                                                    </a>
+                                                </td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% else %}
+                            <div class="alert alert-info">
+                                No course recommendations available at this time.
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Messages -->
+{% if messages %}
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
+    {% for message in messages %}
+    <div class="toast show" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="toast-header {% if message.tags %}bg-{{ message.tags }}{% endif %}">
+            <strong class="me-auto">Message</strong>
+            <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+        <div class="toast-body">
+            {{ message }}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endblock %} 

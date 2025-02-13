@@ -49,7 +49,7 @@ INSTALLED_APPS = [
     'allauth.account',
     'allauth.socialaccount',
     'allauth.socialaccount.providers.google',
-
+    'chatbot',
 ]
 
 MIDDLEWARE = [
@@ -245,4 +245,9 @@ RAZORPAY_KEY_SECRET = 'eIKYygydEQ5iicHT2N6gaVuC'
 
 # settings.py
 FILE_UPLOAD_MAX_MEMORY_SIZE = 10485760  # 10 MB (adjust as needed)
+
+# Base URL for the application
+BASE_URL = 'http://127.0.0.1:8000'  # For local development
+# If in production, change to your domain:
+# BASE_URL = 'https://yourdomain.com'
 

@@ -4,9 +4,10 @@ from django.contrib import messages
 from django.shortcuts import redirect, render
 import razorpay
 
-from client.models import ClientProfile, FreelanceContract, PaymentInstallment, Project, Review, SharedFile, SharedNote, SharedURL, Task, ChatRoom, Message,Complaint  # Add Message here
+from client.models import ClientProfile, FreelanceContract, PaymentInstallment, Project, Review, SharedFile, SharedNote, SharedURL, Task, ChatRoom, Message,Complaint,JobInvitation  # Add Message here
 from core.decorators import nocache
 from core.models import CustomUser, Event, Notification, Register
+
 
 from django.contrib.auth.decorators import login_required
 
@@ -14,7 +15,7 @@ from freelancer.models import FreelancerProfile, Proposal, ProposalFile,Team,Tea
 from django.utils import timezone
 from django.db.models import Q
 from django.shortcuts import render, redirect, get_object_or_404
-from django.core.mail import EmailMultiAlternatives
+from django.core.mail import EmailMultiAlternatives, send_mail
 from django.template.loader import render_to_string
 from django.utils.html import strip_tags
 from django.conf import settings
@@ -28,7 +29,9 @@ from datetime import date
 
 from django.core.paginator import Paginator
 from django.db.models import Case, When, Value, IntegerField
-
+from .models import JobInvitation
+from django.contrib.auth.models import User
+from django.urls import reverse 
 @login_required
 @nocache
 def client_view(request):
@@ -62,7 +65,7 @@ def client_view(request):
                 defaults={'is_read': False}
             )
 
-    client_projects = Project.objects.filter(user=logged_user)
+    client_projects = Project.objects.filter(user=logged_user).select_related('freelancer', 'freelancer__register')  # Ensure freelancer and their register info are included
     project_progress_data = []
 
     # Project progress data
@@ -615,13 +618,13 @@ def freelancer_list(request):
             })
 
         profession_choices = [
-            'Web Developer', 'Front-End Developer', 'Back-End Developer', 'Full-Stack Developer',
+            'Web Developer', 'Front End Developer', 'Back End Developer', 'Full-Stack Developer',
             'Mobile App Developer', 'Android Developer', 'iOS Developer', 'UI/UX Designer', 'Graphic Designer',
             'Logo Designer', 'Poster Designer', 'Machine Learning Engineer', 'Artificial Intelligence Specialist', 'Software Developer'
         ]
 
         skill_choices = [
-            "java", "c++", "python", "eclipse", "visual studio", "html/css", "javascript", "bootstrap", "sass",
+            "java", "c++", "python", "eclipse", "visual studio", "html","css", "javascript", "bootstrap", "sass",
             "swift", "xcode", "kotlin", "android studio", "flutter", "react native", "r", "jupyter", "pandas",
             "numpy", "tensorflow", "pytorch", "keras", "scikit-learn", "adobe xd", "sketch", "figma", "invision",
             "react", "angular", "vue.js", "webpack", "node.js", "django", "ruby on rails", "spring boot",
@@ -1100,12 +1103,21 @@ def single_project_view(request, pid):
         assigned_freelancer = None
         freelancer_first_name = None
         freelancer_last_name = None
+        project_manager_full_name = None  # New variable for project manager's full name
+        
         if project.freelancer:
             assigned_freelancer = FreelancerProfile.objects.get(user=project.freelancer)
             freelancer_register = Register.objects.get(user=project.freelancer)
-            freelancer_first_name = freelancer_register.first_name
-            freelancer_last_name = freelancer_register.last_name
+            freelancer_first_name = freelancer_register.first_name  # Accessing from Register
+            freelancer_last_name = freelancer_register.last_name  # Accessing from Register
             assigned_freelancer.skills = assigned_freelancer.skills.strip('[]').replace("'", "").split(', ')
+        
+        # Check if the project is assigned to a team
+        if project.team:
+            team = project.team
+            project_manager = CustomUser.objects.get(id=team.created_by.id)  # Get the project manager
+            project_manager_register = Register.objects.get(user=project_manager.id)  # Get the Register for the project manager
+            project_manager_full_name = f"{project_manager_register.first_name} {project_manager_register.last_name}"  # Full name of the project manager
         
         # Get repository if exists
         repository = Repository.objects.filter(project=project).first()
@@ -1146,7 +1158,8 @@ def single_project_view(request, pid):
             'freelancer_first_name': freelancer_first_name,
             'freelancer_last_name': freelancer_last_name,
             'repository_id': repository_id,
-            'team_name': team_name,  
+            'team_name': team_name,
+            'project_manager_full_name': project_manager_full_name,  # Pass the project manager's full name to the template
         })
         
     else:
@@ -1693,13 +1706,26 @@ def add_task(request, repo_id):
             start_date = request.POST.get('start_date')
             due_date = request.POST.get('due_date')
 
-            task = Task.objects.create(
-                project=project,
-                title=title,
-                description=description,
-                start_date=start_date,
-                due_date=due_date,
-            )
+            if project.freelancer:
+                assigned_freelancer = project.freelancer
+                # Create the task and assign it to the freelancer
+                task = Task.objects.create(
+                    project=project,
+                    title=title,
+                    description=description,
+                    start_date=start_date,
+                    due_date=due_date,
+                    assigned_to=assigned_freelancer  # Assuming 'assigned_to' is a field in Task model
+                )
+            else:
+                task = Task.objects.create(
+                    project=project,
+                    title=title,
+                    description=description,
+                    start_date=start_date,
+                    due_date=due_date,
+                )
+
             task.save()
 
             # Update project status to 'In Progress' when a task is added
@@ -2179,7 +2205,6 @@ def add_complaint(request):
         
         
         
-        
 @login_required
 def view_complaints(request):
     if not request.user.is_authenticated or request.user.role != 'client':
@@ -2308,16 +2333,36 @@ def payments(request):
         contract_id = contract.id
 
         if project_id not in payments_details:
-            freelancer_register = get_object_or_404(Register, user=contract.project.freelancer)
-            freelancer_first_name = freelancer_register.first_name
-            freelancer_last_name = freelancer_register.last_name
+            project_title = contract.project.title
+            total_amount = contract.project.total_including_gst
+            team_name = None
+            project_manager_full_name = None
+            freelancer_first_name = None
+            freelancer_last_name = None
+
+            if contract.project.team:  # If project has a team
+                team = contract.project.team
+                team_name = team.name  # Assuming team has a name field
+                project_manager = CustomUser.objects.get(id=team.created_by.id)  # Get the project manager
+                project_manager_full_name = project_manager.username if project_manager else "Unknown"
             
+            elif contract.project.freelancer:  # If project has a freelancer
+                freelancer_register = Register.objects.filter(user=contract.project.freelancer).first()
+                if freelancer_register:
+                    freelancer_first_name = freelancer_register.first_name
+                    freelancer_last_name = freelancer_register.last_name
+                else:
+                    freelancer_first_name = "Unknown"
+                    freelancer_last_name = ""
+
             payments_details[project_id] = {
-                'project_title': contract.project.title,
+                'project_title': project_title,
+                'total_amount': total_amount,
+                'contract_id': contract_id,
+                'team_name': team_name,
+                'project_manager_full_name': project_manager_full_name,
                 'freelancer_first_name': freelancer_first_name,
                 'freelancer_last_name': freelancer_last_name,
-                'amount': contract.project.total_including_gst,
-                'contract_id': contract_id,
                 'payments': [],
                 'refunds': []
             }
@@ -2346,6 +2391,7 @@ def payments(request):
     return render(request, 'Client/payments.html', {
         'payments_details': payments_details_list,
     })
+
     
     
 
@@ -2396,3 +2442,919 @@ def download_invoice(request, contract_id):
         'today': today,
         'client_name': client_name  
     })
+
+@csrf_exempt  # Use with caution; consider using CSRF tokens
+def hire_freelancer(request):
+    if request.method == 'POST':
+        user_id = request.POST.get('user_id')
+        job_role = request.POST.get('job_role')
+        job_description = request.POST.get('job_description')
+        compensation = request.POST.get('compensation')
+        bond_period = request.POST.get('bond_period')
+        contract_needed = request.POST.get('contract_needed').lower() == 'true'
+        work_mode = request.POST.get('work_mode')
+        benefits = request.POST.get('benefits')
+
+        # Get the freelancer's user object
+        freelancer = CustomUser.objects.get(id=user_id)
+
+        # Check for existing invitation with same job role
+        existing_invitation = JobInvitation.objects.filter(
+            freelancer=freelancer,
+            client=request.user,
+            job_role=job_role
+        ).exists()
+
+        if existing_invitation:
+            return JsonResponse({
+                'success': False, 
+                'error': 'You have already sent an invitation to this freelancer for this job role.'
+            })
+
+        # Get the current user's profile to determine the client name
+        current_user = request.user
+        client_name = ""
+        client_email = current_user.email  # Assuming the email is from the current user
+
+        # Check if the current user is a company or an individual
+        try:
+            client_profile = ClientProfile.objects.get(user=current_user)
+            if client_profile.company_name:  # If company name exists
+                client_name = client_profile.company_name
+            else:
+                # If no company name, get first and last name from Register table
+                register = Register.objects.get(user=current_user)
+                client_name = f"{register.first_name} {register.last_name}"
+        except ClientProfile.DoesNotExist:
+            # Handle case where ClientProfile does not exist
+            register = Register.objects.get(user=current_user)
+            client_name = f"{register.first_name} {register.last_name}"
+
+        # Create a JobInvitation instance
+        invitation = JobInvitation.objects.create(
+            freelancer=freelancer,
+            job_role=job_role,
+            job_description=job_description,
+            compensation=compensation,
+            client=request.user,
+            bond_period=bond_period,
+            contract_needed=contract_needed,
+            work_mode=work_mode,
+            benefits=benefits
+        )
+
+        # Get freelancer's name for personalization
+        freelancer_register = Register.objects.get(user=freelancer)
+        freelancer_name = f"{freelancer_register.first_name} {freelancer_register.last_name}"
+
+        # Get client's profile picture
+        client_profile_picture = None
+        try:
+            register = Register.objects.get(user=current_user)
+            if register.profile_picture:
+                client_profile_picture = request.build_absolute_uri(register.profile_picture.url)
+        except Register.DoesNotExist:
+            pass
+
+        context = {
+            'freelancer_name': freelancer_name,
+            'client_name': client_name,
+            'client_email': client_email,
+            'client_profile_picture': client_profile_picture,
+            'job_role': job_role,
+            'job_description': job_description,
+            'compensation': compensation,
+            'bond_period': bond_period,
+            'contract_needed': contract_needed,
+            'work_mode': work_mode,
+            'benefits': benefits,
+            'accept_link': f"{settings.BASE_URL}/client/accept_interview/{invitation.id}/",
+            'reject_link': f"{settings.BASE_URL}/client/reject_interview/{invitation.id}/"
+        }
+
+        # Render email template
+        html_content = render_to_string('Client/email/job_invitation.html', context)
+        text_content = strip_tags(html_content)
+
+        # Create email subject
+        subject = f"Interview Invitation: {job_role} Position at {client_name}"
+
+        # Create and send email
+        email = EmailMultiAlternatives(
+            subject,
+            text_content,
+            settings.DEFAULT_FROM_EMAIL,
+            [freelancer.email]
+        )
+        email.attach_alternative(html_content, "text/html")
+        email.send()
+
+        return JsonResponse({'success': True})
+
+    return JsonResponse({'success': False, 'error': 'Invalid request'})
+
+def accept_interview(request, invitation_id):
+    try:
+        invitation = JobInvitation.objects.get(id=invitation_id)
+        invitation.status = 'Accepted'  # Set is_accepted to True
+        invitation.save()
+
+        # Send follow-up email with meeting details (you can customize this)
+        subject = f"Interview Confirmation for {invitation.job_role}"
+        message = (
+            f"Your interview for the role of {invitation.job_role} has been confirmed.\n"
+            "The meeting link and schedule will be shared later.\n"  # Updated message
+            "Instructions: Please join the meeting at the scheduled time."
+        )
+        
+        send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, [invitation.freelancer.email])
+
+        return HttpResponse("Interview accepted and confirmation email sent.")
+    except JobInvitation.DoesNotExist:
+        return HttpResponse("Invitation not found.", status=404)
+
+def reject_interview(request, invitation_id):
+    try:
+        invitation = JobInvitation.objects.get(id=invitation_id)
+        invitation.status = 'Rejected'  # Set is_accepted to False
+        invitation.save()  # Save the updated status
+
+        # Send rejection email to the client (optional)
+        subject = f"Interview Invitation Rejected for {invitation.job_role}"
+        message = f"The invitation for {invitation.job_role} has been rejected by {invitation.freelancer.username}."
+        send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, [invitation.freelancer.email])
+
+        return HttpResponse("Interview invitation rejected.")
+    except JobInvitation.DoesNotExist:
+        return HttpResponse("Invitation not found.", status=404)
+
+@login_required
+@nocache
+def track_hiring(request):
+    if not request.user.is_authenticated or request.user.role != 'client':
+        return redirect('login')
+
+    profile1 = get_object_or_404(CustomUser, id=request.user.id)
+    profile2 = get_object_or_404(Register, user_id=request.user.id)
+    client = get_object_or_404(ClientProfile, user_id=request.user.id)
+
+    # Fetching job invitations related to the current client
+    invitations = JobInvitation.objects.filter(client=request.user)
+
+    # Fetch freelancer details for each invitation
+    for invitation in invitations:
+        freelancer_register = Register.objects.filter(user=invitation.freelancer).first()
+        if freelancer_register:
+            invitation.freelancer_first_name = freelancer_register.first_name
+            invitation.freelancer_last_name = freelancer_register.last_name
+            invitation.freelancer_profile_picture = freelancer_register.profile_picture.url if freelancer_register.profile_picture else None
+
+    # Ensure invitations are being passed to the template
+    return render(request, 'Client/TrackHiring.html', {
+        'profile1': profile1,
+        'profile2': profile2,
+        'client': client,
+        'invitation_details': invitations,  # Ensure this variable is populated
+    })
+    
+
+@csrf_exempt  # Use this only for testing; consider using CSRF protection in production
+def submit_meeting(request):
+    if request.method == 'POST':
+        invitation_id = request.POST.get('invitationId')
+        meeting_link = request.POST.get('link')
+        meeting_date = request.POST.get('date')
+
+        # Update the JobInvitation record
+        invitation = JobInvitation.objects.get(id=invitation_id)
+        invitation.meeting_link = meeting_link  # Assuming you have a field for this
+        invitation.meeting_datetime = meeting_date  # Assuming you have a field for this
+        invitation.save()
+
+        # Fetch freelancer details
+        freelancer = invitation.freelancer
+        freelancer_register = Register.objects.get(user=freelancer)
+
+        # Prepare email details
+        subject = f"Meeting Scheduled for {invitation.job_role}"
+        message = (
+            f"Dear {freelancer_register.first_name} {freelancer_register.last_name},\n\n"
+            f"A meeting has been scheduled for the interview section for the role of {invitation.job_role}.\n"
+            f"Meeting Link: {meeting_link}\n"
+            f"Meeting Date: {meeting_date}\n\n"
+            "Please join the meeting at the scheduled time.\n\n"
+            "Best regards,\n"
+            
+        )
+
+        # Send email to the freelancer
+        send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, [freelancer.email])
+
+        return JsonResponse({'status': 'success', 'message': 'Meeting scheduled successfully and email sent.'})
+    return JsonResponse({'status': 'error', 'message': 'Invalid request method.'}, status=405)
+
+@csrf_exempt  
+def toggle_hiring_status(request):
+    if request.method == 'POST':
+        invitation_id = request.POST.get('invitationId')
+        new_status = request.POST.get('status')
+
+        try:
+            invitation = JobInvitation.objects.get(id=invitation_id)
+            invitation.hiring_status = new_status
+            invitation.save()
+
+            freelancer = invitation.freelancer
+            freelancer_register = Register.objects.get(user=freelancer)
+
+            if new_status == 'hired':
+                subject = f"Congratulations! You've been hired for {invitation.job_role}"
+                message = (
+                    f"Dear {freelancer_register.first_name},\n\n"
+                    f"Congratulations! You have been hired for the role of {invitation.job_role}.\n"
+                    "We look forward to working with you.\n\n"
+                    "Thank you for your interest and effort in applying.\n"
+                    
+                )
+            elif new_status == 'not hired':
+                subject = f"Update on Your Application for {invitation.job_role}"
+                message = (
+                    f"Dear {freelancer_register.first_name},\n\n"
+                    f"Thank you for your interest in the role of {invitation.job_role}. Unfortunately, you have not been selected for this position.\n"
+                    "We appreciate your time and effort in applying.\n\n"
+                    "Thank you for your understanding.\n"
+                    
+                )
+
+            send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, [freelancer.email])
+
+            return JsonResponse({'success': True})
+        except JobInvitation.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Invitation not found.'})
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)})
+
+    return JsonResponse({'success': False, 'error': 'Invalid request method.'})
+
+from django.shortcuts import render
+from django.contrib.auth.decorators import login_required
+
+
+@login_required
+def manage_event_quizzes(request):
+    # Fetch events and quizzes created by the current user
+    events_and_quizzes = EventAndQuiz.objects.filter(client=request.user).order_by('-date')
+    
+    # Get counts for different types
+    total_events = events_and_quizzes.filter(type='event').count()
+    total_quizzes = events_and_quizzes.filter(type='quiz').count()
+    
+    # Get upcoming and past events/quizzes
+    today = timezone.now().date()
+    upcoming = events_and_quizzes.filter(date__gte=today)
+    past = events_and_quizzes.filter(date__lt=today)
+    
+    context = {
+        'events_and_quizzes': events_and_quizzes,
+        'total_events': total_events,
+        'total_quizzes': total_quizzes,
+        'upcoming': upcoming,
+        'past': past,
+    }
+    
+    return render(request, 'Client/manage_event_quizzes.html', context)
+
+import pandas as pd
+import io
+from django.contrib import messages
+from django.shortcuts import redirect
+from django.utils import timezone
+from .models import EventAndQuiz, QuizQuestion
+
+from datetime import timedelta
+from django.utils.dateparse import parse_duration
+
+@login_required
+def create_event(request):
+    if request.method == 'POST':
+        try:
+            # Log all POST data for debugging
+            print("POST data received:")
+            for key, value in request.POST.items():
+                print(f"{key}: {value}")
+            
+            print("\nFILES received:")
+            for key, value in request.FILES.items():
+                print(f"{key}: {value}")
+
+            # Extract data from form with validation logging
+            try:
+                title = request.POST.get('title')
+                if not title:
+                    raise ValueError("Title is required")
+                
+                date = request.POST.get('date')
+                if not date:
+                    raise ValueError("Date is required")
+                print(f"Date received: {date}")
+                
+                event_type = request.POST.get('type')
+                if not event_type:
+                    raise ValueError("Event type is required")
+                print(f"Event type: {event_type}")
+                
+                description = request.POST.get('description')
+                max_participants = request.POST.get('max_participants')
+                
+                # Convert max_participants with error checking
+                try:
+                    max_participants = int(max_participants) if max_participants else None
+                except ValueError as e:
+                    print(f"Error converting max_participants: {e}")
+                    max_participants = None
+                
+                # Boolean fields
+                certificate_provided = request.POST.get('certificate_provided', 'off') == 'on'
+                prize_enabled = request.POST.get('prize_enabled', 'off') == 'on'
+                print(f"Certificate provided: {certificate_provided}")
+                print(f"Prize enabled: {prize_enabled}")
+                
+                # Conditional fields
+                prize_amount = request.POST.get('prize_amount') if prize_enabled else None
+                type_of_event = request.POST.get('type_of_event') if event_type == 'event' else None
+                online_link = request.POST.get('online_link') if event_type == 'event' else None
+
+                # Handle duration field
+                duration_str = request.POST.get('duration')
+                duration = None
+                if duration_str:
+                    try:
+                        # If duration is in minutes (e.g., "60")
+                        minutes = int(duration_str)
+                        duration = timedelta(minutes=minutes)
+                    except ValueError:
+                        try:
+                            # If duration is in HH:MM:SS format
+                            duration = parse_duration(duration_str)
+                        except ValueError:
+                            print(f"Invalid duration format: {duration_str}")
+                            messages.error(request, 'Invalid duration format. Please use minutes (e.g., 60) or HH:MM:SS format.')
+                            return redirect('client:manage_event_quizzes')
+                
+                # File handling with validation
+                poster = request.FILES.get('poster')
+                if poster:
+                    print(f"Poster file received: {poster.name}, size: {poster.size}")
+                
+                quiz_file = request.FILES.get('quiz_file')
+                if quiz_file:
+                    print(f"Quiz file received: {quiz_file.name}, size: {quiz_file.size}")
+                
+                registration_end_date = request.POST.get('registration_end_date')
+                print(f"Registration end date: {registration_end_date}")
+
+                # Print all data before creating event
+                print("\nAttempting to create event with data:")
+                event_data = {
+                    'title': title,
+                    'date': date,
+                    'type': event_type,
+                    'type_of_event': type_of_event,
+                    'description': description,
+                    'max_participants': max_participants,
+                    'online_link': online_link,
+                    'certificate_provided': certificate_provided,
+                    'prize_enabled': prize_enabled,
+                    'prize_amount': prize_amount,
+                    'poster': poster,
+                    'client': request.user,
+                    'quiz_file': quiz_file,
+                    'registration_end_date': registration_end_date,
+                    'duration': duration,
+                }
+                for key, value in event_data.items():
+                    print(f"{key}: {value}")
+
+                # Create the event
+                event = EventAndQuiz.objects.create(**event_data)
+                print(f"Event created successfully with ID: {event.id}")
+
+                # Process quiz file if present
+                if quiz_file and event_type == 'quiz':
+                    print("\nProcessing quiz file...")
+                    try:
+                        quiz_file.seek(0)
+                        quiz_data = io.StringIO(quiz_file.read().decode('utf-8'))
+                        df = pd.read_csv(quiz_data)
+                        print(f"CSV data loaded, {len(df)} questions found")
+
+                        if df.empty:
+                            raise ValueError('CSV file is empty')
+
+                        required_columns = {'Question', 'Option 1', 'Option 2', 'Option 3', 'Option 4', 'Correct Answer', 'Points'}
+                        missing_columns = required_columns - set(df.columns)
+                        if missing_columns:
+                            raise ValueError(f'Missing required columns: {missing_columns}')
+
+                        # Save quiz questions
+                        for index, row in df.iterrows():
+                            print(f"Processing question {index + 1}")
+                            QuizQuestion.objects.create(
+                                quiz=event,
+                                question=row['Question'],
+                                option1=row['Option 1'],
+                                option2=row['Option 2'],
+                                option3=row['Option 3'],
+                                option4=row['Option 4'],
+                                correct_answer=row['Correct Answer'],
+                                points=int(row['Points'])
+                            )
+
+                    except Exception as e:
+                        print(f"Error processing quiz file: {str(e)}")
+                        event.delete()
+                        raise
+
+                messages.success(request, 'Event created successfully!')
+                return redirect('client:manage_event_quizzes')
+
+            except ValueError as e:
+                print(f"Validation error: {str(e)}")
+                messages.error(request, f'Validation error: {str(e)}')
+                return redirect('client:manage_event_quizzes')
+
+        except Exception as e:
+            print(f"Unexpected error: {str(e)}")
+            messages.error(request, f'Error creating event: {str(e)}')
+            return redirect('client:manage_event_quizzes')
+
+    else:
+        print("Non-POST request received")
+    
+    return redirect('client:manage_event_quizzes')
+
+
+
+
+
+from django.http import JsonResponse
+
+def get_event_details(request, event_id):
+    try:
+        event = EventAndQuiz.objects.get(id=event_id)
+        data = {
+            'title': event.title,
+            'type': event.type,
+            'date': event.date.isoformat(),
+            'max_participants': event.max_participants,
+            'description': event.description,
+            'online_link': event.online_link,
+            'prize_enabled': event.prize_enabled,
+            'prize_amount': event.prize_amount,
+            'certificate_provided': event.certificate_provided,
+            'poster': event.poster.url,
+            'type_of_event': event.type_of_event,
+            'online_link': event.online_link,  # Added this field to display the online link if applicable
+        }
+        return JsonResponse(data)
+    except Event.DoesNotExist:
+        return JsonResponse({'error': 'Event not found'}, status=404)
+
+from django.shortcuts import get_object_or_404, redirect
+from .models import EventAndQuiz  # Adjust the import based on your model's location
+
+def remove_event(request, event_id):  # Renamed function
+    event = get_object_or_404(EventAndQuiz, id=event_id)  # Use EventAndQuiz model
+    event.delete()
+    return redirect('client:manage_event_quizzes')  # Redirect to the appropriate page after deletion
+
+from .models import EventRegistration,QuizAttempt
+@login_required
+@nocache
+def manage_single_event(request, event_id):
+    event = EventAndQuiz.objects.get(id=event_id)
+    registrations = EventRegistration.objects.filter(event=event)
+    leaderboard_data = []
+    
+    if event.type == 'quiz':
+        # Get all questions and their points for this quiz
+        quiz_questions = QuizQuestion.objects.filter(quiz=event)
+        total_possible_points = sum(question.points for question in quiz_questions)
+        
+        # Fetch all quiz attempts for this event, ordered by score
+        quiz_attempts = QuizAttempt.objects.filter(
+            quiz=event
+        ).order_by('-score')
+        
+        # Check if prize payment exists for the winner (first place)
+        prize_paid = False
+        if event.prize_enabled and quiz_attempts.exists():
+            winner = quiz_attempts.first().freelancer
+            prize_paid = PrizePayment.objects.filter(
+                event=event,
+                winner=winner,
+                payment_status='completed'
+            ).exists()
+        
+        for attempt in quiz_attempts:
+            try:
+                freelancer_register = Register.objects.get(user=attempt.freelancer)
+                accuracy = (attempt.score / total_possible_points * 100) if total_possible_points > 0 else 0
+                attempt_time = attempt.attempt_time.strftime("%B %d, %Y %I:%M %p")
+                
+                participant_data = {
+                    'name': f"{freelancer_register.first_name} {freelancer_register.last_name}",
+                    'profile_picture': freelancer_register.profile_picture.url if freelancer_register.profile_picture else None,
+                    'score': attempt.score,
+                    'attempt_time': attempt_time,
+                    'accuracy': round(accuracy, 1),
+                    'email': attempt.freelancer.email,
+                    'total_questions': quiz_questions.count(),
+                    'total_possible_points': total_possible_points,
+                    'id': attempt.freelancer.id,
+                }
+                leaderboard_data.append(participant_data)
+            except Register.DoesNotExist:
+                continue
+
+    # Fetch freelancer details for regular participant list
+    freelancers = []
+    for registration in registrations:
+        freelancer = registration.freelancer
+        register_info = Register.objects.get(user=freelancer)
+        freelancers.append({
+            'first_name': register_info.first_name,
+            'last_name': register_info.last_name,
+            'profile_picture': register_info.profile_picture.url if register_info.profile_picture else None,
+            'email': freelancer.email,
+            'registered_at': registration.registration_time,
+        })
+
+    print(prize_paid)
+    context = {
+        'event': event,
+        'registrations': registrations,
+        'freelancers': freelancers,
+        'leaderboard': leaderboard_data,
+        'prize_paid': prize_paid if event.type == 'quiz' and event.prize_enabled else False
+    }
+    
+    return render(request, 'Client/manage_single_event.html', context)
+
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib.auth.decorators import login_required
+from client.models import FreelanceContract, PaymentInstallment, Project
+from core.models import Register
+from core.models import RefundPayment
+
+@require_POST
+def update_event_settings(request, event_id):
+    event = get_object_or_404(EventAndQuiz, id=event_id)
+    
+    event.date = request.POST.get('event_date')
+    event.max_participants = request.POST.get('max_participants')
+    event.registration_status = request.POST.get('registration_enabled')  # This will now be 'open' or 'closed'
+    event.registration_end_date=request.POST.get('registration_end_date')
+    event.save()
+    
+    return redirect('client:manage_single_event', event_id=event.id)  
+
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.core.mail import send_mail
+
+@csrf_exempt  # Use with caution; consider using CSRF tokens in production
+def send_event_link(request):
+    if request.method == 'POST':
+        event_id = request.POST.get('event_id')
+        try:
+            event = EventAndQuiz.objects.get(id=event_id)
+
+            # Get all registered participants for the event
+            registrations = EventRegistration.objects.filter(event=event)
+            emails = [registration.freelancer.email for registration in registrations if registration.freelancer.email]
+
+            # Determine the link to send based on event type
+            if event.type == 'event':
+                link_to_send = event.online_link
+            elif event.type == 'quiz':
+                link_to_send = f'http://127.0.0.1:8000/freelancer/quiz_view/{event.id}/'  # Use event ID for quiz link
+            else:
+                return JsonResponse({'status': 'error', 'message': 'Invalid event type.'})
+
+            for email in emails:
+                send_mail(
+                    'Event Link',
+                    f'You can join the event using this link: {link_to_send}',
+                    'from@example.com', 
+                    [email],
+                    fail_silently=False,
+                )
+
+            return JsonResponse({'status': 'success', 'message': 'Emails sent successfully.'})
+        except EventAndQuiz.DoesNotExist:
+            return JsonResponse({'status': 'error', 'message': 'Event not found.'})
+
+    return JsonResponse({'status': 'error', 'message': 'Invalid request.'})
+
+
+import razorpay
+from django.conf import settings
+from django.http import JsonResponse
+from .models import PrizePayment
+from decimal import Decimal
+
+# Initialize Razorpay client
+razorpay_client = razorpay.Client(
+    auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET)
+)
+
+def create_prize_payment(request):
+    if request.method == 'POST':
+        event_id = request.POST.get('event_id')
+        winner_id = request.POST.get('winner_id')
+        amount = request.POST.get('amount')
+
+        print("Received data:", {
+            "event_id": event_id,
+            "winner_id": winner_id,
+            "amount": amount
+        })
+
+        try:
+            event = EventAndQuiz.objects.get(id=event_id)
+            winner = CustomUser.objects.get(id=winner_id)
+
+            print("Found event:", event)
+            print("Found winner:", winner)
+            winner_register = Register.objects.get(user=winner)
+            # Convert amount to paise (Razorpay expects amount in smallest currency unit)
+            amount_in_paise = int(Decimal(amount) * 100)
+            print("Amount in paise:", amount_in_paise)
+
+            # Create Razorpay Order
+            razorpay_order = razorpay_client.order.create({
+                'amount': amount_in_paise,
+                'currency': 'INR',
+                'payment_capture': '1'
+            })
+            print("Razorpay order created:", razorpay_order)
+
+            # Create payment record
+            payment = PrizePayment.objects.create(
+                event=event,
+                winner=winner,
+                amount=amount,
+                razorpay_order_id=razorpay_order['id']
+            )
+            print("Payment record created:", payment)
+
+            response_data = {
+                'status': 'success',
+                'order_id': razorpay_order['id'],
+                'amount': amount_in_paise,
+                'key': settings.RAZORPAY_KEY_ID,
+                'currency': 'INR',
+                'name': f"Prize for {event.title}",
+                'description': f"Prize payment to {winner_register.first_name} {winner_register.last_name}",  # Use winner_register
+                'winner_email': winner.email,
+                'winner_contact': winner_register.phone_number or '',
+            }
+            print("Sending response:", response_data)
+            return JsonResponse(response_data)
+
+        except Exception as e:
+            print("Error occurred:", str(e))
+            print("Error type:", type(e))
+            return JsonResponse({
+                'status': 'error',
+                'message': str(e)
+            }, status=400)
+
+    return JsonResponse({
+        'status': 'error',
+        'message': 'Invalid request method'
+    }, status=405)
+
+def verify_prize_payment(request):
+    if request.method == 'POST':
+        razorpay_payment_id = request.POST.get('razorpay_payment_id')
+        razorpay_order_id = request.POST.get('razorpay_order_id')
+        razorpay_signature = request.POST.get('razorpay_signature')
+
+        try:
+            # Verify the payment signature
+            params_dict = {
+                'razorpay_payment_id': razorpay_payment_id,
+                'razorpay_order_id': razorpay_order_id,
+                'razorpay_signature': razorpay_signature
+            }
+            razorpay_client.utility.verify_payment_signature(params_dict)
+
+            # Update payment record
+            payment = PrizePayment.objects.get(razorpay_order_id=razorpay_order_id)
+            payment.payment_status = 'completed'
+            payment.razorpay_payment_id = razorpay_payment_id
+            payment.razorpay_signature = razorpay_signature
+            payment.save()
+
+            # Update event with payment reference
+            event = payment.event
+            event.prize_payment = payment
+            event.save()
+
+            return JsonResponse({'status': 'success'})
+
+        except Exception as e:
+            return JsonResponse({
+                'status': 'error',
+                'message': str(e)
+            }, status=400)
+
+    return JsonResponse({
+        'status': 'error',
+        'message': 'Invalid request method'
+    }, status=405)
+    
+    
+
+from django.http import JsonResponse
+from django.core.files.storage import default_storage
+from PIL import Image, ImageDraw, ImageFont
+from io import BytesIO
+import os
+from django.core.mail import EmailMessage
+from django.template.loader import render_to_string
+
+@require_POST
+def upload_certificate_template(request, event_id):
+    try:
+        event = EventAndQuiz.objects.get(id=event_id)
+        
+        if 'certificate_template' not in request.FILES:
+            return JsonResponse({'status': 'error', 'message': 'No template file provided'}, status=400)
+        
+        template = request.FILES['certificate_template']
+        
+        # Validate file type
+        allowed_types = ['image/jpeg', 'image/png']
+        if template.content_type not in allowed_types:
+            return JsonResponse({'status': 'error', 'message': 'Invalid file type'}, status=400)
+        
+        # Save the template
+        file_path = f'certificate_templates/event_{event_id}_template{os.path.splitext(template.name)[1]}'
+        if event.certificate_template:
+            # Delete old template if exists
+            default_storage.delete(event.certificate_template.path)
+        
+        path = default_storage.save(file_path, template)
+        event.certificate_template = path
+        event.save()
+        
+        return JsonResponse({'status': 'success', 'message': 'Template uploaded successfully'})
+        
+    except Event.DoesNotExist:
+        return JsonResponse({'status': 'error', 'message': 'Event not found'}, status=404)
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+from PIL import Image, ImageDraw, ImageFont
+from io import BytesIO
+from django.core.mail import EmailMessage
+from django.template.loader import render_to_string
+from django.http import JsonResponse
+from django.views.decorators.http import require_POST
+from django.conf import settings
+from django.utils import timezone
+from .models import EventAndQuiz, EventRegistration
+
+import requests
+from pathlib import Path
+import tempfile
+
+@require_POST
+def generate_certificates(request, event_id):
+    try:
+        event = EventAndQuiz.objects.get(id=event_id)
+        
+        if not event.certificate_template:
+            return JsonResponse({
+                'status': 'error', 
+                'message': 'No certificate template found. Please upload a template first.'
+            }, status=400)
+        
+        # Get participants who attended the event
+        registrations = EventRegistration.objects.filter(
+            event=event,
+            attended=True
+        ).select_related('freelancer')
+        
+        if not registrations:
+            return JsonResponse({
+                'status': 'error', 
+                'message': 'No attended participants found'
+            }, status=400)
+
+        certificates_sent = 0
+        errors = []
+        
+        # Load the certificate template
+        template = Image.open(event.certificate_template.path)
+        
+        # Load the local DancingScript font from static folder
+        try:
+            font_path = os.path.join(settings.STATIC_ROOT, 'fonts', 'dancingscript-regular.ttf')
+            if not os.path.exists(font_path):
+                # Fallback to STATICFILES_DIRS if STATIC_ROOT doesn't have the file
+                for static_dir in settings.STATICFILES_DIRS:
+                    potential_path = os.path.join(static_dir, 'fonts', 'dancingscript-regular.ttf')
+                    if os.path.exists(potential_path):
+                        font_path = potential_path
+                        break
+            
+            # Load the font with larger size
+            name_font_size = 180
+            font = ImageFont.truetype(font_path, name_font_size)
+        except Exception as e:
+            print(f"Font loading error: {str(e)}")
+            font = ImageFont.load_default()
+
+        for registration in registrations:
+            try:
+                # Get participant name
+                freelancer = registration.freelancer
+                register_info = Register.objects.get(user=freelancer)
+                participant_name = f"{register_info.first_name} {register_info.last_name}"
+                
+                # Create a copy of the template
+                certificate = template.copy()
+                draw = ImageDraw.Draw(certificate)
+                
+                # Calculate text dimensions for centering
+                text_bbox = draw.textbbox((0, 0), participant_name, font=font)
+                text_width = text_bbox[2] - text_bbox[0]
+                text_height = text_bbox[3] - text_bbox[1]
+                
+                # Calculate center position
+                x = (certificate.width - text_width) / 2
+                y = (certificate.height - text_height) / 2
+                
+                # Add name to certificate with a decorative color
+                draw.text(
+                    (x, y),
+                    participant_name,
+                    font=font,
+                    fill=(44, 62, 80)  # Dark blue color for elegance
+                )
+                
+                # Save certificate
+                certificate_io = BytesIO()
+                certificate.save(certificate_io, format='PDF')
+                certificate_io.seek(0)
+                
+                # Send email with HTML content
+                subject = f'Your Certificate for {event.title}'
+                html_message = render_to_string('Client/email/certificate_email.html', {
+                    'participant_name': participant_name,
+                    'event_title': event.title
+                })
+                
+                # Create email with HTML content
+                email = EmailMessage(
+                    subject=subject,
+                    body=html_message,
+                    from_email=settings.DEFAULT_FROM_EMAIL,
+                    to=[freelancer.email]
+                )
+                email.content_subtype = "html"  # This is the crucial line
+                
+                # Attach the certificate
+                email.attach(
+                    f'certificate_freelancer_{participant_name.replace(" ", "_")}.pdf',
+                    certificate_io.getvalue(),
+                    'application/pdf'
+                )
+                
+                email.send()
+                certificates_sent += 1
+                
+            except Exception as e:
+                errors.append(f"Error for {participant_name}: {str(e)}")
+        
+        return JsonResponse({
+            'status': 'success',
+            'message': f'Successfully sent {certificates_sent} certificates',
+            'certificates_sent': certificates_sent,
+            'errors': errors if errors else None
+        })
+        
+    except EventAndQuiz.DoesNotExist:
+        return JsonResponse({
+            'status': 'error', 
+            'message': 'Event not found'
+        }, status=404)
+    except Exception as e:
+        return JsonResponse({
+            'status': 'error', 
+            'message': f'An error occurred: {str(e)}'
+        }, status=500)

@@ -79,7 +79,7 @@
                             <td>
                                 
                                 {% if project.id in team_details %}
-                                    {{ team_details|get_item:project.id }} 
+                                    {{ team_details|get_item:project.id }} (Team)
                                 {% elif project.id in freelancer_names %}
                                     {{ freelancer_names|get_item:project.id }} (Individual)
                                 {% else %}

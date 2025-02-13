@@ -14,7 +14,7 @@ from core.models import CustomUser, Event, Notification, Register
 
 from django.contrib.auth.decorators import login_required
 
-from freelancer.models import FreelancerProfile, Proposal, ProposalFile, Todo,Document
+from freelancer.models import FreelancerProfile, Proposal, ProposalFile, Todo,Document,SalaryPayment
 from administrator.models import Template
 from django.contrib import messages
 from django.db.models import Q
@@ -37,6 +37,23 @@ from django.utils import timezone
 from django.db.models import Sum,Avg
 from django.db.models.functions import TruncMonth
 from django.urls import reverse  # Add this import
+
+from pytrends.request import TrendReq
+import pandas as pd
+import time
+
+from django.http import JsonResponse
+from django.core.mail import EmailMessage  # Add this line
+from django.template.loader import render_to_string
+from django.conf import settings
+from django.contrib.auth.decorators import login_required
+from django.db import transaction
+import json
+
+import warnings
+
+# Suppress specific FutureWarnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
 
 @login_required
 @nocache
@@ -323,7 +340,7 @@ def account_settings(request):
     'Logo Designer','Poster Designer','Machine Learning Engineer','Artificial Intelligence Specialist','Software Developer',
 ]
     skills = [
-    "java", "c++", "python", "eclipse", "visual studio", "html/css", "javascript", "bootstrap", "sass", 
+    "java", "c++", "python", "eclipse", "visual studio", "html","css", "javascript", "bootstrap", "sass", 
     "swift", "xcode", "kotlin", "android studio", "flutter", "react native", "r", "jupyter", "pandas", 
     "numpy", "tensorflow", "pytorch", "keras", "scikit-learn", "adobe xd", "sketch", "figma", "invision", 
     "react", "angular", "vue.js", "webpack", "node.js", "django", "ruby on rails", "spring boot", 
@@ -1545,6 +1562,26 @@ def view_repository(request, repo_id):
         project = get_object_or_404(Project, id=repository.project_id)
         client_profile = ClientProfile.objects.get(user_id=project.user_id)
         client_register = Register.objects.get(user_id=project.user_id)
+
+        # Initialize team_members_data to ensure it is always defined
+        team_members_data = []
+
+        if project.freelancer:
+            is_project_manager = False  
+        else:
+            if project.team_id:
+                is_project_manager = TeamMember.objects.filter(team_id=project.team_id, user=request.user, role='PROJECT_MANAGER').exists()
+                team_members = TeamMember.objects.filter(team=project.team_id).select_related('user')
+                for member in team_members:
+                    if member.user:
+                        team_members_data.append({
+                            'username': member.user.username,  # Fetch the username
+                            'role': member.role,  # Fetch the role
+                            'user_id': member.user.id,  # Pass the user ID
+                        })
+            else:
+                is_project_manager = False 
+
         
         if client_profile.client_type == 'Individual':
             client_name = f"{client_register.first_name} {client_register.last_name}"
@@ -1560,7 +1597,7 @@ def view_repository(request, repo_id):
         shared_urls = SharedURL.objects.filter(repository=repository).values(
             'url', 'shared_at', 'shared_by', 'description'
         )
-        proposals = Proposal.objects.filter(project=project,status='Accepted')
+        proposals = Proposal.objects.filter(project=project, status='Accepted')
         contracts = FreelanceContract.objects.filter(project=project)
         items = []
         
@@ -1585,28 +1622,29 @@ def view_repository(request, repo_id):
         
         items.sort(key=lambda x: x['date'])
         notes = SharedNote.objects.filter(repository=repository).order_by('added_at')
-        tasks=Task.objects.filter(project=project)
+        tasks = Task.objects.filter(project=project)
         try:
             cancellation_details = CancellationRequest.objects.get(project=project)
         except CancellationRequest.DoesNotExist:
             cancellation_details = None  # Set to None if no cancellation request exists
-
+        
         return render(request, 'freelancer/SingleRepository.html', {
             'profile1': profile1,
             'profile2': profile2,
             'freelancer': freelancer,
             'repository': repository,
             'items': items,
-             'notes':notes,
-            'tasks':tasks,
+            'notes': notes,
+            'tasks': tasks,
             'client_name': client_name,
             'client_profile_picture': client_profile_picture,
             'client_email': client_email,
             'proposals': proposals,
             'contracts': contracts,
-            
+            'is_project_manager': is_project_manager,
             'project': project,
             'cancellation_details': cancellation_details,
+            'team_members': team_members_data,
         })
     else:
         return render(request, 'freelancer/PermissionDenied.html', {
@@ -2821,7 +2859,6 @@ def manage_team(request, team_id):
     client_details = []
 
     for project in team_projects:
-        print(f"Debug: Processing project {project.title} for team {team.name}")
         client_profile = ClientProfile.objects.get(user=project.user)  # Get client profile for each project
         client_register = None 
 
@@ -2838,7 +2875,26 @@ def manage_team(request, team_id):
             'client_profile_picture': client_register.profile_picture.url if  client_register.profile_picture else None,
             'client_email': client_profile.user.email  # Get email from CustomUser
         })
+        contract = get_object_or_404(FreelanceContract, project_id=project.id)
 
+        # Check if all payment installments for the contract are paid
+        installments = PaymentInstallment.objects.filter(contract=contract)
+        all_paid = all(installment.status == 'paid' for installment in installments)
+
+        # Store the payment status in a variable to pass to the context
+        payment_received = all_paid  # This will be True or False based on the installments' status
+
+        team_members = TeamMember.objects.filter(team=team)
+        salaries_paid = SalaryPayment.objects.filter(
+            project_id=project.id, 
+            status='completed'
+        ).values_list('team_member_id', flat=True)
+
+        team_member_ids = team_members.values_list('id', flat=True)
+        
+        # Check if all team members have salary payment completed (i.e., 5 entries for 5 team members)
+        salary_paid_all_members = len(salaries_paid) == len(team_member_ids)
+    
     team_members = TeamMember.objects.filter(team=team).select_related(
         'user',
         'user__register',
@@ -2890,12 +2946,19 @@ def manage_team(request, team_id):
             'profile_picture': freelancer.register.profile_picture.url if freelancer.register.profile_picture else None
         })
 
-    # Get current salary percentages for the form
     current_percentages = {
         member.role: member.salary_percentage 
         for member in TeamMember.objects.filter(team=team)
     }
 
+    project_details = []
+    for project in team_projects:
+        repository = Repository.objects.filter(project=project).first()  # Get the repository associated with the project
+        repository_id = repository.id if repository else None  # Get repository ID if it exists
+        project_details.append({
+            'project': project,
+            'repository_id': repository_id
+        })
     # Fetch invitations sent by the user for this team
     invitations_sent = TeamInvitation.objects.filter(invited_by=request.user, team=team)
 
@@ -2926,17 +2989,22 @@ def manage_team(request, team_id):
         'available_freelancers': available_freelancers_data,  
         'invitations': invitations_data,
         'team_projects': team_projects,  # Include team projects in the context
-        'client_details': client_details,  # Pass client details to the template
+        'client_details': client_details,
+        'project_details':project_details,
+        'salary_paid_all_members': salary_paid_all_members,
+        'payment_received':payment_received  # Pass client details to the template
     }
+    print(salary_paid_all_members)
     return render(request, 'freelancer/manage_team.html', context)
 
 
 
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.core.mail import send_mail
 from django.conf import settings
 import uuid
-from .models import TeamInvitation
+from .models import TeamInvitation, Team, TeamMember, Project 
+from client.models import FreelanceContract, PaymentInstallment
 from django.core.signing import Signer, BadSignature
 import secrets
 
@@ -3239,3 +3307,724 @@ def create_chatroom(request):
             return JsonResponse({'status': 'error', 'message': 'Team not found.'}, status=404)
 
     return JsonResponse({'status': 'error'}, status=400)
+
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from client.models import Task  # Import your Task model
+
+@csrf_exempt  
+def assign_task(request):
+    if request.method == 'POST':
+        task_id = request.POST.get('task_id')
+        assigned_to = request.POST.get('assigned_to')
+
+        try:
+            task = Task.objects.get(id=task_id)  # Fetch the task by ID
+            task.assigned_to_id = assigned_to  # Assuming 'assigned_to' is a ForeignKey to User
+            task.save()  # Save the changes
+            return JsonResponse({'success': True, 'message': 'Task assigned successfully.'})
+        except Task.DoesNotExist:
+            return JsonResponse({'success': False, 'message': 'Task not found.'}, status=404)
+        except Exception as e:
+            return JsonResponse({'success': False, 'message': str(e)}, status=500)
+
+    return JsonResponse({'success': False, 'message': 'Invalid request method.'}, status=400)
+
+
+
+
+@csrf_exempt  # Use with caution; consider using proper CSRF protection
+def pay_team_salaries(request):
+    if request.method == 'POST':
+        data = json.loads(request.body)
+        project_id = data.get('project_id')
+        print(project_id)
+
+        # Validate project_id
+        if not project_id :
+            return JsonResponse({'error': 'Invalid project ID provided.'}, status=400)
+
+        try:
+            project = Project.objects.get(id=project_id)  
+            team = project.team  
+            team_members = TeamMember.objects.filter(team=team)  
+
+            total_percentage = sum(member.salary_percentage for member in team_members)
+
+            if total_percentage > 100:
+                return JsonResponse({'error': 'Total salary percentage exceeds 100%'}, status=400)
+
+            for member in team_members:
+                salary = (member.salary_percentage / 100) * project.total_including_gst  # Calculate salary based on percentage
+                
+                SalaryPayment.objects.create(
+                    team_member=member,
+                    project=project,
+                    amount_paid=salary,
+                    paid_by=request.user,
+                    status='completed'
+                )
+
+            return JsonResponse({'success': 'Salaries paid successfully for all team members.'})
+
+        except Project.DoesNotExist:
+            return JsonResponse({'error': 'Project not found'}, status=404)
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=500)
+
+    return JsonResponse({'error': 'Invalid request method'}, status=405)
+
+from pytrends.request import TrendReq
+import requests
+from bs4 import BeautifulSoup
+from django.http import JsonResponse
+from django.contrib.auth.decorators import login_required
+from .models import FreelancerProfile
+
+from pytrends.request import TrendReq
+
+import time
+from pytrends.request import TrendReq
+
+def get_trending_skills_for_profession_real_time(profession):
+    pytrends = TrendReq(hl='en-US', tz=360)
+    query = profession + " skills"
+
+    for attempt in range(5):  # Retry up to 5 times
+        try:
+            time.sleep(10)  # Wait at least 10 seconds between requests
+            pytrends.build_payload([query], cat=0, timeframe='now 7-d', geo='', gprop='')
+            related_queries = pytrends.related_queries()
+            
+            if query in related_queries and related_queries[query]['top'] is not None:
+                trending_data = related_queries[query]['top']
+                trending_skills = trending_data['query'].tolist() if not trending_data.empty else []
+                return trending_skills
+            else:
+                return []
+        except Exception as e:
+            if "429" in str(e):  # Check for rate limit error
+                print("Rate limit hit, retrying after longer wait...")
+                time.sleep(2 ** (attempt + 3))  # Exponential backoff with higher base wait time
+            else:
+                print(f"Error fetching trending skills for '{profession}': {str(e)}")
+                return []
+
+    return []
+  # Return empty if all attempts fail
+
+# def course_recommendations_api(request):
+#     """
+#     API endpoint: Compares freelancer's skills against trending skills and returns 
+#     course recommendations based on the skill gap.
+#     """
+#     user = request.user
+#     freelancer_skills = get_freelancer_skills(user)
+#     professions = get_freelancer_professions(user)
+
+#     trending_skills = []
+#     for profession in professions:
+#         # Fetch real-time trending skills from Google Trends
+#         trending_skills_for_profession = get_trending_skills_for_profession_real_time(profession)
+#         trending_skills.extend(trending_skills_for_profession)
+    
+#     # Remove duplicates by converting to set
+#     trending_skills = list(set(trending_skills))
+    
+#     # Debugging: print the combined trending skills
+#     print(f"Combined trending skills for freelancer: {trending_skills}")
+    
+#     # Compute the skill gap (missing skills)
+#     skill_gap = [skill for skill in trending_skills if skill not in freelancer_skills]
+    
+#     # Debugging: print the skill gap
+#     print(f"Skill gap (missing skills): {skill_gap}")
+    
+#     # Generate course recommendations for missing skills
+#     recommendations = get_course_recommendations_for_skills(skill_gap)
+    
+#     # Debugging: print the generated course recommendations
+#     print(f"Generated course recommendations: {recommendations}")
+    
+#     return JsonResponse({'course_recommendations': recommendations})
+
+
+    
+def get_trending_skills_from_coursera(profession):
+    """
+    Fetch trending skills related to a profession from Coursera by scraping.
+    """
+    search_url = f'https://www.coursera.org/search?query={profession}&index=prod_all_courses'
+    response = requests.get(search_url)
+    
+    if response.status_code == 200:
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        # Extract course names and skills from Coursera courses
+        skills = []
+        for course in soup.find_all('a', {'class': 'rc-DesktopSearchCard anchor-wrapper'}):
+            course_title = course.get_text().lower()
+            if 'javascript' in course_title:
+                skills.append('javascript')
+            if 'python' in course_title:
+                skills.append('python')
+            if 'nodejs' in course_title:
+                skills.append('nodejs')
+            # Add more logic to scrape specific skills
+        
+        print(f"Trending skills from Coursera for profession '{profession}': {skills}")  # Debugging print
+        return list(set(skills))  # Remove duplicates
+    else:
+        print(f"Error scraping Coursera for profession '{profession}'. Status code: {response.status_code}")
+        return []
+
+
+# Function to fetch freelancer's professions from the FreelancerProfile table
+def get_freelancer_professions(user):
+    freelancer_profile = FreelancerProfile.objects.get(user=user)
+    professions = freelancer_profile.professional_title.strip('[]').replace("'", "").split(', ')
+    print(f"Freelancer's professions: {professions}")  # Debugging print
+    return professions
+
+
+# Function to fetch freelancer's skills from the FreelancerProfile table
+def get_freelancer_skills(user):
+    freelancer_profile = FreelancerProfile.objects.get(user=user)
+    skills = freelancer_profile.skills.strip('[]').replace("'", "").split(', ')
+    print(f"Freelancer's skills: {skills}")  # Debugging print
+    return skills
+
+
+# Function to compute the skill gap (missing skills) based on trending skills
+def get_skill_gap(freelancer_skills, trending_skills):
+    """
+    Compare the freelancer's skills with the trending skills to find the skill gap.
+    """
+    skill_gap = [skill for skill in trending_skills if skill not in freelancer_skills]
+    print(f"Skill gap (missing skills): {skill_gap}")  # Debugging print
+    return skill_gap
+
+
+# Function to get course recommendations for missing skills (skill gap)
+def get_course_recommendations_for_skills(skill_gap):
+    """
+    Generate course recommendations from GreatLearning, Coursera, and Simplilearn
+    for each missing skill.
+    """
+    courses = []
+    providers = ['GreatLearning', 'Coursera', 'Simplilearn']
+    provider_links = {
+       'GreatLearning': "https://www.mygreatlearning.com/academy/search?keyword=",
+       'Coursera': "https://www.coursera.org/search?query=",
+       'Simplilearn': "https://www.simplilearn.com/search?text="
+    }
+    
+    for idx, skill in enumerate(skill_gap):
+        provider = providers[idx % len(providers)]
+        enroll_url = provider_links[provider] + skill
+        course = {
+            'skill_gap': skill,
+            'title': f"Master {skill.capitalize()} via {provider}",
+            'provider': provider,
+            'rating': 4.5,  # Dummy rating; replace with real data if available
+            'enroll_url': enroll_url
+        }
+        courses.append(course)
+    
+    print(f"Generated course recommendations: {courses}")  # Debugging print
+    return courses
+
+
+# Main API endpoint to compare freelancer's skills with trending skills and recommend courses
+@login_required
+def course_recommendations_api(request):
+    """
+    API endpoint that compares freelancer's skills against real-time trending skills
+    and returns course recommendations based on the skill gap.
+    """
+    user = request.user
+    freelancer_skills = get_freelancer_skills(user)
+    freelancer_professions = get_freelancer_professions(user)
+    
+    # Fetch real-time trending skills for each profession
+    trending_skills = []
+    for profession in freelancer_professions:
+        # Fetch trending skills from Google Trends and Coursera (you can combine both)
+        trending_skills.extend(get_trending_skills_for_profession_real_time(profession))
+        trending_skills.extend(get_trending_skills_from_coursera(profession))
+    
+    # Remove duplicates and clean up the trending skills
+    trending_skills = list(set(trending_skills))
+    print(f"Combined trending skills for freelancer: {trending_skills}")  # Debugging print
+    
+    # Compute the gap by comparing freelancer's skills with trending skills
+    skill_gap = get_skill_gap(freelancer_skills, trending_skills)
+    
+    # Generate course recommendations for the skill gap
+    recommendations = get_course_recommendations_for_skills(skill_gap)
+    
+    return JsonResponse({'course_recommendations': recommendations, 'skill_gap': skill_gap})
+
+
+
+from django.shortcuts import render, redirect
+from django.contrib import messages
+
+def analyze_skill_gap(request):
+    if not request.user.is_authenticated:
+        return redirect('login')
+
+    try:
+        freelancer = FreelancerProfile.objects.get(user_id=request.user.id)
+        
+        # Debug print
+        print("Raw professional title:", freelancer.professional_title)
+        print("Raw skills:", freelancer.skills)
+        
+        # Split professional titles and skills
+        professional_titles = []
+        skills = []
+        
+        if freelancer.professional_title and len(freelancer.professional_title.strip()) > 0:
+            professional_titles = freelancer.professional_title.strip('[]').replace("'", "").split(', ')
+        if freelancer.skills and len(freelancer.skills.strip()) > 0:
+            skills = freelancer.skills.strip('[]').replace("'", "").split(', ')
+            
+        print("Processed professional titles:", professional_titles)
+        print("Processed skills:", skills)
+
+        # Get trending skills
+        try:
+            trending_skills = get_web_dev_skills_trends()
+            print("Trending skills:", trending_skills)
+        except Exception as e:
+            print("Error getting trending skills:", str(e))
+            trending_skills = pd.Series()
+
+        # Find skill gaps
+        skill_gaps = []
+        for skill, score in trending_skills.items():
+            if skill not in skills:
+                skill_gaps.append({
+                    'skill': skill,
+                    'trend_score': round(score, 2)
+                })
+
+        print("Identified skill gaps:", skill_gaps)
+
+        context = {
+            'professional_titles': professional_titles,
+            'current_skills': skills,
+            'skill_gaps': skill_gaps,
+            'trending_skills': trending_skills.to_dict() if not trending_skills.empty else {},
+            'freelancer': freelancer,  # Add this for the layout
+            'page_title': 'Skill Gap Analysis'  # Add this for the layout
+        }
+        
+        # Debug print the context
+        print("Context being sent to template:", context)
+        
+        return render(request, 'freelancer/skill_gap_analysis.html', context)
+        
+    except FreelancerProfile.DoesNotExist:
+        print("FreelancerProfile not found for user:", request.user.id)
+        messages.error(request, "Freelancer profile not found")
+        return redirect('freelancer:freelancer_view')
+    except Exception as e:
+        print("Error in analyze_skill_gap:", str(e))
+        messages.error(request, f"An error occurred: {str(e)}")
+        return redirect('freelancer:freelancer_view')
+
+def get_web_dev_skills_trends():
+    try:
+        pytrends = TrendReq(hl='en-US', tz=360, retries=3, backoff_factor=0.5)
+
+        
+        # Define skills based on the specified professional titles
+        skills_map = {
+            'Web Developer': [
+                'JavaScript', 'HTML', 'CSS', 'React', 'Node.js', 'Express', 'MongoDB', 
+                'RESTful APIs', 'GraphQL', 'jQuery', 'Bootstrap', 'SASS', 'Version Control', 
+                'Git', 'Responsive Design', 'Webpack', 'TypeScript', 'PHP', 'Django', 
+                'Ruby on Rails', 'SQL', 'NoSQL'
+            ],
+            'Front-End Developer': [
+                'HTML', 'CSS', 'JavaScript', 'React', 'Vue.js', 'Angular', 'Bootstrap', 
+                'SASS', 'jQuery', 'Responsive Design', 'Cross-Browser Compatibility', 
+                'Version Control', 'Git', 'Figma', 'Adobe XD', 'User Interface Design'
+            ],
+            'Back-End Developer': [
+                'Node.js', 'Express', 'Python', 'Django', 'Ruby on Rails', 'Java', 
+                'Spring', 'PHP', 'Laravel', 'SQL', 'NoSQL', 'MongoDB', 'RESTful APIs', 
+                'GraphQL', 'Microservices', 'Docker', 'Kubernetes', 'Version Control', 'Git'
+            ],
+            'Full-Stack Developer': [
+                'JavaScript', 'HTML', 'CSS', 'React', 'Node.js', 'Express', 'Python', 
+                'Django', 'Ruby on Rails', 'SQL', 'NoSQL', 'RESTful APIs', 'GraphQL', 
+                'Version Control', 'Git', 'Docker', 'Kubernetes', 'Microservices'
+            ],
+            'Mobile App Developer': [
+                'Java', 'Kotlin', 'Swift', 'React Native', 'Flutter', 'Xcode', 'Android SDK', 
+                'iOS SDK', 'Firebase', 'RESTful APIs', 'Version Control', 'Git', 
+                'User Interface Design', 'Cross-Platform Development'
+            ],
+            'Android Developer': [
+                'Java', 'Kotlin', 'Android SDK', 'XML', 'Firebase', 'Gradle', 
+                'RESTful APIs', 'Version Control', 'Git', 'Material Design', 
+                'User Interface Design'
+            ],
+            'iOS Developer': [
+                'Swift', 'Objective-C', 'Xcode', 'Cocoa Touch', 'RESTful APIs', 
+                'Version Control', 'Git', 'Core Data', 'UIKit', 'SwiftUI', 
+                'User Interface Design'
+            ],
+            'UI/UX Designer': [
+                'Figma', 'Adobe XD', 'Sketch', 'InVision', 'User Research', 
+                'Wireframing', 'Prototyping', 'Usability Testing', 'Interaction Design', 
+                'Visual Design', 'Responsive Design', 'HTML', 'CSS'
+            ],
+            'Graphic Designer': [
+                'Photoshop', 'Illustrator', 'InDesign', 'CorelDRAW', 'Typography', 
+                'Branding', 'Layout Design', 'Print Design', 'Digital Illustration', 
+                'Logo Design'
+            ],
+            'Logo Designer': [
+                'Illustrator', 'Photoshop', 'CorelDRAW', 'Branding', 'Typography', 
+                'Color Theory', 'Layout Design'
+            ],
+            'Poster Designer': [
+                'InDesign', 'Photoshop', 'Illustrator', 'Typography', 'Layout', 
+                'Print Design', 'Digital Illustration'
+            ],
+            'Machine Learning Engineer': [
+                'Python', 'TensorFlow', 'Keras', 'Scikit-learn', 'Pandas', 
+                'NumPy', 'Data Analysis', 'Data Visualization', 'Deep Learning', 
+                'Natural Language Processing', 'Computer Vision'
+            ],
+            'Artificial Intelligence Specialist': [
+                'Python', 'Machine Learning', 'Deep Learning', 'NLP', 'TensorFlow', 
+                'Keras', 'Data Analysis', 'Data Visualization', 'Reinforcement Learning'
+            ],
+            'Software Developer': [
+                'Java', 'C#', 'Python', 'JavaScript', 'SQL', 'Version Control', 
+                'Git', 'Agile Methodologies', 'Scrum', 'RESTful APIs', 
+                'Microservices', 'Docker', 'Testing', 'Debugging'
+            ],
+        }
+        
+        all_skills = []
+        for skill_set in skills_map.values():
+            all_skills.extend(skill_set)
+        
+        # Remove duplicates
+        skills = list(set(all_skills))
+        
+        results = []
+        for i in range(0, len(skills), 5):
+            batch = skills[i:i+5]
+            pytrends.build_payload(
+                batch,
+                cat=0,
+                timeframe='today 3-m',
+                geo='',
+                gprop=''
+            )
+            interest_data = pytrends.interest_over_time()
+            if not interest_data.empty:
+                results.append(interest_data)
+            time.sleep(1)
+        
+        if results:
+            final_df = pd.concat(results, axis=1)
+            return final_df.mean().sort_values(ascending=False)
+        return pd.Series()
+        
+    except Exception as e:
+        print(f"Error in get_web_dev_skills_trends: {str(e)}")
+        return pd.Series()
+
+def get_course_recommendations_for_skills(skill_gaps):
+    """
+    Generate course recommendations from multiple platforms for missing skills
+    """
+    course_platforms = {
+        'Coursera': 'https://www.coursera.org/search?query=',
+        'GreatLearning': 'https://www.mygreatlearning.com/academy/search?keyword='
+    }
+    
+    recommendations = []
+    
+    for skill in skill_gaps:
+        # Create course recommendations for each platform
+        for platform, base_url in course_platforms.items():
+            course = {
+                'skill': skill,
+                'platform': platform,
+                'title': f"Learn {skill} on {platform}",
+                'url': f"{base_url}{skill.replace(' ', '+')}"
+            }
+            recommendations.append(course)
+    
+    return recommendations
+
+def normalize_skill_name(skill):
+    """Normalize skill names for comparison"""
+    return skill.lower().replace(' ', '').replace('-', '').replace('_', '')
+
+def analyze_skill_gap(request):
+    """
+    View function for skill gap analysis
+    """
+    if not request.user.is_authenticated:
+        return redirect('login')
+    try:
+        freelancer = FreelancerProfile.objects.get(user_id=request.user.id)
+        
+        # Split professional titles and skills
+        professional_titles = []
+        skills = []
+        
+        if freelancer.professional_title:
+            professional_titles = freelancer.professional_title.strip('[]').replace("'", "").split(', ')
+        if freelancer.skills:
+            skills = [normalize_skill_name(skill) for skill in freelancer.skills.strip('[]').replace("'", "").split(', ')]
+            
+        print("Processed skills:", skills)
+
+        # Get trending skills
+        trending_skills = get_web_dev_skills_trends()
+        print("Trending skills:", trending_skills)
+
+        # Find skill gaps (include all skills with score > 0)
+        skill_gaps = []
+        for skill, score in trending_skills.items():
+            normalized_trending_skill = normalize_skill_name(skill)
+            if normalized_trending_skill not in skills and score > 0 and 'isPartial' not in skill:  # Remove isPartial entries
+                skill_gaps.append({
+                    'skill': skill,
+                    'trend_score': round(score, 2)
+                })
+
+        # Sort skill gaps by trend score
+        skill_gaps = sorted(skill_gaps, key=lambda x: x['trend_score'], reverse=True)
+        print("Identified skill gaps:", skill_gaps)
+
+        # Get course recommendations
+        course_recommendations = get_course_recommendations_for_skills([gap['skill'] for gap in skill_gaps])
+
+        context = {
+            'professional_titles': professional_titles,
+            'current_skills': [skill for skill in freelancer.skills.strip('[]').replace("'", "").split(', ')],
+            'skill_gaps': skill_gaps,
+            'course_recommendations': course_recommendations,
+            'trending_skills': trending_skills.to_dict(),
+            'freelancer': freelancer,
+            'page_title': 'Skill Gap Analysis'
+        }
+        
+        return render(request, 'freelancer/skill_gap_analysis.html', context)
+        
+    except Exception as e:
+        print("Error:", str(e))
+        messages.error(request, f"An error occurred: {str(e)}")
+        return redirect('freelancer:freelancer_view')
+
+@csrf_exempt  # Use this only if you are not using CSRF tokens in AJAX requests
+@login_required
+def toggle_open_to_work(request):
+    if request.method == 'POST':
+        status = request.POST.get('status')
+        if status in ['open', 'close']:
+            # Get the user's FreelancerProfile
+            freelancer_profile = FreelancerProfile.objects.get(user=request.user)
+            # Set the is_open_to_work field based on the status
+            freelancer_profile.is_open_to_work = (status == 'open')  # True if 'open', False if 'close'
+            freelancer_profile.save()
+            return JsonResponse({'success': True})
+    return JsonResponse({'success': False}, status=400)
+
+from django.contrib.auth.decorators import login_required
+from django.utils import timezone
+from client.models import EventAndQuiz, EventRegistration
+
+@login_required
+def events_and_quizzes_view(request):
+    current_time = timezone.now()
+    upcoming_events = EventAndQuiz.objects.filter(
+        date__gt=current_time,
+        event_status='upcoming'
+    ).order_by('date')
+    
+    past_events = EventAndQuiz.objects.filter(
+        event_status='done',
+        date__gt=current_time
+    ).order_by('date')
+    
+    registered_events = EventRegistration.objects.filter(
+        freelancer=request.user
+    ).values_list('event_id', flat=True)
+    
+    upcoming_events_list = upcoming_events.filter(type='event')
+    upcoming_quizzes = upcoming_events.filter(type='quiz')
+    past_events_list = past_events.filter(type='event')
+    past_quizzes = past_events.filter(type='quiz')
+    
+    context = {
+        'upcoming_events': upcoming_events_list,
+        'upcoming_quizzes': upcoming_quizzes,
+        'past_events': past_events_list,
+        'past_quizzes': past_quizzes,
+        'registered_events': registered_events,
+        'active_page': 'events_quizzes'
+    }
+    
+    return render(request, 'freelancer/events_and_quizzes.html', context)
+
+from django.http import JsonResponse
+from django.core.mail import send_mail
+from django.template.loader import render_to_string
+from django.conf import settings
+from django.contrib.auth.decorators import login_required
+from django.db import transaction
+import json
+
+@login_required
+def register_event(request):
+    if request.method == 'POST':
+        try:
+            with transaction.atomic():  # Use transaction to ensure data consistency
+                data = json.loads(request.body)
+                event_id = data.get('event_id')
+                
+                # Get the event/quiz
+                event = EventAndQuiz.objects.select_for_update().get(id=event_id)  
+                
+                # Increment the registration count
+                event.number_of_registrations += 1
+                event.save()
+                
+                # Register the user
+                registration = EventRegistration.objects.create(
+                    freelancer=request.user,
+                    event=event
+                )
+                
+                # Prepare email content
+                context = {
+                    'user': request.user,
+                    'event': event,
+                    'registration': registration
+                }
+                
+                # Render email template
+                email_html = render_to_string('freelancer/email_registration.html', context)
+                
+                # Create email message
+                email = EmailMessage(
+                    subject=f'Registration Confirmation: {event.title}',
+                    body=email_html,
+                    from_email=settings.DEFAULT_FROM_EMAIL,
+                    to=[request.user.email]
+                )
+                email.content_subtype = "html"  # Main content is now HTML
+                
+                # Attach poster if it exists
+                if event.poster:
+                    # Get the file name from the poster path
+                    file_name = event.poster.name.split('/')[-1]
+                    # Attach the poster file
+                    email.attach(
+                        filename=file_name,
+                        content=event.poster.read(),
+                        mimetype='application/octet-stream'
+                    )
+                
+                # Send email
+                email.send(fail_silently=False)
+                
+                return JsonResponse({
+                    'success': True,
+                    'message': 'Registration successful!'
+                })
+                
+        except EventAndQuiz.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'message': 'Event not found.'
+            })
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'message': str(e)
+            })
+    
+    return JsonResponse({
+        'success': False,
+        'message': 'Invalid request method.'
+    })
+    
+    
+from client.models import QuizQuestion  
+def quiz_view(request, quiz_id):
+    is_registered = EventRegistration.objects.filter(
+        freelancer=request.user,
+        event=quiz_id  
+    ).exists()
+    event = get_object_or_404(EventAndQuiz, id=quiz_id)
+    is_attended=EventRegistration.objects.filter(
+        freelancer=request.user,
+        event=quiz_id ,
+        attended=True
+    ).exists()
+    duration = event.duration  
+    questions = QuizQuestion.objects.filter(quiz=quiz_id).values('question', 'option1', 'option2', 'option3', 'option4','correct_answer','points')
+    questions_list = list(questions) 
+    return render(request, 'freelancer/quiz.html', {
+        'quiz_id': quiz_id,
+        'questions': questions_list,
+        'is_registered': is_registered,
+        'duration':duration,
+        'is_attended': is_attended
+    })
+    
+from client.models import QuizAttempt  # Add this import at the top
+
+@login_required
+@csrf_exempt  # Be careful with CSRF exemption in production
+def submit_quiz(request, quiz_id):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            score = data.get('score', 0)
+            
+            # Create quiz attempt record
+            quiz = get_object_or_404(EventAndQuiz, id=quiz_id)
+            QuizAttempt.objects.create(
+                quiz=quiz,
+                freelancer=request.user,
+                score=score
+            )
+            
+            # Update EventRegistration to mark as attended
+            registration = EventRegistration.objects.get(
+                freelancer=request.user,
+                event=quiz
+            )
+            registration.attended = True
+            registration.save()
+            
+            return JsonResponse({
+                'success': True,
+                'message': 'Quiz submitted successfully!'
+            })
+            
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'message': str(e)
+            }, status=500)
+    
+    return JsonResponse({
+        'success': False,
+        'message': 'Invalid request method.'
+    }, status=400)

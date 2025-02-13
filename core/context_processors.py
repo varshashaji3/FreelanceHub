@@ -52,7 +52,6 @@ def project_status(request):
         user=current_user.id
     ).order_by('-project_end_date')  # Order by completion date, most recent first
 
-    print("Completed Projects:")
     for project in completed_projects:
         freelancer = get_object_or_404(Register, user=project.freelancer)
         client_profile = get_object_or_404(ClientProfile, user=project.user)
@@ -68,16 +67,6 @@ def project_status(request):
         elif client_type == 'Company':
             client_name = client_profile.company_name
             client_id = project.user.id
-        
-        print(f"Project ID: {project.id}")
-        print(f"Title: {project.title}")
-        print(f"Status: {project.project_status}")
-        print(f"Freelancer: {freelancer.first_name} (ID: {freelancer.user.id})")
-        print(f"Client: {client_name} (ID: {client_id})")
-        print(f"Client Type: {client_type}")
-        print(f"Freelancer Review Given: {project.freelancer_review_given}")
-        print(f"Client Review Given: {project.client_review_given}")
-        print("---")
 
     # Find the most recent project that needs a review
     project_needing_review = completed_projects.filter(
@@ -117,7 +106,6 @@ def project_status(request):
         is_client = client_profile.user == current_user
         context['is_client'] = is_client
     
-    print("Context:", context)
     return context
 
 
@@ -165,15 +153,19 @@ def refund_payment_context(request):
                 "receipt": f"refund_{refund_payment.id}",
                 "payment_capture": 1,
             }
-            order = client.order.create(data=data)
-
-            context.update({
-                'has_refund_payment': True,
-                'refund_payment': refund_payment,
-                'razorpay_order_id': order['id'],
-                'razorpay_key': settings.RAZORPAY_KEY_ID,
-                'amount_in_paisa': amount_in_paisa,
-            })
+            try:
+                order = client.order.create(data=data)
+                context.update({
+                    'has_refund_payment': True,
+                    'refund_payment': refund_payment,
+                    'razorpay_order_id': order['id'],
+                    'razorpay_key': settings.RAZORPAY_KEY_ID,
+                    'amount_in_paisa': amount_in_paisa,
+                })
+            except Exception as e:
+                # Log the error or handle it as needed
+                context['error'] = str(e)  # Capture the error message
+                context['has_refund_payment'] = False
         else:
             context['has_refund_payment'] = False
 

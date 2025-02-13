@@ -1,6 +1,7 @@
 {% extends 'freelancer/base.html' %}
 
 {% block 'freelancer_content' %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 <div class="container">
     <div class="header">
         <div class="title-section">
@@ -8,11 +9,23 @@
          
         </div>
         <div class="header-buttons">
+            {% if all_roles_assigned %}
+            <button class="invite-button" onclick="openInviteModal()" disabled title="All roles are assigned, you cannot invite more members.">
+                <i class="fas fa-user-plus"></i> Invite Member  
+            </button>
+            {% else %}
             <button class="invite-button" onclick="openInviteModal()">
                 <i class="fas fa-user-plus"></i> Invite Member  
             </button>
-            <button class="set-salary-button" onclick="openSalaryModal()">Set Salary for Roles</button>
-        </div>
+            {% endif %}
+            {% if all_roles_assigned %}
+           <button class="set-salary-button" onclick="openSalaryModal()">Set Salary for Roles</button>
+       
+            {% else %}
+            <button class="set-salary-button" onclick="openSalaryModal()" disabled title="All roles must be assigned first">Set Salary for Roles</button>
+       
+            {% endif %}
+            </div>
     </div>
     {% if not all_roles_assigned %}
     <div class="warning-badge">
@@ -117,7 +130,7 @@
                     <input type="hidden" name="team_id" value="{{ team.id }}">
     
                     <label for="freelancer">Select Freelancer</label>
-                    <select id="freelancer" name="freelancer" required onchange="toggleEmailInput()">
+                    <select id="freelancer" name="freelancer" required onchange="toggleEmailInput(); validateFreelancer();">
                         <option value="">Select Freelancer</option>
                         {% for freelancer in available_freelancers %}
                             <option value="{{ freelancer.id }}">
@@ -126,22 +139,26 @@
                         {% endfor %}
                         <option value="other">Other (Enter Email)</option>
                     </select>
+                    <div class="error-message" id="freelancerError" style="color: red; display: none;">Please select a freelancer.</div>
                 </div>
                 <div class="form-group" id="emailGroup" style="display: none;">
                     <label for="email">Email (for non-registered members)</label>
-                    <input type="email" id="email" name="email" placeholder="Enter email address">
+                    <input type="email" id="email" name="email" placeholder="Enter email address" onkeyup="validateEmail();">
+                    <div class="error-message" id="emailError" style="color: red; display: none;">Please enter a valid email address.</div>
                 </div>
                 <div class="form-group">
                     <label for="role">Role</label>
-                    <select id="role" name="role" required>
+                    <select id="role" name="role" required onchange="validateRole();">
                         <option value="">Select Role</option>
                         <option value="DESIGNER">Designer (UI/UX)</option>
                         <option value="FRONTEND_DEV">Frontend Developer</option>
                         <option value="BACKEND_DEV">Backend Developer</option>
                         <option value="QA_TESTER">Quality Assurance Tester</option>
                     </select>
+                    <div class="error-message" id="roleError" style="color: red; display: none;">Please select a role.</div>
                 </div>
-                <button type="submit" class="submit-btn">Send Invitation</button>
+                <button type="submit" class="submit-btn" id="submitBtn" disabled title="Please fill out all fields correctly.">Send Invitation</button>
+                <div class="error-message" id="formError" style="color: red; display: none;">Please fill the form correctly.</div>
             </form>
         </div>
     </div>
@@ -203,7 +220,7 @@
     </div>
 
     <div id="projects" class="toggle-section" style="display: none;">
-        <h2>Projects</h2>
+        
         <table>
             <thead>
                 <tr>
@@ -211,6 +228,8 @@
                     <th>Project Title</th>
                     <th>Start Date</th>
                     <th>Status</th>
+                    <th>Repository</th>
+                    <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -239,6 +258,23 @@
                             {{ project.project_status }}
                         </span>
                     </td>
+                    <td>
+                        {% for project_detail in project_details %}
+                            {% if project_detail.repository_id %}
+                                <a href="{% url 'freelancer:view_repository' project_detail.repository_id %}" title="Repository" class="btn btn-sm btn-info view-repo-btn">
+                                    <i class="fa-solid fa-folder-open"></i>Repository
+                                </a>
+                            {% else %}
+                                <span>Not Available</span>
+                            {% endif %}
+                        {% endfor %}
+                    </td>
+                    <td>
+                        {% if salary_paid_all_members %}
+        <button class="action-btn paid-btn" disabled>Paid</button>
+    {% else %}
+        <button class="pay-salary-btn action-btn" onclick="paySalary('{{ project.id }}');" {% if not payment_received %}disabled{% endif %}>Pay Salary</button>
+    {% endif %}</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -408,7 +444,7 @@ th {
 }
 
 td {
-    padding: 16px;
+    padding: 12px;
     color: #495057;
     border-bottom: 1px solid #e9ecef;
     transition: background-color 0.2s;
@@ -719,7 +755,121 @@ tbody tr:hover {
     background-color: #ffc107; /* Yellow background */
     color: white; /* White text */
 }
+
+/* Add this new style for the Pay Salary button */
+.pay-salary-btn {
+    background-color: #007bff; /* Blue background */
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    font-weight: 500;
+    transition: background-color 0.2s;
+    cursor: pointer;
+}
+
+.pay-salary-btn:hover {
+    background-color: #0056b3; /* Darker blue on hover */
+}
+
+.pay-salary-btn:disabled {
+    background-color: #6c757d; /* Gray background for disabled state */
+    cursor: not-allowed; /* Change cursor to indicate disabled */
+}
+
+.submit-btn:disabled {
+    background-color: red; /* Change background color to red when disabled */
+    color: white; /* Change text color to white for better contrast */
+    cursor: not-allowed; /* Change cursor to indicate disabled state */
+}
 </style>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script>
+$(document).ready(function () {
+    // Validation flags
+    var freelancer_error = false;
+    var email_error = false;
+    var role_error = false;
+
+    // Validate freelancer selection
+    function validateFreelancer() {
+        var freelancerSelect = $("#freelancer").val();
+        if (freelancerSelect === "") {
+            $("#freelancerError").show();
+            freelancer_error = true;
+        } else {
+            $("#freelancerError").hide();
+            freelancer_error = false;
+        }
+        toggleSubmitButton();
+    }
+
+    // Validate email
+    function validateEmail() {
+        var emailInput = $("#email").val();
+        var emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if ($("#freelancer").val() === 'other') {
+            if (emailPattern.test(emailInput) && emailInput !== "") {
+                $("#emailError").hide();
+                email_error = false;
+            } else {
+                $("#emailError").html("Invalid Email id").show();
+                email_error = true;
+            }
+        } else {
+            $("#emailError").hide();
+            email_error = false;
+        }
+        toggleSubmitButton();
+    }
+
+    // Validate role selection
+    function validateRole() {
+        var roleSelect = $("#role").val();
+        if (roleSelect === "") {
+            $("#roleError").show();
+            role_error = true;
+        } else {
+            $("#roleError").hide();
+            role_error = false;
+        }
+        toggleSubmitButton();
+    }
+
+    // Toggle submit button based on validation
+    function toggleSubmitButton() {
+        if (!freelancer_error && !email_error && !role_error) {
+            $("#submitBtn").prop("disabled", false);
+            $("#formError").hide();
+        } else {
+            $("#submitBtn").prop("disabled", true);
+            $("#formError").show();
+        }
+    }
+
+    // Event listeners
+    $("#freelancer").on('change', function() {
+        toggleEmailInput();
+        validateFreelancer();
+    });
+    $("#email").on('keyup', validateEmail);
+    $("#role").on('change', validateRole);
+
+    // Validate on form submit
+    $("#inviteForm").on('submit', function(event) {
+        validateFreelancer();
+        validateEmail();
+        validateRole();
+
+        // Prevent form submission if there are validation errors
+        if (freelancer_error || email_error || role_error) {
+            event.preventDefault(); // Prevent form submission
+            $("#formError").html("Please fill the form correctly.").show();
+        }
+    });
+});
+</script>
 
 <script>
 function toggleSection(section) {
@@ -880,5 +1030,30 @@ function toggleEmailInput() {
 
     createGroupChatroom();
 {% endif %}
+
+function paySalary(projectId) {
+    fetch(`{% url 'freelancer:pay_team_salaries' %}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body: JSON.stringify({ project_id: projectId })
+    })
+    .then(response => {
+        if (response.ok) {
+            toastr.success('Salaries paid successfully for all team members based on project budget.');
+        } else {
+            return response.text().then(text => {
+                console.error('Error response:', text);
+                toastr.error('Failed to pay salaries: ' + text);
+            });
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        toastr.error('An error occurred while paying salaries. Please try again.');
+    });
+}
 </script>
 {% endblock %}

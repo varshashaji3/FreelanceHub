@@ -1,0 +1,129 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container py-5">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>Learning Dashboard</h1>
+        <a href="{% url 'freelancer:create_learning_path' %}" class="btn btn-primary">Create New Learning Path</a>
+    </div>
+
+    <!-- Stats Overview -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <h5 class="card-title">Course Progress</h5>
+                    <h2>{{ completion_stats.completed_courses }}/{{ completion_stats.total_courses }}</h2>
+                    <p>Courses Completed</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <h5 class="card-title">Active Learning Paths</h5>
+                    <h2>{{ active_paths.count }}</h2>
+                    <p>In Progress</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <h5 class="card-title">Skill Gaps</h5>
+                    <h2>{{ skill_gaps|length }}</h2>
+                    <p>Areas for Improvement</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Market Trends -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h4>Top Market Trends</h4>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Skill</th>
+                            <th>Demand Score</th>
+                            <th>Average Rate</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for trend in market_trends %}
+                        <tr>
+                            <td>{{ trend.skill_name }}</td>
+                            <td>
+                                <div class="progress">
+                                    <div class="progress-bar" role="progressbar" style="width: {{ trend.demand_score|multiply:10 }}%" aria-valuenow="{{ trend.demand_score }}" aria-valuemin="0" aria-valuemax="10"></div>
+                                </div>
+                            </td>
+                            <td>${{ trend.avg_hourly_rate }}/hr</td>
+                            <td>
+                                <a href="{% url 'freelancer:create_learning_path' %}?skill={{ trend.skill_name }}" class="btn btn-sm btn-outline-primary">Start Learning</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Active Learning Paths -->
+    <div class="row">
+        {% for path in active_paths %}
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5>{{ path.target_skill }}</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label>Progress Level</label>
+                        <div class="progress">
+                            <div class="progress-bar" role="progressbar" 
+                                style="width: {{ path.current_level|divide:path.target_level|multiply:100 }}%"
+                                aria-valuenow="{{ path.current_level }}" 
+                                aria-valuemin="0" 
+                                aria-valuemax="{{ path.target_level }}">
+                                Level {{ path.current_level }}/{{ path.target_level }}
+                            </div>
+                        </div>
+                    </div>
+
+                    <h6>Recommended Courses:</h6>
+                    <div class="list-group">
+                        {% for recommendation in path.courserecommendation_set.all %}
+                        <div class="list-group-item">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="mb-1">{{ recommendation.course.title }}</h6>
+                                    <small>{{ recommendation.course.provider }} • {{ recommendation.course.duration_hours }} hours</small>
+                                </div>
+                                {% if recommendation.is_completed %}
+                                    <span class="badge bg-success">Completed</span>
+                                {% else %}
+                                    <form method="post" action="{% url 'freelancer:mark_course_completed' recommendation.id %}">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn btn-sm btn-outline-success">Mark Complete</button>
+                                    </form>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
