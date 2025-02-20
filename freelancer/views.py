@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime as dt, date as dt_date, timedelta
 import random
 import string
 from django.http import HttpResponse
@@ -54,6 +54,24 @@ import warnings
 
 # Suppress specific FutureWarnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
+from datetime import datetime as dt, date as dt_date, timedelta
+
+import pandas as pd
+import os
+
+# Load the standardized skills DataFrame, skipping bad lines and without a header
+try:
+    standardized_skills_df = pd.read_csv(
+        os.path.join(os.path.dirname(__file__), 'skills.csv'),
+        header=None,  # Specify that there is no header
+        on_bad_lines='skip'  # This will skip lines with too many fields
+    )
+    standardized_skills_df.columns = ['skill']  # Assign a column name
+except Exception as e:
+    print(f"Error reading skills.csv: {e}")
+
+# Now you can access the 'skill' column
+standardized_skills = set(standardized_skills_df['skill'].str.strip())  # Store for quick lookup
 
 @login_required
 @nocache
@@ -145,22 +163,71 @@ def freelancer_view(request):
             'events': events
         })
     
-    # Calculate monthly earnings based on the paid_at date and status
-    monthly_earnings = PaymentInstallment.objects.filter(
-        contract__freelancer=logged_user,  # Ensure the contract is associated with the logged-in freelancer
-        status='paid',  # Only include installments with status 'paid'
-        paid_at__isnull=False  # Ensure only paid installments are considered
-    ).annotate(
-        month=TruncMonth('paid_at')
-    ).values('month').annotate(
-        total_earnings=Sum('amount')
-    ).order_by('month')
+    # Calculate monthly earnings
+    monthly_earnings_data = []
 
-    # Prepare data for the chart
+    # Get all paid payment installments for individual projects
+    payment_installments = PaymentInstallment.objects.filter(
+        status='paid',
+        paid_at__isnull=False,
+        contract__project__freelancer=logged_user
+    )
+
+    print("\n=== Individual Project Earnings ===")
+    for installment in payment_installments:
+        amount = float(installment.amount)
+        paid_date = installment.paid_at.strftime('%Y-%m-%d')
+        print(f"Date: {paid_date} | Amount: ${amount:.2f} | Project: {installment.contract.project.title}")
+        
+        # Convert to datetime if it's a date
+        month_date = installment.paid_at
+        if isinstance(month_date, dt_date) and not isinstance(month_date, dt):
+            month_date = dt.combine(month_date, dt.min.time())
+        monthly_earnings_data.append({
+            'month': month_date.replace(day=1, hour=0, minute=0, second=0, microsecond=0),
+            'amount': amount
+        })
+
+    # Get all paid salary payments for team projects
+    salary_payments = SalaryPayment.objects.filter(
+        status='completed',  
+        team_member__user=logged_user
+    )
+
+    print("\n=== Team Project Earnings ===")
+    for salary in salary_payments:
+        amount = float(salary.amount_paid)
+        date = salary.payment_date.strftime('%Y-%m-%d')
+        print(f"Date: {date} | Amount: ${amount:.2f} | Team: {salary.team_member.team.name}")
+        # Convert to datetime if it's a date
+        month_date = salary.payment_date
+        if isinstance(month_date, dt_date) and not isinstance(month_date, dt):
+            month_date = dt.combine(month_date, dt.min.time())
+        monthly_earnings_data.append({
+            'month': month_date.replace(day=1, hour=0, minute=0, second=0, microsecond=0),
+            'amount': amount
+        })
+
+    # Aggregate earnings by month
+    earnings_by_month = {}
+    for entry in monthly_earnings_data:
+        month = entry['month']
+        earnings_by_month[month] = earnings_by_month.get(month, 0) + float(entry['amount'])
+
+    print("\n=== Monthly Totals ===")
+    for month, total in sorted(earnings_by_month.items()):
+        print(f"Month: {month.strftime('%B %Y')} | Total: ${total:.2f}")
+
+    # Sort months and prepare final data
+    sorted_months = sorted(earnings_by_month.keys())
     earnings_data = {
-        'months': [entry['month'].strftime('%B') for entry in monthly_earnings],
-        'earnings': [float(entry['total_earnings']) for entry in monthly_earnings]
+        'months': [month.strftime('%B') for month in sorted_months],
+        'earnings': [earnings_by_month[month] for month in sorted_months]
     }
+
+    print("\n=== Final Chart Data ===")
+    print("Months:", earnings_data['months'])
+    print("Earnings:", [f"${amount:.2f}" for amount in earnings_data['earnings']])
 
     # Calculate top clients by revenue
     top_clients = Project.objects.filter(freelancer=logged_user).values(
@@ -915,8 +982,10 @@ def update_todo_status(request):
     
     try:
         todo = Todo.objects.get(id=todo_id)
-        todo.is_completed = is_completed
-        todo.save()
+        # Only allow marking as completed, ignore attempts to unmark
+        if is_completed:
+            todo.is_completed = True
+            todo.save()
         return JsonResponse({'status': 'success'})
     except Todo.DoesNotExist:
         return JsonResponse({'status': 'error', 'message': 'Todo not found'}, status=404)
@@ -2018,26 +2087,45 @@ def fetch_messages(request):
 
         messages_list = []
         for message in messages:
-            # Determine the sender's username and profile picture
-            if message.sender:
-                sender_username = message.sender.username  # Get the username of the sender
-                sender_id = message.sender.id  # Get the sender's ID
-                sender_profile_picture = message.sender.register.profile_picture.url if message.sender.register.profile_picture else None  # Get the sender's profile picture
-            else:
-                sender_username = 'Unknown'  # Fallback if sender is not found
-                sender_id = None
-                sender_profile_picture = None
+            sender_username = 'Unknown'
+            sender_id = None
+            sender_profile_picture = None
+            sender_name = None
 
-            
+            if message.sender:
+                try:
+                    register = Register.objects.get(user=message.sender)
+                    
+                    # Debug print to check what's being retrieved
+                    print(f"Register found for user {message.sender.username}")
+                    print(f"Profile picture field: {register.profile_picture}")
+                    print(f"Profile picture URL: {register.profile_picture.url if register.profile_picture else 'No URL'}")
+                    
+                    # Make sure we're getting the full URL
+                    if register.profile_picture and register.profile_picture.url:
+                        sender_profile_picture = request.build_absolute_uri(register.profile_picture.url)
+                    
+                    sender_name = f"{register.first_name} {register.last_name}"
+                    sender_username = message.sender.username
+                    sender_id = message.sender.id
+
+                except Register.DoesNotExist:
+                    print(f"No Register profile found for user {message.sender.username}")
+                except Exception as e:
+                    print(f"Error getting profile picture: {str(e)}")
+
             msg_data = {
                 'content': message.content if message.content else '',
                 'type': 'sent' if message.sender == request.user else 'received',
-                'image': message.image.url if message.image and hasattr(message.image, 'url') else None,
-                'file': message.file.url if message.file and hasattr(message.file, 'url') else None,
-                'senderUsername': sender_username, 
-                'senderId': sender_id,  
-                'senderProfilePicture': sender_profile_picture,  
+                'senderUsername': sender_username,
+                'senderId': sender_id,
+                'senderName': sender_name,
+                'senderProfilePicture': sender_profile_picture,
+                'timestamp': message.timestamp.strftime('%Y-%m-%d %H:%M:%S')
             }
+            
+            # Debug print the final message data
+            print(f"Message data being sent: {msg_data}")
             messages_list.append(msg_data)
 
         return JsonResponse({'success': True, 'messages': messages_list})
@@ -2927,7 +3015,8 @@ def manage_team(request, team_id):
                 'join_date': member.joined_at,
                 'status': member.is_active,
                 'email': member.user.email,
-                'profile_picture': member.user.register.profile_picture.url if member.user.register.profile_picture else None
+                'profile_picture': member.user.register.profile_picture.url if member.user.register.profile_picture else None,
+                'salary_percentage': member.salary_percentage or 0  # Add this line
             })
 
     # Format available freelancers data with professions
@@ -2975,10 +3064,17 @@ def manage_team(request, team_id):
             'invitation_id': invitation.id  # Pass the expired status
         })
 
+    # Calculate total allocated salary percentage
+    total_allocated_percentage = sum(
+        member.get('salary_percentage', 0) 
+        for member in team_members_data
+    )
+
     context = {
         'team': team,
         'team_members': team_members_data,
         'current_percentages': current_percentages,
+        'total_allocated_percentage': total_allocated_percentage,
         'is_manager': TeamMember.objects.filter(
             team=team,
             user=request.user,
@@ -3374,460 +3470,7 @@ def pay_team_salaries(request):
 
     return JsonResponse({'error': 'Invalid request method'}, status=405)
 
-from pytrends.request import TrendReq
-import requests
-from bs4 import BeautifulSoup
-from django.http import JsonResponse
-from django.contrib.auth.decorators import login_required
-from .models import FreelancerProfile
 
-from pytrends.request import TrendReq
-
-import time
-from pytrends.request import TrendReq
-
-def get_trending_skills_for_profession_real_time(profession):
-    pytrends = TrendReq(hl='en-US', tz=360)
-    query = profession + " skills"
-
-    for attempt in range(5):  # Retry up to 5 times
-        try:
-            time.sleep(10)  # Wait at least 10 seconds between requests
-            pytrends.build_payload([query], cat=0, timeframe='now 7-d', geo='', gprop='')
-            related_queries = pytrends.related_queries()
-            
-            if query in related_queries and related_queries[query]['top'] is not None:
-                trending_data = related_queries[query]['top']
-                trending_skills = trending_data['query'].tolist() if not trending_data.empty else []
-                return trending_skills
-            else:
-                return []
-        except Exception as e:
-            if "429" in str(e):  # Check for rate limit error
-                print("Rate limit hit, retrying after longer wait...")
-                time.sleep(2 ** (attempt + 3))  # Exponential backoff with higher base wait time
-            else:
-                print(f"Error fetching trending skills for '{profession}': {str(e)}")
-                return []
-
-    return []
-  # Return empty if all attempts fail
-
-# def course_recommendations_api(request):
-#     """
-#     API endpoint: Compares freelancer's skills against trending skills and returns 
-#     course recommendations based on the skill gap.
-#     """
-#     user = request.user
-#     freelancer_skills = get_freelancer_skills(user)
-#     professions = get_freelancer_professions(user)
-
-#     trending_skills = []
-#     for profession in professions:
-#         # Fetch real-time trending skills from Google Trends
-#         trending_skills_for_profession = get_trending_skills_for_profession_real_time(profession)
-#         trending_skills.extend(trending_skills_for_profession)
-    
-#     # Remove duplicates by converting to set
-#     trending_skills = list(set(trending_skills))
-    
-#     # Debugging: print the combined trending skills
-#     print(f"Combined trending skills for freelancer: {trending_skills}")
-    
-#     # Compute the skill gap (missing skills)
-#     skill_gap = [skill for skill in trending_skills if skill not in freelancer_skills]
-    
-#     # Debugging: print the skill gap
-#     print(f"Skill gap (missing skills): {skill_gap}")
-    
-#     # Generate course recommendations for missing skills
-#     recommendations = get_course_recommendations_for_skills(skill_gap)
-    
-#     # Debugging: print the generated course recommendations
-#     print(f"Generated course recommendations: {recommendations}")
-    
-#     return JsonResponse({'course_recommendations': recommendations})
-
-
-    
-def get_trending_skills_from_coursera(profession):
-    """
-    Fetch trending skills related to a profession from Coursera by scraping.
-    """
-    search_url = f'https://www.coursera.org/search?query={profession}&index=prod_all_courses'
-    response = requests.get(search_url)
-    
-    if response.status_code == 200:
-        soup = BeautifulSoup(response.text, 'html.parser')
-        
-        # Extract course names and skills from Coursera courses
-        skills = []
-        for course in soup.find_all('a', {'class': 'rc-DesktopSearchCard anchor-wrapper'}):
-            course_title = course.get_text().lower()
-            if 'javascript' in course_title:
-                skills.append('javascript')
-            if 'python' in course_title:
-                skills.append('python')
-            if 'nodejs' in course_title:
-                skills.append('nodejs')
-            # Add more logic to scrape specific skills
-        
-        print(f"Trending skills from Coursera for profession '{profession}': {skills}")  # Debugging print
-        return list(set(skills))  # Remove duplicates
-    else:
-        print(f"Error scraping Coursera for profession '{profession}'. Status code: {response.status_code}")
-        return []
-
-
-# Function to fetch freelancer's professions from the FreelancerProfile table
-def get_freelancer_professions(user):
-    freelancer_profile = FreelancerProfile.objects.get(user=user)
-    professions = freelancer_profile.professional_title.strip('[]').replace("'", "").split(', ')
-    print(f"Freelancer's professions: {professions}")  # Debugging print
-    return professions
-
-
-# Function to fetch freelancer's skills from the FreelancerProfile table
-def get_freelancer_skills(user):
-    freelancer_profile = FreelancerProfile.objects.get(user=user)
-    skills = freelancer_profile.skills.strip('[]').replace("'", "").split(', ')
-    print(f"Freelancer's skills: {skills}")  # Debugging print
-    return skills
-
-
-# Function to compute the skill gap (missing skills) based on trending skills
-def get_skill_gap(freelancer_skills, trending_skills):
-    """
-    Compare the freelancer's skills with the trending skills to find the skill gap.
-    """
-    skill_gap = [skill for skill in trending_skills if skill not in freelancer_skills]
-    print(f"Skill gap (missing skills): {skill_gap}")  # Debugging print
-    return skill_gap
-
-
-# Function to get course recommendations for missing skills (skill gap)
-def get_course_recommendations_for_skills(skill_gap):
-    """
-    Generate course recommendations from GreatLearning, Coursera, and Simplilearn
-    for each missing skill.
-    """
-    courses = []
-    providers = ['GreatLearning', 'Coursera', 'Simplilearn']
-    provider_links = {
-       'GreatLearning': "https://www.mygreatlearning.com/academy/search?keyword=",
-       'Coursera': "https://www.coursera.org/search?query=",
-       'Simplilearn': "https://www.simplilearn.com/search?text="
-    }
-    
-    for idx, skill in enumerate(skill_gap):
-        provider = providers[idx % len(providers)]
-        enroll_url = provider_links[provider] + skill
-        course = {
-            'skill_gap': skill,
-            'title': f"Master {skill.capitalize()} via {provider}",
-            'provider': provider,
-            'rating': 4.5,  # Dummy rating; replace with real data if available
-            'enroll_url': enroll_url
-        }
-        courses.append(course)
-    
-    print(f"Generated course recommendations: {courses}")  # Debugging print
-    return courses
-
-
-# Main API endpoint to compare freelancer's skills with trending skills and recommend courses
-@login_required
-def course_recommendations_api(request):
-    """
-    API endpoint that compares freelancer's skills against real-time trending skills
-    and returns course recommendations based on the skill gap.
-    """
-    user = request.user
-    freelancer_skills = get_freelancer_skills(user)
-    freelancer_professions = get_freelancer_professions(user)
-    
-    # Fetch real-time trending skills for each profession
-    trending_skills = []
-    for profession in freelancer_professions:
-        # Fetch trending skills from Google Trends and Coursera (you can combine both)
-        trending_skills.extend(get_trending_skills_for_profession_real_time(profession))
-        trending_skills.extend(get_trending_skills_from_coursera(profession))
-    
-    # Remove duplicates and clean up the trending skills
-    trending_skills = list(set(trending_skills))
-    print(f"Combined trending skills for freelancer: {trending_skills}")  # Debugging print
-    
-    # Compute the gap by comparing freelancer's skills with trending skills
-    skill_gap = get_skill_gap(freelancer_skills, trending_skills)
-    
-    # Generate course recommendations for the skill gap
-    recommendations = get_course_recommendations_for_skills(skill_gap)
-    
-    return JsonResponse({'course_recommendations': recommendations, 'skill_gap': skill_gap})
-
-
-
-from django.shortcuts import render, redirect
-from django.contrib import messages
-
-def analyze_skill_gap(request):
-    if not request.user.is_authenticated:
-        return redirect('login')
-
-    try:
-        freelancer = FreelancerProfile.objects.get(user_id=request.user.id)
-        
-        # Debug print
-        print("Raw professional title:", freelancer.professional_title)
-        print("Raw skills:", freelancer.skills)
-        
-        # Split professional titles and skills
-        professional_titles = []
-        skills = []
-        
-        if freelancer.professional_title and len(freelancer.professional_title.strip()) > 0:
-            professional_titles = freelancer.professional_title.strip('[]').replace("'", "").split(', ')
-        if freelancer.skills and len(freelancer.skills.strip()) > 0:
-            skills = freelancer.skills.strip('[]').replace("'", "").split(', ')
-            
-        print("Processed professional titles:", professional_titles)
-        print("Processed skills:", skills)
-
-        # Get trending skills
-        try:
-            trending_skills = get_web_dev_skills_trends()
-            print("Trending skills:", trending_skills)
-        except Exception as e:
-            print("Error getting trending skills:", str(e))
-            trending_skills = pd.Series()
-
-        # Find skill gaps
-        skill_gaps = []
-        for skill, score in trending_skills.items():
-            if skill not in skills:
-                skill_gaps.append({
-                    'skill': skill,
-                    'trend_score': round(score, 2)
-                })
-
-        print("Identified skill gaps:", skill_gaps)
-
-        context = {
-            'professional_titles': professional_titles,
-            'current_skills': skills,
-            'skill_gaps': skill_gaps,
-            'trending_skills': trending_skills.to_dict() if not trending_skills.empty else {},
-            'freelancer': freelancer,  # Add this for the layout
-            'page_title': 'Skill Gap Analysis'  # Add this for the layout
-        }
-        
-        # Debug print the context
-        print("Context being sent to template:", context)
-        
-        return render(request, 'freelancer/skill_gap_analysis.html', context)
-        
-    except FreelancerProfile.DoesNotExist:
-        print("FreelancerProfile not found for user:", request.user.id)
-        messages.error(request, "Freelancer profile not found")
-        return redirect('freelancer:freelancer_view')
-    except Exception as e:
-        print("Error in analyze_skill_gap:", str(e))
-        messages.error(request, f"An error occurred: {str(e)}")
-        return redirect('freelancer:freelancer_view')
-
-def get_web_dev_skills_trends():
-    try:
-        pytrends = TrendReq(hl='en-US', tz=360, retries=3, backoff_factor=0.5)
-
-        
-        # Define skills based on the specified professional titles
-        skills_map = {
-            'Web Developer': [
-                'JavaScript', 'HTML', 'CSS', 'React', 'Node.js', 'Express', 'MongoDB', 
-                'RESTful APIs', 'GraphQL', 'jQuery', 'Bootstrap', 'SASS', 'Version Control', 
-                'Git', 'Responsive Design', 'Webpack', 'TypeScript', 'PHP', 'Django', 
-                'Ruby on Rails', 'SQL', 'NoSQL'
-            ],
-            'Front-End Developer': [
-                'HTML', 'CSS', 'JavaScript', 'React', 'Vue.js', 'Angular', 'Bootstrap', 
-                'SASS', 'jQuery', 'Responsive Design', 'Cross-Browser Compatibility', 
-                'Version Control', 'Git', 'Figma', 'Adobe XD', 'User Interface Design'
-            ],
-            'Back-End Developer': [
-                'Node.js', 'Express', 'Python', 'Django', 'Ruby on Rails', 'Java', 
-                'Spring', 'PHP', 'Laravel', 'SQL', 'NoSQL', 'MongoDB', 'RESTful APIs', 
-                'GraphQL', 'Microservices', 'Docker', 'Kubernetes', 'Version Control', 'Git'
-            ],
-            'Full-Stack Developer': [
-                'JavaScript', 'HTML', 'CSS', 'React', 'Node.js', 'Express', 'Python', 
-                'Django', 'Ruby on Rails', 'SQL', 'NoSQL', 'RESTful APIs', 'GraphQL', 
-                'Version Control', 'Git', 'Docker', 'Kubernetes', 'Microservices'
-            ],
-            'Mobile App Developer': [
-                'Java', 'Kotlin', 'Swift', 'React Native', 'Flutter', 'Xcode', 'Android SDK', 
-                'iOS SDK', 'Firebase', 'RESTful APIs', 'Version Control', 'Git', 
-                'User Interface Design', 'Cross-Platform Development'
-            ],
-            'Android Developer': [
-                'Java', 'Kotlin', 'Android SDK', 'XML', 'Firebase', 'Gradle', 
-                'RESTful APIs', 'Version Control', 'Git', 'Material Design', 
-                'User Interface Design'
-            ],
-            'iOS Developer': [
-                'Swift', 'Objective-C', 'Xcode', 'Cocoa Touch', 'RESTful APIs', 
-                'Version Control', 'Git', 'Core Data', 'UIKit', 'SwiftUI', 
-                'User Interface Design'
-            ],
-            'UI/UX Designer': [
-                'Figma', 'Adobe XD', 'Sketch', 'InVision', 'User Research', 
-                'Wireframing', 'Prototyping', 'Usability Testing', 'Interaction Design', 
-                'Visual Design', 'Responsive Design', 'HTML', 'CSS'
-            ],
-            'Graphic Designer': [
-                'Photoshop', 'Illustrator', 'InDesign', 'CorelDRAW', 'Typography', 
-                'Branding', 'Layout Design', 'Print Design', 'Digital Illustration', 
-                'Logo Design'
-            ],
-            'Logo Designer': [
-                'Illustrator', 'Photoshop', 'CorelDRAW', 'Branding', 'Typography', 
-                'Color Theory', 'Layout Design'
-            ],
-            'Poster Designer': [
-                'InDesign', 'Photoshop', 'Illustrator', 'Typography', 'Layout', 
-                'Print Design', 'Digital Illustration'
-            ],
-            'Machine Learning Engineer': [
-                'Python', 'TensorFlow', 'Keras', 'Scikit-learn', 'Pandas', 
-                'NumPy', 'Data Analysis', 'Data Visualization', 'Deep Learning', 
-                'Natural Language Processing', 'Computer Vision'
-            ],
-            'Artificial Intelligence Specialist': [
-                'Python', 'Machine Learning', 'Deep Learning', 'NLP', 'TensorFlow', 
-                'Keras', 'Data Analysis', 'Data Visualization', 'Reinforcement Learning'
-            ],
-            'Software Developer': [
-                'Java', 'C#', 'Python', 'JavaScript', 'SQL', 'Version Control', 
-                'Git', 'Agile Methodologies', 'Scrum', 'RESTful APIs', 
-                'Microservices', 'Docker', 'Testing', 'Debugging'
-            ],
-        }
-        
-        all_skills = []
-        for skill_set in skills_map.values():
-            all_skills.extend(skill_set)
-        
-        # Remove duplicates
-        skills = list(set(all_skills))
-        
-        results = []
-        for i in range(0, len(skills), 5):
-            batch = skills[i:i+5]
-            pytrends.build_payload(
-                batch,
-                cat=0,
-                timeframe='today 3-m',
-                geo='',
-                gprop=''
-            )
-            interest_data = pytrends.interest_over_time()
-            if not interest_data.empty:
-                results.append(interest_data)
-            time.sleep(1)
-        
-        if results:
-            final_df = pd.concat(results, axis=1)
-            return final_df.mean().sort_values(ascending=False)
-        return pd.Series()
-        
-    except Exception as e:
-        print(f"Error in get_web_dev_skills_trends: {str(e)}")
-        return pd.Series()
-
-def get_course_recommendations_for_skills(skill_gaps):
-    """
-    Generate course recommendations from multiple platforms for missing skills
-    """
-    course_platforms = {
-        'Coursera': 'https://www.coursera.org/search?query=',
-        'GreatLearning': 'https://www.mygreatlearning.com/academy/search?keyword='
-    }
-    
-    recommendations = []
-    
-    for skill in skill_gaps:
-        # Create course recommendations for each platform
-        for platform, base_url in course_platforms.items():
-            course = {
-                'skill': skill,
-                'platform': platform,
-                'title': f"Learn {skill} on {platform}",
-                'url': f"{base_url}{skill.replace(' ', '+')}"
-            }
-            recommendations.append(course)
-    
-    return recommendations
-
-def normalize_skill_name(skill):
-    """Normalize skill names for comparison"""
-    return skill.lower().replace(' ', '').replace('-', '').replace('_', '')
-
-def analyze_skill_gap(request):
-    """
-    View function for skill gap analysis
-    """
-    if not request.user.is_authenticated:
-        return redirect('login')
-    try:
-        freelancer = FreelancerProfile.objects.get(user_id=request.user.id)
-        
-        # Split professional titles and skills
-        professional_titles = []
-        skills = []
-        
-        if freelancer.professional_title:
-            professional_titles = freelancer.professional_title.strip('[]').replace("'", "").split(', ')
-        if freelancer.skills:
-            skills = [normalize_skill_name(skill) for skill in freelancer.skills.strip('[]').replace("'", "").split(', ')]
-            
-        print("Processed skills:", skills)
-
-        # Get trending skills
-        trending_skills = get_web_dev_skills_trends()
-        print("Trending skills:", trending_skills)
-
-        # Find skill gaps (include all skills with score > 0)
-        skill_gaps = []
-        for skill, score in trending_skills.items():
-            normalized_trending_skill = normalize_skill_name(skill)
-            if normalized_trending_skill not in skills and score > 0 and 'isPartial' not in skill:  # Remove isPartial entries
-                skill_gaps.append({
-                    'skill': skill,
-                    'trend_score': round(score, 2)
-                })
-
-        # Sort skill gaps by trend score
-        skill_gaps = sorted(skill_gaps, key=lambda x: x['trend_score'], reverse=True)
-        print("Identified skill gaps:", skill_gaps)
-
-        # Get course recommendations
-        course_recommendations = get_course_recommendations_for_skills([gap['skill'] for gap in skill_gaps])
-
-        context = {
-            'professional_titles': professional_titles,
-            'current_skills': [skill for skill in freelancer.skills.strip('[]').replace("'", "").split(', ')],
-            'skill_gaps': skill_gaps,
-            'course_recommendations': course_recommendations,
-            'trending_skills': trending_skills.to_dict(),
-            'freelancer': freelancer,
-            'page_title': 'Skill Gap Analysis'
-        }
-        
-        return render(request, 'freelancer/skill_gap_analysis.html', context)
-        
-    except Exception as e:
-        print("Error:", str(e))
-        messages.error(request, f"An error occurred: {str(e)}")
-        return redirect('freelancer:freelancer_view')
 
 @csrf_exempt  # Use this only if you are not using CSRF tokens in AJAX requests
 @login_required
@@ -3856,26 +3499,44 @@ def events_and_quizzes_view(request):
     ).order_by('date')
     
     past_events = EventAndQuiz.objects.filter(
-        event_status='done',
-        date__gt=current_time
+        Q(event_status='done') | Q(date__gt=current_time)  # OR condition
     ).order_by('date')
     
-    registered_events = EventRegistration.objects.filter(
+    # Get both registration IDs and attended status
+    registrations = EventRegistration.objects.filter(
         freelancer=request.user
-    ).values_list('event_id', flat=True)
+    ).values('event_id', 'attended')
     
+    registered_events = {reg['event_id']: reg['attended'] for reg in registrations}
+    
+    print(registered_events)
     upcoming_events_list = upcoming_events.filter(type='event')
     upcoming_quizzes = upcoming_events.filter(type='quiz')
     past_events_list = past_events.filter(type='event')
     past_quizzes = past_events.filter(type='quiz')
-    
+
+    # Fetch certificates
+    user_id = request.user.id
+    certificates_path = os.path.join(settings.MEDIA_ROOT, 'certificates', str(user_id))
+    certificates = []
+
+    if os.path.exists(certificates_path):
+        for filename in os.listdir(certificates_path):
+            if filename.endswith('.pdf') or filename.endswith('.jpg') or filename.endswith('.png'):  # Adjust as needed
+                certificates.append({
+                    'name': filename,
+                    'view_url': f'/media/certificates/{user_id}/{filename}',  # URL to view the certificate
+                    'download_url': f'/media/certificates/{user_id}/{filename}'  # URL to download the certificate
+                })
+
     context = {
         'upcoming_events': upcoming_events_list,
         'upcoming_quizzes': upcoming_quizzes,
         'past_events': past_events_list,
         'past_quizzes': past_quizzes,
-        'registered_events': registered_events,
-        'active_page': 'events_quizzes'
+        'registered_events': registered_events,  # Now contains both event_id and attended status
+        'active_page': 'events_quizzes',
+        'certificates': certificates  # Add certificates to context
     }
     
     return render(request, 'freelancer/events_and_quizzes.html', context)
@@ -3971,20 +3632,29 @@ def quiz_view(request, quiz_id):
         event=quiz_id  
     ).exists()
     event = get_object_or_404(EventAndQuiz, id=quiz_id)
-    is_attended=EventRegistration.objects.filter(
+    is_attended = EventRegistration.objects.filter(
         freelancer=request.user,
-        event=quiz_id ,
+        event=quiz_id,
         attended=True
     ).exists()
-    duration = event.duration  
-    questions = QuizQuestion.objects.filter(quiz=quiz_id).values('question', 'option1', 'option2', 'option3', 'option4','correct_answer','points')
-    questions_list = list(questions) 
+    
+    # Calculate end time by adding duration directly (since it's already a timedelta)
+    duration = event.duration
+    end_time = event.date + duration
+    
+    questions = QuizQuestion.objects.filter(quiz=quiz_id).values(
+        'question', 'option1', 'option2', 'option3', 'option4',
+        'correct_answer', 'points'
+    )
+    questions_list = list(questions)
+    
     return render(request, 'freelancer/quiz.html', {
         'quiz_id': quiz_id,
         'questions': questions_list,
         'is_registered': is_registered,
-        'duration':duration,
-        'is_attended': is_attended
+        'duration': duration,
+        'is_attended': is_attended,
+        'end_time': end_time  # Add end time to context
     })
     
 from client.models import QuizAttempt  # Add this import at the top
@@ -4028,3 +3698,616 @@ def submit_quiz(request, quiz_id):
         'success': False,
         'message': 'Invalid request method.'
     }, status=400)
+    
+    
+    
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+import requests
+import json
+from .models import FreelancerProfile
+
+@login_required
+@nocache
+def analyze_skill_gap(request):
+    if 'uid' not in request.session:
+        return redirect('login')
+
+    uid = request.session['uid']
+    profile1 = CustomUser.objects.get(id=uid)
+    profile2 = Register.objects.get(user_id=uid)
+    freelancer = FreelancerProfile.objects.get(user_id=uid)
+    
+    if profile1.permission:
+        
+        context = {
+            'profile1': profile1,
+            'profile2': profile2,
+            'freelancer': freelancer,
+        }
+        
+        return render(request, 'freelancer/skill_gap_analysis.html', context)
+    else:
+        return render(request, 'freelancer/PermissionDenied.html', {
+            'profile1': profile1,
+            'profile2': profile2,
+            'freelancer': freelancer
+        })
+
+
+# from django.http import JsonResponse
+# from django.views.decorators.http import require_http_methods
+# import json
+# import os
+# from .models import FreelancerProfile
+# from dotenv import load_dotenv
+# import google.generativeai as genai
+# import spacy
+# from bs4 import BeautifulSoup
+# import re
+# # Load the spaCy model for NLP
+# nlp = spacy.load('en_core_web_sm')
+
+# def standardize_skill(skill):
+#     # Remove numbers, dashes, and extra characters
+#     skill = re.sub(r'[\d\.\-\(\)]', '', skill)
+    
+#     # Process each skill using NLP lemmatization
+#     clean_skills = []
+#     for s in skill_list:
+#         doc = nlp(s)
+#         clean_s = ' '.join([token.lemma_ for token in doc if not token.is_stop])
+#         clean_s = clean_s.lower().strip()
+#         clean_skills.append(clean_s)
+    
+#     return clean_skills
+# @require_http_methods(["POST"])
+# def get_skill_analysis(request):
+#     try:
+#         data = json.loads(request.body)
+#         job_role = data.get('job_role')
+        
+#         freelancer = FreelancerProfile.objects.get(user=request.user)
+#         existing_skills = []
+#         if freelancer.skills:
+#             skills_str = freelancer.skills.strip('[]')
+#             existing_skills = [
+#                 standardize_skill(skill.strip().strip("'").replace('-', '')) 
+#                 for skill in skills_str.split(',') 
+#                 if skill.strip()
+#             ]
+
+#         load_dotenv()
+#         genai.configure(api_key=os.getenv('GOOGLE_API_KEY'))
+#         model = genai.GenerativeModel('gemini-pro')
+        
+#         fundamental_prompt = f"""I'm interested in a career as a {job_role}. What are the core technical skills I need to develop to be competitive in this field? list main 2 skills name only without any description"""
+        
+#         try:
+#             fundamental_response = model.generate_content(fundamental_prompt)
+#             fundamental_skills = [
+#                 standardize_skill(skill.strip()) 
+#                 for skill in fundamental_response.text.split('\n') 
+#                 if skill.strip()
+#             ]
+
+#             missing_fundamentals = [skill for skill in fundamental_skills if skill not in existing_skills]
+            
+#             if missing_fundamentals:
+#                 course_recommendations = []
+#                 for skill in missing_fundamentals:
+#                     courses = fetch_classcentral_courses(skill)
+#                     course_recommendations.extend(courses)
+                
+#                 return JsonResponse({
+#                     'success': True,
+#                     'existing_skills': existing_skills,
+#                     'fundamental_skills': fundamental_skills,
+#                     'missing_fundamentals': missing_fundamentals,
+#                     'needs_fundamentals': True,
+#                     'course_recommendations': course_recommendations
+#                 })
+            
+#             trending_prompt = f"""I'm a {job_role} looking to stay ahead of the curve. What are the most in-demand technical skills, frameworks, and specific technologies for a {job_role} in 2025? Focus only on specific technical tools, libraries, and frameworks.
+
+# Please provide a list with just the names of main technologies, without any explanations or categories. Each item should be a specific technology name."""
+            
+#             trending_response = model.generate_content(trending_prompt)
+#             trending_skills = [
+#                 standardize_skill(skill.strip()) 
+#                 for skill in trending_response.text.split('\n') 
+#                 if skill.strip()
+#             ]
+
+#             skill_gaps = [skill for skill in trending_skills if skill not in existing_skills]
+            
+#             course_recommendations = []
+#             for skill in skill_gaps:
+#                 courses = fetch_classcentral_courses(skill)
+#                 course_recommendations.extend(courses)
+            
+#             response_data = {
+#                 'success': True,
+#                 'existing_skills': existing_skills,
+#                 'fundamental_skills': fundamental_skills,
+#                 'trending_skills': trending_skills,
+#                 'skill_gaps': skill_gaps,
+#                 'needs_fundamentals': False,
+#                 'course_recommendations': course_recommendations
+#             }
+            
+#             return JsonResponse(response_data)
+            
+#         except Exception as e:
+#             return JsonResponse({
+#                 'success': False,
+#                 'message': f'Error generating recommendations: {str(e)}'
+#             }, status=500)
+            
+#     except FreelancerProfile.DoesNotExist:
+#         return JsonResponse({
+#             'success': False,
+#             'message': 'Freelancer profile not found'
+#         }, status=404)
+#     except Exception as e:
+#         return JsonResponse({
+#             'success': False,
+#             'message': str(e)
+#         }, status=500)
+
+# def fetch_classcentral_courses(skill):
+#     """Fetch courses from Class Central by trying both general search and beginner-level search if necessary."""
+#     base_url = "https://www.classcentral.com/search?q="
+#     headers = {
+#         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+#     }
+
+#     def scrape_courses(url):
+#         """Helper function to scrape courses from a given URL."""
+#         response = requests.get(url, headers=headers)
+#         if response.status_code != 200:
+#             return []
+
+#         soup = BeautifulSoup(response.text, "html.parser")
+#         courses = []
+
+#         for course_card in soup.find_all("li", class_="bg-white", limit=3):  # Fetch top 3 courses
+#             try:
+#                 # Get course title
+#                 title_elem = course_card.find("h2", class_="text-1")
+#                 if not title_elem:
+#                     continue
+#                 title = title_elem.text.strip()
+
+#                 # Get course link
+#                 link_elem = course_card.find("a", class_="color-charcoal")
+#                 link = "https://www.classcentral.com" + link_elem["href"] if link_elem else ""
+
+#                 # Get course image
+#                 img_elem = course_card.find("img")
+#                 img_url = img_elem["src"] if img_elem and "src" in img_elem.attrs else ""
+
+#                 provider_elem = course_card.find("a", class_="color-charcoal")
+#                 provider = provider_elem.text.strip() if provider_elem else "Unknown Provider"
+
+#                 if title and link:
+#                     courses.append({
+#                         "title": title,
+#                         "platform": provider,
+#                         "url": link,
+#                         "image_url": img_url
+#                     })
+#             except Exception as e:
+#                 print(f"Error processing course card: {e}")
+#                 continue
+
+#         return courses
+
+#     courses = scrape_courses(base_url + skill)
+    
+#     if not courses:
+#         courses = scrape_courses(base_url + skill + "&level=beginner")
+
+#     return courses  
+
+
+
+from django.http import JsonResponse
+from django.views.decorators.http import require_http_methods
+import json
+import os
+import pandas as pd
+import requests
+from .models import FreelancerProfile
+from dotenv import load_dotenv
+import google.generativeai as genai
+import spacy
+from bs4 import BeautifulSoup
+import re
+from fuzzywuzzy import fuzz
+
+# Load spaCy NLP model
+nlp = spacy.load('en_core_web_sm')
+standardized_skills_df = pd.read_csv(os.path.join(os.path.dirname(__file__), 'skills.csv')) 
+standardized_skills = set(standardized_skills_df['skill'].str.lower().str.strip())  # Store for quick lookup
+
+
+def standardize_skill(skill):
+    # Remove numbers, dashes, and extra characters
+    skill = re.sub(r'[\d\.\-\(\)\[\]•]', '', skill).strip().lower()
+
+    exact_matches = {
+        "javascript": "javascript",
+        "js": "javascript",
+        "html5": "html",
+        "css3": "css",
+        "react": "react",
+        "react.js": "react",
+        "react native": "react native",
+        "node.js": "node.js",
+        "node": "node.js",
+    }
+    
+    # If exact match found, return the standardized version
+    if skill in exact_matches:
+        return exact_matches[skill]
+
+    # Tokenize and lemmatize using spaCy
+    doc = nlp(skill)
+    clean_skill = ' '.join([token.lemma_ for token in doc if not token.is_stop])
+
+    return clean_skill
+
+
+
+def clean_and_match_skills(raw_skills):
+    """
+    Cleans raw skill names and matches them against the standardized skill set from CSV.
+    """
+    cleaned_skills = []
+    
+    for skill in raw_skills:
+        cleaned_skill = standardize_skill(skill)
+        words = cleaned_skill.split()
+
+        matched_skill = next((s for s in standardized_skills if fuzz.partial_ratio(s, cleaned_skill) > 80), None)
+
+        if matched_skill:
+            cleaned_skills.append(matched_skill)
+
+    return cleaned_skills
+
+
+@require_http_methods(["POST"])
+def get_skill_analysis(request):
+    try:
+        data = json.loads(request.body)
+        job_role = data.get('job_role')
+        
+        freelancer = FreelancerProfile.objects.get(user=request.user)
+        print("Freelancer profile found:", freelancer)  # Debugging statement
+
+        existing_skills = []
+        if freelancer.skills:
+            skills_str = freelancer.skills.strip('[]')
+            existing_skills = [
+                standardize_skill(skill.strip().strip("'").replace('-', ''))
+                for skill in skills_str.split(',')
+                if skill.strip()
+            ]
+            print("Existing skills:", existing_skills)  # Debugging statement
+
+        load_dotenv()
+        genai.configure(api_key=os.getenv('GOOGLE_API_KEY'))
+        model = genai.GenerativeModel('gemini-pro')
+        
+        professional_check_prompt = f"Is {job_role} a professional job role? yes/no"
+        professional_check_response = model.generate_content(professional_check_prompt)
+        print(professional_check_response.text)
+        if professional_check_response.text.lower() == 'yes':
+            
+            fundamental_prompt = f"""I'm interested in a career as a {job_role}. 
+            What are the core technical skills I need to develop to be competitive in this field?
+            List only 5 main skills, without any description."""
+            
+            print("Fundamental Prompt:", fundamental_prompt)  # Print the prompt given to the AI
+            
+            try:
+                fundamental_response = model.generate_content(fundamental_prompt)
+                print("Fundamental Response:", fundamental_response.text)  # Print the response from the AI
+                
+                raw_fundamental_skills = [skill.strip() for skill in fundamental_response.text.split('\n') if skill.strip()]
+                fundamental_skills = clean_and_match_skills(raw_fundamental_skills)
+
+                print("Standardized Fundamental Skills:", fundamental_skills)  # Print standardized skills
+
+                missing_fundamentals = [skill for skill in fundamental_skills if skill not in existing_skills]
+                print("Missing Fundamentals:", missing_fundamentals)  # Debugging statement
+
+                # If fundamental skills are missing, recommend courses
+                if missing_fundamentals:
+                    course_recommendations = []
+                    for skill in missing_fundamentals:
+                        courses = fetch_classcentral_courses(skill)
+                        course_recommendations.extend(courses)
+
+                    return JsonResponse({
+                        'success': True,
+                        'existing_skills': existing_skills,
+                        'fundamental_skills': fundamental_skills,
+                        'missing_fundamentals': missing_fundamentals,
+                        'needs_fundamentals': True,
+                        'course_recommendations': course_recommendations
+                    })
+
+                # Get Trending Skills
+                trending_prompt = f"""I'm a {job_role} looking to stay ahead of the curve. 
+                What are the most in-demand technical skills, frameworks, and specific technologies for a {job_role} in 2025? 
+                Focus only on specific tools, libraries, and frameworks. Provide just the names, no descriptions."""
+
+                print("Trending Prompt:", trending_prompt)  # Print the prompt given to the AI
+                
+                trending_response = model.generate_content(trending_prompt)
+                print("Trending Response:", trending_response.text)  # Print the response from the AI
+                
+                raw_trending_skills = [skill.strip() for skill in trending_response.text.split('\n') if skill.strip()]
+                trending_skills = clean_and_match_skills(raw_trending_skills)
+
+                print("Standardized Trending Skills:", trending_skills)  # Print standardized skills
+
+                skill_gaps = [skill for skill in trending_skills if skill not in existing_skills]
+
+                course_recommendations = []
+                for skill in skill_gaps:
+                    courses = fetch_classcentral_courses(skill)
+                    course_recommendations.extend(courses)
+
+                return JsonResponse({
+                    'success': True,
+                    'existing_skills': existing_skills,
+                    'fundamental_skills': fundamental_skills,
+                    'trending_skills': trending_skills,
+                    'skill_gaps': skill_gaps,
+                    'needs_fundamentals': False,
+                    'course_recommendations': course_recommendations
+                })
+
+            except Exception as e:
+                print("Error in fundamental skills generation:", str(e))  # Debugging statement
+                return JsonResponse({'success': False, 'message': f'Error generating recommendations: {str(e)}'}, status=500)
+        else:
+            return JsonResponse({'success': False, 'message': "It is not a professional job role."}, status=400)
+    except FreelancerProfile.DoesNotExist:
+        return JsonResponse({'success': False, 'message': 'Freelancer profile not found'}, status=404)
+    except Exception as e:
+        print("General error:", str(e))  # Debugging statement
+        return JsonResponse({'success': False, 'message': str(e)}, status=500)
+
+
+def fetch_classcentral_courses(skill):
+    """
+    Fetches top courses from Class Central for a given skill.
+    """
+    base_url = "https://www.classcentral.com/search?q="
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+    }
+
+    def scrape_courses(url):
+        """Helper function to scrape courses from a given URL."""
+        response = requests.get(url, headers=headers)
+        if response.status_code != 200:
+            return []
+
+        soup = BeautifulSoup(response.text, "html.parser")
+        courses = []
+
+        for course_card in soup.find_all("li", class_="bg-white", limit=3):  # Fetch top 3 courses
+            try:
+                title_elem = course_card.find("h2", class_="text-1")
+                if not title_elem:
+                    continue
+                title = title_elem.text.strip()
+
+                link_elem = course_card.find("a", class_="color-charcoal")
+                link = "https://www.classcentral.com" + link_elem["href"] if link_elem else ""
+
+                img_elem = course_card.find("img")
+                img_url = img_elem["src"] if img_elem and "src" in img_elem.attrs else ""
+
+                provider_elem = course_card.find("a", class_="color-charcoal")
+                provider = provider_elem.text.strip() if provider_elem else "Unknown Provider"
+
+                if title and link:
+                    courses.append({
+                        "title": title,
+                        "platform": provider,
+                        "url": link,
+                        "image_url": img_url
+                    })
+            except Exception as e:
+                print(f"Error processing course card: {e}")
+                continue
+
+        return courses
+
+    courses = scrape_courses(base_url + skill)
+
+    if not courses:
+        courses = scrape_courses(base_url + skill + "&level=beginner")
+
+    return courses
+
+
+# Refactored FreelanceHub API with Performance and NLP Improvements
+
+# import json
+# import os
+# import requests
+# from bs4 import BeautifulSoup
+# from django.http import JsonResponse
+# from django.views.decorators.http import require_http_methods
+# from django.core.cache import cache
+# from concurrent.futures import ThreadPoolExecutor
+# from django.db.models import F
+# from fuzzywuzzy import fuzz
+# import spacy
+# import google.generativeai as genai
+# from dotenv import load_dotenv
+# from .models import FreelancerProfile
+# import re
+
+
+# nlp = spacy.load('en_core_web_sm')
+
+# def standardize_skill(skill):
+#     doc = nlp(skill)
+#     clean_skill = re.sub(r'[^a-zA-Z0-9\s]', '', ' '.join([token.lemma_ for token in doc if not token.is_stop]))
+#     return clean_skill.lower().strip()
+
+# def scrape_courses(skill):
+#     base_url = f"https://www.classcentral.com/search?q={skill}"
+#     response = requests.get(base_url, headers={"User-Agent": "Mozilla/5.0"})
+#     if response.status_code != 200:
+#         return []
+#     soup = BeautifulSoup(response.text, "html.parser")
+#     courses = []
+#     for card in soup.find_all("li", class_="bg-white", limit=3):
+#         title = card.find("h2", class_="text-1")
+#         link = card.find("a", class_="color-charcoal")
+#         if title and link:
+#             courses.append({"title": title.text.strip(), "url": "https://www.classcentral.com" + link["href"]})
+#     return courses
+
+# def fetch_courses_concurrently(skills):
+#     with ThreadPoolExecutor() as executor:
+#         results = list(executor.map(scrape_courses, skills))
+#     return [course for sublist in results for course in sublist]
+
+# @require_http_methods(["POST"])
+# def get_skill_analysis(request):
+#     try:
+#         data = json.loads(request.body)
+#         print("Received data:", data)  # Debugging statement
+#         job_role = data.get('job_role')
+#         print("Job role:", job_role)  # Debugging statement
+        
+#         freelancer = FreelancerProfile.objects.get(user=request.user)
+#         existing_skills = [
+#             skill.strip().strip("'").lower().replace('-', '')
+#             for skill in freelancer.skills.strip('[]').split(',') if skill.strip()
+#         ] if freelancer.skills else []
+#         print("Existing skills:", existing_skills)  # Debugging statement
+
+#         load_dotenv()
+#         genai.configure(api_key=os.getenv('GOOGLE_API_KEY'))
+#         model = genai.GenerativeModel('gemini-pro')
+
+#         fundamental_response = model.generate_content(f"I'm interested in a career as a {job_role}. List 2 core technical skills needed (names only).")
+#         fundamental_skills = [standardize_skill(skill) for skill in fundamental_response.text.split('\n') if skill.strip()]
+#         print("Fundamental skills:", fundamental_skills)  # Debugging statement
+        
+#         # Clean up fundamental skills by removing numeric prefixes
+#         cleaned_fundamental_skills = [skill.split(' ', 1)[-1].strip() for skill in fundamental_skills]
+#         print("Cleaned fundamental skills:", cleaned_fundamental_skills)  # Debugging statement
+
+#         missing_fundamentals = []
+#         for skill in cleaned_fundamental_skills:
+#             is_missing = not any(fuzz.partial_ratio(skill, es) > 80 for es in existing_skills)
+#             print(f"Checking if '{skill}' is missing: {is_missing}")  # Debugging statement
+#             if is_missing:
+#                 missing_fundamentals.append(skill)
+
+#         print("Missing fundamentals:", missing_fundamentals)  # Debugging statement
+        
+#         if missing_fundamentals:
+#             fundamental_courses = fetch_courses_concurrently(missing_fundamentals)
+#             return JsonResponse({
+#                 'success': True,
+#                 'needs_fundamentals': True,
+#                 'fundamental_skills': cleaned_fundamental_skills,
+#                 'missing_fundamentals': missing_fundamentals,
+#                 'course_recommendations': fundamental_courses
+#             })
+
+#         trending_response = model.generate_content(f"What are the most in-demand technologies for {job_role} in 2025? Provide a plain list of names only.")
+#         trending_skills = [standardize_skill(skill) for skill in trending_response.text.split('\n') if skill.strip()]
+#         print("Trending skills:", trending_skills)  # Debugging statement
+
+#         skill_gaps = []
+#         for skill in trending_skills:
+#             is_gap = not any(fuzz.ratio(skill, es) > 80 for es in existing_skills)
+#             print(f"Checking if '{skill}' is a skill gap: {is_gap}")  # Debugging statement
+#             if is_gap:
+#                 skill_gaps.append(skill)
+
+#         print("Skill gaps:", skill_gaps)  # Debugging statement
+
+#         trending_courses = fetch_courses_concurrently(skill_gaps)
+#         return JsonResponse({
+#             'success': True,
+#             'needs_fundamentals': False,
+#             'trending_skills': trending_skills,
+#             'skill_gaps': skill_gaps,
+#             'course_recommendations': trending_courses
+#         })
+#     except Exception as e:
+#         print("Error occurred:", str(e))  # Debugging statement
+#         return JsonResponse({'success': False, 'message': str(e)}, status=500)
+
+
+def freelancer_repositories(request):
+    if request.user.is_authenticated:
+        # Get projects where the user is the freelancer or is a member of the assigned team
+        assigned_projects = Project.objects.filter(
+            freelancer=request.user
+        ) | Project.objects.filter(
+            team_id__in=TeamMember.objects.filter(user=request.user).values('team_id')
+        )
+        
+        client_projects = Project.objects.filter(user=request.user)
+        
+        repositories = Repository.objects.filter(
+            project__in=assigned_projects | client_projects
+        ).distinct()
+
+
+        repository_data = []
+        for repo in repositories:
+            project = repo.project
+            team_members = TeamMember.objects.filter(team_id=project.team_id)
+            member_profiles = [{'user_id': member.user.id, 'profile_picture': member.user.register.profile_picture.url if member.user.register.profile_picture else None} for member in team_members]
+            
+            client_profile_picture = project.user.register.profile_picture.url if project.user.register.profile_picture else None
+            
+            # Determine if the user is part of a team
+            if team_members.filter(user=request.user).exists():
+                repository_data.append({
+                    'repository': repo,
+                    'repository_id': repo.id,
+                    'project_title': project.title,
+                    'project_category': getattr(project, 'category', 'N/A'),  # Using getattr for safer access
+                    'members': member_profiles,
+                    'client_profile_picture': client_profile_picture
+                })
+            else:
+                current_freelancer_picture = request.user.register.profile_picture.url if request.user.register.profile_picture else None
+                repository_data.append({
+                    'repository': repo,
+                    'repository_id': repo.id,
+                    'project_title': project.title,
+                    'project_category': getattr(project, 'category', 'N/A'),  # Using getattr for safer access
+                    'members': [{'user_id': request.user.id, 'profile_picture': current_freelancer_picture}],
+                    'client_profile_picture': client_profile_picture
+                })
+
+        is_project_manager = TeamMember.objects.filter(user=request.user, role='PROJECT_MANAGER').exists()
+        
+    else:
+        repository_data = []
+        is_project_manager = False
+        
+    return render(request, 'freelancer/Repositories.html', {
+        'repositories': repository_data,
+        'is_project_manager': is_project_manager
+    })

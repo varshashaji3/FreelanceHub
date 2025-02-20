@@ -47,12 +47,12 @@
         <button class="view-button" onclick="toggleSection('invitation')">
             <i class="fas fa-envelope"></i> Invitation
         </button>
-        <button class="view-button" onclick="toggleSection('projects')">
+        <!-- <button class="view-button" onclick="toggleSection('projects')">
             <i class="fas fa-project-diagram"></i> Projects
         </button>
         <button class="view-button" onclick="toggleSection('dashboard')">
             <i class="fas fa-chart-bar"></i> Analysis
-        </button>
+        </button> -->
     </div>
 
     <div id="members" class="toggle-section" style="display: none;">
@@ -205,10 +205,17 @@
                         {% endif %}</td>
                         <td>
                             <span class="status-badge 
-                                {% if invitation.expired %}expired{% elif invitation.status == 'pending' %}pending{% elif invitation.status == 'accepted' %}active Accepted{% elif invitation.status == 'rejected' %}inactive Rejected{% else %}inactive{% endif %}">
-                                {% if invitation.expired %}Expired{% elif invitation.status == 'rejected' %}Rejected{% else %}{{ invitation.status }}{% endif %}
+                                {% if invitation.status == 'accepted' %}active Accepted
+                                {% elif invitation.expired %}expired
+                                {% elif invitation.status == 'pending' %}pending
+                                {% elif invitation.status == 'rejected' %}inactive Rejected
+                                {% else %}inactive{% endif %}">
+                                {% if invitation.status == 'accepted' %}Accepted
+                                {% elif invitation.expired %}Expired
+                                {% elif invitation.status == 'rejected' %}Rejected
+                                {% else %}{{ invitation.status }}{% endif %}
                             </span>
-                            {% if invitation.expired %}
+                            {% if invitation.expired and invitation.status != 'accepted' and not all_roles_assigned %}
                                 <button class="action-btn resend" onclick="resentInvitation('{{ invitation.invitation_id }}')">Resend Invitation</button>
                             {% endif %}
                         </td>
@@ -303,24 +310,54 @@
                     </thead>
                     <tbody>
                         <tr>
-                            <td>Project Manager & Team Leader (Update)</td>
-                            <td><input type="number" name="PROJECT_MANAGER" value="{{ current_percentages.PROJECT_MANAGER|default:0 }}" placeholder="Enter Percentage" oninput="updatePercentageCounter()"></td>
+                            <td>Project Manager & Team Leader</td>
+                            <td>
+                                <input type="number" 
+                                       name="PROJECT_MANAGER" 
+                                       value="{% for member in team_members %}{% if member.role == 'PROJECT_MANAGER' %}{{ member.salary_percentage }}{% endif %}{% endfor %}" 
+                                       placeholder="Enter Percentage" 
+                                       oninput="updatePercentageCounter()">
+                            </td>
                         </tr>
                         <tr>
                             <td>Designer (UI/UX)</td>
-                            <td><input type="number" name="DESIGNER" value="{{ current_percentages.DESIGNER|default:0 }}" placeholder="Enter Percentage" oninput="updatePercentageCounter()"></td>
+                            <td>
+                                <input type="number" 
+                                       name="DESIGNER" 
+                                       value="{% for member in team_members %}{% if member.role == 'DESIGNER' %}{{ member.salary_percentage }}{% endif %}{% endfor %}" 
+                                       placeholder="Enter Percentage" 
+                                       oninput="updatePercentageCounter()">
+                            </td>
                         </tr>
                         <tr>
                             <td>Frontend Developer</td>
-                            <td><input type="number" name="FRONTEND_DEV" value="{{ current_percentages.FRONTEND_DEV|default:0 }}" placeholder="Enter Percentage" oninput="updatePercentageCounter()"></td>
+                            <td>
+                                <input type="number" 
+                                       name="FRONTEND_DEV" 
+                                       value="{% for member in team_members %}{% if member.role == 'FRONTEND_DEV' %}{{ member.salary_percentage }}{% endif %}{% endfor %}" 
+                                       placeholder="Enter Percentage" 
+                                       oninput="updatePercentageCounter()">
+                            </td>
                         </tr>
                         <tr>
                             <td>Backend Developer</td>
-                            <td><input type="number" name="BACKEND_DEV" value="{{ current_percentages.BACKEND_DEV|default:0 }}" placeholder="Enter Percentage" oninput="updatePercentageCounter()"></td>
+                            <td>
+                                <input type="number" 
+                                       name="BACKEND_DEV" 
+                                       value="{% for member in team_members %}{% if member.role == 'BACKEND_DEV' %}{{ member.salary_percentage }}{% endif %}{% endfor %}" 
+                                       placeholder="Enter Percentage" 
+                                       oninput="updatePercentageCounter()">
+                            </td>
                         </tr>
                         <tr>
                             <td>Quality Assurance Tester</td>
-                            <td><input type="number" name="QA_TESTER" value="{{ current_percentages.QA_TESTER|default:0 }}" placeholder="Enter Percentage" oninput="updatePercentageCounter()"></td>
+                            <td>
+                                <input type="number" 
+                                       name="QA_TESTER" 
+                                       value="{% for member in team_members %}{% if member.role == 'QA_TESTER' %}{{ member.salary_percentage }}{% endif %}{% endfor %}" 
+                                       placeholder="Enter Percentage" 
+                                       oninput="updatePercentageCounter()">
+                            </td>
                         </tr>
                     </tbody>
                 </table>

@@ -24,6 +24,8 @@ from django.db.models import Avg
 from django.db.models.functions import TruncMonth
 import json
 
+from datetime import datetime
+
 
 @login_required
 @nocache
@@ -522,11 +524,10 @@ def reviews(request):
 
 
 
-from datetime import datetime
 def allusers(request):
     # Fetch all non-admin users
     users_list = CustomUser.objects.filter(is_superuser=False)
-    current_year = datetime.now().year
+    current_year =datetime.now().year
     user_details = []
     for user in users_list:
         # Fetch related information from Register table

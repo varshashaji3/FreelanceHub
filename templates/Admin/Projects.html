@@ -169,50 +169,6 @@
     </div>
 </div>
 
-<div class="year-filter">
-    <h4 class="filter-heading" style="color:#ff0057;">Filter by</h4><br>
-    <form method="GET" id="filterForm">
-        <div class="filter-row">
-            <div class="filter-group">
-                <label for="year">Year:</label>
-                <select name="year" id="year" onchange="this.form.submit()">
-                    {% for year in 2023|to:current_year %}
-                    <option value="{{ year }}" {% if request.GET.year == year|stringformat:"i" or not request.GET.year and year == 2024 %}selected{% endif %}>{{ year }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-
-            <div class="filter-group">
-                <label for="start_month">From:</label>
-                <select name="start_month" id="start_month" onchange="validateMonths()">
-                    <option value="">Month</option>
-                    {% for i in '1,2,3,4,5,6,7,8,9,10,11,12'|split:',' %}
-                    <option value="{{ i }}" {% if request.GET.start_month == i %}selected{% endif %}>
-                        {{ i|month_name }}
-                    </option>
-                    {% endfor %}
-                </select>
-            </div>
-
-            <div class="filter-group">
-                <label for="end_month">To:</label>
-                <select name="end_month" id="end_month" onchange="validateMonths()" disabled>
-                    <option value="">Month</option>
-                    {% for i in '1,2,3,4,5,6,7,8,9,10,11,12'|split:',' %}
-                    <option value="{{ i }}" {% if request.GET.end_month == i %}selected{% endif %}>
-                        {{ i|month_name }}
-                    </option>
-                    {% endfor %}
-                </select>
-            </div>
-
-            <button type="button" onclick="clearFilters()" class="clear-filters-btn">
-                Clear
-            </button>
-        </div>
-    </form>
-</div>
-<br><br>
 <div class="row" style="background-color:white;padding:10px;border-radius:10px;margin-top:-25px;">
     <br>
 <table class="user-list-table">
@@ -234,13 +190,7 @@
             </tr>
         {% else %}
             {% for project in projects %}
-                {% with project_month=project.project.created_at|date:'n'|stringformat:"s" %}
-                {% with start_month=request.GET.start_month|default:'' %}
-                {% with end_month=request.GET.end_month|default:'' %}
-                {% with month_range=start_month|add:':'|add:end_month %}
-                    {% if request.GET.year|default:'' == project.project.created_at|date:'Y' or not request.GET.year %}
-                        {% if not start_month or not end_month or project_month|between:month_range %}
-                            <tr>
+                <tr>
                                 <td>{{ forloop.counter }}</td>
                                 <td><img src="{{ project.client_info.profile_picture.url }}" alt="Profile Picture" width="50" style="padding-right:20px;">  {{ project.client_info.name }}</td>
                                 <td>{{ project.project.title }}</td>
@@ -253,12 +203,7 @@
                                 </td>
                                 <td>{{ project.project.created_at|date:"d M Y" }}</td>
                             </tr>
-                        {% endif %}
-                    {% endif %}
-                {% endwith %}
-                {% endwith %}
-                {% endwith %}
-                {% endwith %}
+                        
             {% endfor %}
         {% endif %}
     </tbody>

@@ -363,11 +363,11 @@
 
             </div>
           </li>
-          <li class="nav-item nav-settings d-none d-lg-flex">
+          <!-- <li class="nav-item nav-settings d-none d-lg-flex">
             <a class="nav-link" href="#">
               <i class="icon-ellipsis"></i>
             </a>
-          </li>
+          </li> -->
           <!-- Add this new list item for the review button -->
         
         </ul>
@@ -446,12 +446,7 @@
               <span class="menu-title">Dashboard</span>
             </a>
           </li>
-          <li class="nav-item">
-            <a class="nav-link" href="{% url 'freelancer:analyze_skill_gap' %}">
-              <i class="fas fa-tachometer-alt menu-icon"></i> <!-- Dashboard Icon -->
-              <span class="menu-title">skill</span>
-            </a>
-          </li>
+         
       
           <li class="nav-item">
             <a class="nav-link" href="{% url 'freelancer:account_settings' %}">
@@ -460,55 +455,32 @@
             </a>
           </li>
       
+          
           <li class="nav-item">
-            <a class="nav-link" data-toggle="collapse" href="#project" aria-expanded="false" aria-controls="ui-basic">
-              <i class="fas fa-tasks menu-icon"></i> <!-- Project Icon -->
-              <span class="menu-title">Project</span>
+            <a class="nav-link" href="{% url 'freelancer:analyze_skill_gap' %}">
+              <i class="fas fa-chart-line menu-icon"></i> <!-- Skill Analysis Icon -->
+              <span class="menu-title">Skill Analysis</span>
+            </a>
+          </li>
+
+          <li class="nav-item">
+            <a class="nav-link" data-toggle="collapse" href="#projects" aria-expanded="false" aria-controls="ui-basic">
+              <i class="fas fa-folder menu-icon"></i> <!-- Complaints Icon -->
+              <span class="menu-title">Manage Projects</span>
               <i class="menu-arrow"></i>
             </a>
-            <div class="collapse" id="project">
+            <div class="collapse" id="projects">
               <ul class="nav flex-column sub-menu">
-                <li class="nav-item">
-                  <a class="nav-link" href="{% url 'freelancer:view_project' %}">View Project</a>
+                <li class="nav-item"> <a class="nav-link"  href="{% url 'freelancer:view_project' %}">Available Projects</a></li>
+                <li class="nav-item"> <a class="nav-link" href="{% url 'freelancer:view_created_proposals' %}">My Project Proposals</a>
+                </li>
+                <li class="nav-item"> <a class="nav-link" href="{% url 'freelancer:freelancer_repositories' %}">Project Repositories</a>
                 </li>
               </ul>
             </div>
           </li>
-      
-          <li class="nav-item">
-            <a class="nav-link" data-toggle="collapse" href="#proposal" aria-expanded="false" aria-controls="ui-basic">
-              <i class="fas fa-file-alt menu-icon"></i> <!-- Proposal Icon -->
-              <span class="menu-title">Project Proposals</span>
-              <i class="menu-arrow"></i>
-            </a>
-            <div class="collapse" id="proposal">
-              <ul class="nav flex-column sub-menu">
-                <li class="nav-item">
-                  <a class="nav-link" href="{% url 'freelancer:view_created_proposals' %}">Submitted Proposals</a>
-                </li>
-              </ul>
-            </div>
-          </li>
-      
-          <li class="nav-item">
-            <a class="nav-link" data-toggle="collapse" href="#repos" aria-expanded="false" aria-controls="ui-basic">
-              <i class="fas fa-code-branch menu-icon"></i> <!-- Repositories Icon -->
-              <span class="menu-title">Repositories</span>
-              <i class="menu-arrow"></i>
-            </a>
-            <div class="collapse" id="repos">
-              <ul class="nav flex-column sub-menu">
-                {% for repo in repositories %}
-                <li class="nav-item">
-                  <a class="nav-link" href="{% url 'freelancer:view_repository' repo.id %}">{{ repo.name }}</a>
-                </li>
-                {% empty %}
-                <li class="nav-item">No repositories found.</li>
-                {% endfor %}
-              </ul>
-            </div>
-          </li>
-      
+          
+
           <!-- <li class="nav-item">
             <a class="nav-link" href="{% url 'freelancer:tasks_list' %}">
               <i class="fas fa-tasks menu-icon"></i> <!-- Tasks Icon -->
@@ -516,13 +488,13 @@
             </a>
           </li> --> 
       
-          <li class="nav-item">
+          <!-- <li class="nav-item">
             <a class="nav-link" href="{% url 'freelancer:client_list' %}">
-              <i class="fas fa-users menu-icon"></i> <!-- Clients Icon -->
+              <i class="fas fa-users menu-icon"></i>
               <span class="menu-title">Clients</span>
             </a>
           </li>
-      
+       -->
           <li class="nav-item">
             <a class="nav-link" href="{% url 'freelancer:todo' %}">
               <i class="fas fa-clipboard-list menu-icon"></i> <!-- Todo Icon -->

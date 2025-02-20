@@ -946,6 +946,12 @@ th,td{
             <button type="button" class="btn btn-outline-secondary" data-section="event-settings">
                 <i class="fas fa-cog me-2"></i>Event Settings
             </button>
+            {% if event.type == 'event' %}
+            <button type="button" class="btn btn-outline-secondary" data-section="attendees" id="toggle-attendees">
+                <i class="fas fa-users me-2"></i>Attendees List
+            </button>
+            {% endif %}
+            
             {% if event.type == 'quiz' %}
             <button type="button" class="btn btn-outline-secondary" data-section="leaderboard">
                 <i class="fas fa-trophy me-2"></i>Leaderboard
@@ -1076,12 +1082,79 @@ th,td{
 </div>
 
 
+
+<div id="attendees" class="event-section" style="display: none;">
+    <h3>Attendees List</h3>
+    
+    {% if event.certificate_provided %}
+        <div class="d-flex justify-content-end mb-4">
+            <button id="generate-certificates-attendees" class="btn btn-success me-2 generate-certificates" data-event-id="{{ event.id }}" {% if not event.certificate_template %}disabled{% endif %}>
+                <i class="fas fa-certificate me-2"></i>Send Certificates to Participants
+            </button>
+            {% if not event.certificate_template %}
+                <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#certificateTemplateModal">
+                    <i class="fas fa-upload me-2"></i>Upload Certificate Template
+                </button>
+            {% else %}
+            <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#certificateTemplateModal" disabled>
+                <i class="fas fa-upload me-2"></i>Uploaded
+            </button>
+            {% endif %}
+        </div>
+
+        {% if not event.certificate_template %}
+            <div class="alert alert-warning mb-4">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                Certificate generation is enabled but no template has been uploaded. Please upload a template to generate certificates.
+            </div>
+       
+        {% endif %}
+
+        <div class="modal fade" id="certificateTemplateModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Upload Certificate Template</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="certificateTemplateForm" enctype="multipart/form-data">
+                            {% csrf_token %}
+                            <div class="mb-3">
+                                <label for="certificateTemplate" class="form-label">Certificate Template Image (PNG/JPG)</label>
+                                <input type="file" class="form-control" id="certificateTemplate" name="certificate_template" accept="image/*" required>
+                                <small class="form-text text-muted">
+                                    Upload your certificate template with a blank space in the center where the participant's name will be added. 
+                                    The template should already include your event title, date, and any other static content.
+                                </small>
+                            </div>
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle me-2"></i>
+                                The participant's name will be automatically centered in the template. Make sure your template has adequate space in the middle for names of varying lengths.
+                            </div>
+                            <button type="submit" class="btn btn-primary">Upload Template</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    <ul>
+        {% for attendee in attendees %}
+        <li>{{ attendee.name }} - {{ attendee.email }}</li>
+        {% empty %}
+        <li>No attendees available.</li>
+        {% endfor %}
+    </ul>
+</div>
+
+
 <div id="leaderboard" class="event-section" style="display: none;">
     <h3 class="mb-4">Quiz Leaderboard</h3>
 
     {% if event.certificate_provided %}
         <div class="d-flex justify-content-end mb-4">
-            <button id="generate-certificates" class="btn btn-success me-2" data-event-id="{{ event.id }}" {% if not event.certificate_template %}disabled{% endif %}>
+            <button id="generate-certificates-leaderboard" class="btn btn-success me-2 generate-certificates" data-event-id="{{ event.id }}" {% if not event.certificate_template %}disabled{% endif %}>
                 <i class="fas fa-certificate me-2"></i>Send Certificates to Participants
             </button>
             {% if not event.certificate_template %}
@@ -1457,7 +1530,7 @@ $(document).ready(function() {
         });
 
         // Generate and send certificates
-        $('#generate-certificates').click(function() {
+        $('.generate-certificates').click(function() {
             const eventId = $(this).data('event-id');
             
             Swal.fire({
@@ -1469,18 +1542,30 @@ $(document).ready(function() {
                 cancelButtonText: 'Cancel'
             }).then((result) => {
                 if (result.isConfirmed) {
+                    // Show loading animation without OK button
+                    Swal.fire({
+                        title: 'Sending...',
+                        text: 'Please wait while we generate the certificates.',
+                        allowOutsideClick: false,
+                        showConfirmButton: false,
+                        onBeforeOpen: () => {
+                            Swal.showLoading(); // Show loading animation
+                        }
+                    });
+
+                    // Proceed with AJAX request if confirmed
                     $.ajax({
                         url: `/client/generate-certificates/${eventId}/`,
                         type: 'POST',
                         data: {
-                            csrfmiddlewaretoken: '{{ csrf_token }}'
+                            csrfmiddlewaretoken: '{{ csrf_token }}' // Ensure CSRF token is included
                         },
                         success: function(response) {
                             Swal.fire({
                                 title: 'Success!',
                                 text: response.message,
                                 icon: 'success',
-                                confirmButtonText: 'OK'
+                                confirmButtonText: 'OK' // OK button for success message
                             });
                         },
                         error: function(xhr) {
@@ -1488,13 +1573,19 @@ $(document).ready(function() {
                                 title: 'Error!',
                                 text: xhr.responseJSON?.message || 'An error occurred while generating certificates',
                                 icon: 'error',
-                                confirmButtonText: 'OK'
+                                confirmButtonText: 'OK' // OK button for error message
                             });
+                        },
+                        complete: function() {
+                            // Close the loading animation
+                            Swal.close();
                         }
                     });
                 }
             });
         });
+
+        
     });
 </script>
 

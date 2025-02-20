@@ -2005,14 +2005,23 @@ def chat_view(request):
         for chat in chat_rooms:
             # Fetch freelancers excluding the client
             for participant in chat.participants.exclude(id=client.user_id):
-                freelancer_profile = FreelancerProfile.objects.get(user=participant)
-                freelancer_register = Register.objects.get(user_id=participant.id)
-                freelancers.append({
-                    'user': participant,
-                    'profile': freelancer_profile,
-                    'register': freelancer_register,
-                    'chat_room_id': chat.id  # Pass the chat room ID
-                })  # Store user, profile, register details, and chat room ID
+                try:
+                    freelancer_profile = FreelancerProfile.objects.get(user=participant)
+                    freelancer_register = Register.objects.get(user_id=participant.id)
+                    freelancers.append({
+                        'user': participant,
+                        'profile': freelancer_profile,
+                        'register': freelancer_register,
+                        'chat_room_id': chat.id  # Pass the chat room ID
+                    })  # Store user, profile, register details, and chat room ID
+                except FreelancerProfile.DoesNotExist:
+                    # Handle the case where the freelancer profile does not exist
+                    print(f"FreelancerProfile for user {participant.id} does not exist.")
+                    continue  # Skip this participant if their profile does not exist
+                except Register.DoesNotExist:
+                    # Handle the case where the register does not exist
+                    print(f"Register for user {participant.id} does not exist.")
+                    continue  # Skip this participant if their register does not exist
         
         return render(request, 'Client/chat.html', {
             'profile1': profile1,
@@ -2935,13 +2944,27 @@ def manage_single_event(request, event_id):
     event = EventAndQuiz.objects.get(id=event_id)
     registrations = EventRegistration.objects.filter(event=event)
     leaderboard_data = []
-    
+    prize_paid = False
+
+    # Fetch freelancers who attended the event
+    attended_freelancers = []
+    for registration in registrations:
+        if registration.attended:  # Check if the freelancer attended
+            freelancer = registration.freelancer
+            register_info = Register.objects.get(user=freelancer)
+            attended_freelancers.append({
+                'name': f"{register_info.first_name} {register_info.last_name}",
+                'email': freelancer.email,
+                'profile_picture': register_info.profile_picture.url if register_info.profile_picture else None,
+                'registered_at': registration.registration_time,
+            })
+
+    # Existing logic for quizzes
     if event.type == 'quiz':
         # Get all questions and their points for this quiz
         quiz_questions = QuizQuestion.objects.filter(quiz=event)
         total_possible_points = sum(question.points for question in quiz_questions)
         
-        # Fetch all quiz attempts for this event, ordered by score
         quiz_attempts = QuizAttempt.objects.filter(
             quiz=event
         ).order_by('-score')
@@ -2977,24 +3000,10 @@ def manage_single_event(request, event_id):
             except Register.DoesNotExist:
                 continue
 
-    # Fetch freelancer details for regular participant list
-    freelancers = []
-    for registration in registrations:
-        freelancer = registration.freelancer
-        register_info = Register.objects.get(user=freelancer)
-        freelancers.append({
-            'first_name': register_info.first_name,
-            'last_name': register_info.last_name,
-            'profile_picture': register_info.profile_picture.url if register_info.profile_picture else None,
-            'email': freelancer.email,
-            'registered_at': registration.registration_time,
-        })
-
-    print(prize_paid)
     context = {
         'event': event,
         'registrations': registrations,
-        'freelancers': freelancers,
+        'attendees': attended_freelancers,  # Pass attended freelancers to the template
         'leaderboard': leaderboard_data,
         'prize_paid': prize_paid if event.type == 'quiz' and event.prize_enabled else False
     }
@@ -3084,15 +3093,12 @@ def create_prize_payment(request):
         try:
             event = EventAndQuiz.objects.get(id=event_id)
             winner = CustomUser.objects.get(id=winner_id)
-
             print("Found event:", event)
             print("Found winner:", winner)
             winner_register = Register.objects.get(user=winner)
             # Convert amount to paise (Razorpay expects amount in smallest currency unit)
             amount_in_paise = int(Decimal(amount) * 100)
             print("Amount in paise:", amount_in_paise)
-
-            # Create Razorpay Order
             razorpay_order = razorpay_client.order.create({
                 'amount': amount_in_paise,
                 'currency': 'INR',
@@ -3232,7 +3238,8 @@ import requests
 from pathlib import Path
 import tempfile
 
-@require_POST
+@login_required
+@nocache
 def generate_certificates(request, event_id):
     try:
         event = EventAndQuiz.objects.get(id=event_id)
@@ -3281,21 +3288,24 @@ def generate_certificates(request, event_id):
 
         for registration in registrations:
             try:
-                # Get participant name
+                # Get participant name and freelancer ID
                 freelancer = registration.freelancer
                 register_info = Register.objects.get(user=freelancer)
                 participant_name = f"{register_info.first_name} {register_info.last_name}"
+                freelancer_id = freelancer.id  # Get freelancer ID
                 
-                # Create a copy of the template
+                freelancer_folder = os.path.join(settings.MEDIA_ROOT, 'certificates', str(freelancer_id))
+                # Check if the folder already exists before creating it
+                if not os.path.exists(freelancer_folder):
+                    os.makedirs(freelancer_folder) 
+                
                 certificate = template.copy()
                 draw = ImageDraw.Draw(certificate)
                 
-                # Calculate text dimensions for centering
                 text_bbox = draw.textbbox((0, 0), participant_name, font=font)
                 text_width = text_bbox[2] - text_bbox[0]
                 text_height = text_bbox[3] - text_bbox[1]
                 
-                # Calculate center position
                 x = (certificate.width - text_width) / 2
                 y = (certificate.height - text_height) / 2
                 
@@ -3307,10 +3317,9 @@ def generate_certificates(request, event_id):
                     fill=(44, 62, 80)  # Dark blue color for elegance
                 )
                 
-                # Save certificate
-                certificate_io = BytesIO()
-                certificate.save(certificate_io, format='PDF')
-                certificate_io.seek(0)
+                # Save certificate in the freelancer's folder
+                certificate_path = os.path.join(freelancer_folder, f'certificate_{event.title}.pdf')
+                certificate.save(certificate_path, format='PDF')
                 
                 # Send email with HTML content
                 subject = f'Your Certificate for {event.title}'
@@ -3329,12 +3338,7 @@ def generate_certificates(request, event_id):
                 email.content_subtype = "html"  # This is the crucial line
                 
                 # Attach the certificate
-                email.attach(
-                    f'certificate_freelancer_{participant_name.replace(" ", "_")}.pdf',
-                    certificate_io.getvalue(),
-                    'application/pdf'
-                )
-                
+                email.attach_file(certificate_path)  # Attach the saved certificate
                 email.send()
                 certificates_sent += 1
                 
@@ -3358,3 +3362,72 @@ def generate_certificates(request, event_id):
             'status': 'error', 
             'message': f'An error occurred: {str(e)}'
         }, status=500)
+        
+        
+        
+        
+
+def client_repositories(request):
+    if request.user.is_authenticated:
+        # Get projects where the user is the freelancer or is a member of the assigned team
+        assigned_projects = Project.objects.filter(
+            freelancer=request.user
+        ) | Project.objects.filter(
+            team_id__in=TeamMember.objects.filter(user=request.user).values('team_id')
+        )
+        
+        client_projects = Project.objects.filter(user=request.user)
+        
+        repositories = Repository.objects.filter(
+            project__in=assigned_projects | client_projects
+        ).distinct()
+
+        repository_data = []
+        for repo in repositories:
+            project = repo.project
+            
+            # Get client profile picture
+            client_profile_picture = project.user.register.profile_picture.url if project.user.register.profile_picture else None
+            
+            # Get freelancer profile picture if project has individual freelancer
+            freelancer_profile_picture = None
+            if project.freelancer:
+                try:
+                    freelancer_register = Register.objects.get(user=project.freelancer)
+                    freelancer_profile_picture = freelancer_register.profile_picture.url if freelancer_register.profile_picture else None
+                except Register.DoesNotExist:
+                    pass
+
+            # Get team members if project has a team
+            team_members = []
+            if project.team:
+                team_members = TeamMember.objects.filter(team=project.team)
+                team_members = [{
+                    'user_id': member.user.id,
+                    'profile_picture': member.user.register.profile_picture.url if member.user.register.profile_picture else None,
+                    'name': f"{member.user.register.first_name} {member.user.register.last_name}"
+                } for member in team_members]
+
+            repository_data.append({
+                'repository': repo,
+                'repository_id': repo.id,
+                'project_title': project.title,
+                'project_category': getattr(project, 'category', 'N/A'),
+                'client_profile_picture': client_profile_picture,
+                'client_name': f"{project.user.register.first_name} {project.user.register.last_name}",
+                'freelancer_profile_picture': freelancer_profile_picture,
+                'freelancer_name': f"{project.freelancer.register.first_name} {project.freelancer.register.last_name}" if project.freelancer else None,
+                'team_members': team_members if project.team else [],
+                'is_team_project': bool(project.team)
+            })
+
+        is_project_manager = TeamMember.objects.filter(user=request.user, role='PROJECT_MANAGER').exists()
+        
+    else:
+        repository_data = []
+        is_project_manager = False
+        
+    return render(request, 'Client/Repositories.html', {
+        'repositories': repository_data,
+        'is_project_manager': is_project_manager
+    })
