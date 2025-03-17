@@ -905,7 +905,13 @@ def add_new_project(request):
         "Graphic Design", "Logo Design", "Poster Design", "Software Development",
         "Machine Learning Engineering", "Artificial Intelligence"
     ]
-    
+    skills = [
+        "Python", "JavaScript", "Java", "C++", "React", "Angular", "Vue.js",
+        "Node.js", "Django", "Flask", "SQL", "MongoDB", "AWS", "Docker",
+        "Git", "HTML/CSS", "TypeScript", "PHP", "Swift", "Kotlin",
+        "UI Design", "UX Design", "Figma", "Adobe XD", "Photoshop",
+        "Illustrator", "TensorFlow", "PyTorch", "Data Analysis"
+    ]
     if profile1.permission:
         if request.method == 'POST':
             title = request.POST.get('title')
@@ -915,6 +921,8 @@ def add_new_project(request):
             allow_bid = 'allow_bid' in request.POST
             end_date = request.POST.get('end_date')
             file_upload = request.FILES.get('file')
+            required_skills = request.POST.getlist('required_skills')  # Get selected skills
+            
             
             # Check if a project with the same title already exists for this user
             if Project.objects.filter(title=title, user=request.user).exists():
@@ -934,23 +942,21 @@ def add_new_project(request):
                 allow_bid=allow_bid,
                 end_date=end_date,
                 file_upload=file_upload,
-                user=request.user  
+                user=request.user,
+                required_skills=required_skills  
+                
             )
             
             project.save()
             projects = Project.objects.filter(user_id=uid)
             messages.success(request, 'New Project Added Successfully!!')
-            return render(request, 'Client/ProjectList.html', {
-                'profile1': profile1,
-                'profile2': profile2,
-                'client': client,
-                'projects': projects
-            })
+            return redirect('client:project_list')
         return render(request, 'Client/NewProject.html', {
             'profile1': profile1,
             'profile2': profile2,
             'client': client,
-            'categories': categories
+            'categories': categories,
+            'skills': skills
         })
     else:
         return render(request, 'Client/PermissionDenied.html', {
@@ -980,6 +986,13 @@ def edit_project(request, pid):
         "Graphic Design", "Logo Design", "Poster Design", "Software Development",
         "Machine Learning Engineering", "Artificial Intelligence"
     ]
+    skills = [
+        "Python", "JavaScript", "Java", "C++", "React", "Angular", "Vue.js",
+        "Node.js", "Django", "Flask", "SQL", "MongoDB", "AWS", "Docker",
+        "Git", "HTML/CSS", "TypeScript", "PHP", "Swift", "Kotlin",
+        "UI Design", "UX Design", "Figma", "Adobe XD", "Photoshop",
+        "Illustrator", "TensorFlow", "PyTorch", "Data Analysis"
+    ]
 
     try:
         project = Project.objects.get(id=pid, user_id=uid)
@@ -995,7 +1008,8 @@ def edit_project(request, pid):
             allow_bid = 'allow_bid' in request.POST
             end_date = request.POST.get('end_date')
             file_upload = request.FILES.get('file')
-
+            required_skills = request.POST.getlist('required_skills')
+            
             end_date = parse_date(end_date)
             project.title = title
             project.description = description
@@ -1005,6 +1019,7 @@ def edit_project(request, pid):
             project.end_date = end_date
             project.file_upload = file_upload
             project.status='open'
+            project.required_skills = required_skills
             project.save()
             return redirect('client:project_list')
 
@@ -1013,7 +1028,8 @@ def edit_project(request, pid):
             'profile2': profile2,
             'client': client,
             'categories': categories,
-            'project': project
+            'project': project,
+            'skills': skills
         })
     else:
         return render(request, 'Client/PermissionDenied.html', {
@@ -1084,16 +1100,18 @@ def project_list(request):
 
 
 
+from django.db.models import Avg, Q, Count
+from datetime import timedelta
+
 @login_required
 @nocache
 def single_project_view(request, pid):
-    if 'uid' not in request.session and not request.user.is_authenticated and request.user.role != 'client':
+    if not request.user.is_authenticated or request.user.role != 'client':
         return redirect('login')
 
-    uid = request.session['uid']
-    profile1 = CustomUser.objects.get(id=uid)
-    profile2 = Register.objects.get(user_id=uid)
-    client = ClientProfile.objects.get(user_id=uid)
+    profile1 = get_object_or_404(CustomUser, id=request.user.id)
+    profile2 = get_object_or_404(Register, user_id=request.user.id)
+    client = get_object_or_404(ClientProfile, user_id=request.user.id)
     
     if profile1.permission:
         project = get_object_or_404(Project, id=pid)
@@ -1103,21 +1121,28 @@ def single_project_view(request, pid):
         assigned_freelancer = None
         freelancer_first_name = None
         freelancer_last_name = None
-        project_manager_full_name = None  # New variable for project manager's full name
+        project_manager_full_name = None
         
-        if project.freelancer:
-            assigned_freelancer = FreelancerProfile.objects.get(user=project.freelancer)
-            freelancer_register = Register.objects.get(user=project.freelancer)
-            freelancer_first_name = freelancer_register.first_name  # Accessing from Register
-            freelancer_last_name = freelancer_register.last_name  # Accessing from Register
-            assigned_freelancer.skills = assigned_freelancer.skills.strip('[]').replace("'", "").split(', ')
+        if project.freelancer and isinstance(project.freelancer, CustomUser):
+            try:
+                assigned_freelancer = FreelancerProfile.objects.get(user=project.freelancer)
+                freelancer_register = Register.objects.get(user=project.freelancer)
+                freelancer_first_name = freelancer_register.first_name
+                freelancer_last_name = freelancer_register.last_name
+                if assigned_freelancer.skills:
+                    assigned_freelancer.skills = assigned_freelancer.skills.strip('[]').replace("'", "").split(', ')
+            except (FreelancerProfile.DoesNotExist, Register.DoesNotExist):
+                pass
         
         # Check if the project is assigned to a team
         if project.team:
-            team = project.team
-            project_manager = CustomUser.objects.get(id=team.created_by.id)  # Get the project manager
-            project_manager_register = Register.objects.get(user=project_manager.id)  # Get the Register for the project manager
-            project_manager_full_name = f"{project_manager_register.first_name} {project_manager_register.last_name}"  # Full name of the project manager
+            try:
+                team = project.team
+                project_manager = get_object_or_404(CustomUser, id=team.created_by.id)
+                project_manager_register = get_object_or_404(Register, user=project_manager)
+                project_manager_full_name = f"{project_manager_register.first_name} {project_manager_register.last_name}"
+            except (CustomUser.DoesNotExist, Register.DoesNotExist):
+                project_manager_full_name = None
         
         # Get repository if exists
         repository = Repository.objects.filter(project=project).first()
@@ -1130,20 +1155,21 @@ def single_project_view(request, pid):
         # Check for team details in proposals
         team_name = None  
         team_proposal = proposals.filter(team_id__isnull=False).first()
-        if team_proposal and hasattr(team_proposal, 'team_id_id'):  # Check if team_id_id exists
+        if team_proposal and hasattr(team_proposal, 'team_id_id'):
             try:
-                team = Team.objects.get(id=team_proposal.team_id_id)  # Use team_id_id instead of team_id
-                team_name = team.name  # Assuming the `Team` model has a `name` field.
+                team = Team.objects.get(id=team_proposal.team_id_id)
+                team_name = team.name
             except Team.DoesNotExist:
-                team_name = None  # Handle missing team case gracefully.
-        else:
-            # Handle case where team_id_id does not exist
-            team_name = None  # or set a default value or message
+                team_name = None
         
         for profile in freelancer_profiles:
-            profile.skills = profile.skills.strip('[]').replace("'", "").split(', ')
+            if profile.skills:
+                profile.skills = profile.skills.strip('[]').replace("'", "").split(', ')
         
         additional_files = ProposalFile.objects.filter(proposal__in=proposals)
+
+        # Get recommended freelancers
+        recommended_freelancers = get_recommended_freelancers(project)
 
         return render(request, 'Client/SingleProject.html', {
             'profile1': profile1,
@@ -1159,15 +1185,188 @@ def single_project_view(request, pid):
             'freelancer_last_name': freelancer_last_name,
             'repository_id': repository_id,
             'team_name': team_name,
-            'project_manager_full_name': project_manager_full_name,  # Pass the project manager's full name to the template
+            'project_manager_full_name': project_manager_full_name,
+            'recommended_freelancers': recommended_freelancers,
         })
-        
+    
     else:
         return render(request, 'Client/PermissionDenied.html', {
             'profile1': profile1,
             'profile2': profile2,
             'client': client,
         })
+
+def get_recommended_freelancers(project):
+    """
+    Get recommended freelancers based on:
+    1. Similar project experience (matching category)
+    2. Required skills match
+    3. Ratings on similar projects
+    4. Overall experience and completed projects
+    """
+    # Start with all freelancer profiles, ensuring valid user relationships
+    base_query = FreelancerProfile.objects.filter(
+        user__role='freelancer',
+        user__status=CustomUser.STATUS_ACTIVE,  # Use the correct class attribute
+        professional_title__isnull=False
+    ).select_related(
+        'user', 
+        'user__register'
+    ).prefetch_related(
+        'user__reviews_received',  # Changed to match the related_name in Review model
+        'user__freelancer_projects'  # Changed to match the related_name in Project model
+    )
+
+    # Get required skills for the project
+    required_skills = []
+    if project.required_skills:
+        try:
+            if isinstance(project.required_skills, str):
+                required_skills = eval(project.required_skills)
+            elif isinstance(project.required_skills, (list, tuple)):
+                required_skills = project.required_skills
+        except:
+            required_skills = []
+
+    scored_freelancers = []
+    for freelancer_profile in base_query:
+        try:
+            # Ensure we have a valid user instance
+            if not freelancer_profile.user or not isinstance(freelancer_profile.user, CustomUser):
+                continue
+
+            total_score = 0
+            scoring_details = {}
+
+            # 1. Similar Projects Score (0-30 points)
+            similar_projects = Project.objects.filter(
+                freelancer=freelancer_profile.user,
+                category=project.category,
+                project_status='Completed'
+            ).count()
+            similar_projects_score = min(similar_projects * 10, 30)
+            total_score += similar_projects_score
+            scoring_details['similar_projects'] = similar_projects_score
+
+            # 2. Skills Match Score (0-30 points)
+            freelancer_skills = []
+            matched_skills = []  # New list for matched skills
+            if freelancer_profile.skills:
+                try:
+                    if isinstance(freelancer_profile.skills, str):
+                        freelancer_skills = [
+                            skill.strip().lower() 
+                            for skill in freelancer_profile.skills.strip('[]').replace("'", "").split(',')
+                            if skill.strip()
+                        ]
+                        # Find matched skills
+                        matched_skills = [
+                            skill for skill in required_skills 
+                            if any(skill.lower() in fs.lower() for fs in freelancer_skills)
+                        ]
+                except:
+                    freelancer_skills = []
+                    matched_skills = []
+
+            matching_skills = len(matched_skills)
+            skills_score = min((matching_skills / len(required_skills) * 30 if required_skills else 30), 30)
+            total_score += skills_score
+            scoring_details['skills_match'] = skills_score
+
+            # 3. Category-specific Rating Score (0-25 points)
+            category_reviews = Review.objects.filter(
+                reviewee=freelancer_profile.user,
+                project__category=project.category  # Only reviews from same category projects
+            )
+            category_rating = category_reviews.aggregate(
+                Avg('overall_rating')  # Average of overall_rating field from reviews
+            )['overall_rating__avg'] or 0
+            rating_score = (category_rating / 5) * 25  # Convert to 25-point scale
+            total_score += rating_score
+            scoring_details['category_rating'] = rating_score
+
+            # 4. Experience Score (0-15 points)
+            completed_projects = Project.objects.filter(
+                freelancer=freelancer_profile.user,
+                project_status='Completed'
+            ).count()
+            experience_score = min(completed_projects * 1.5, 15)
+            total_score += experience_score
+            scoring_details['experience'] = experience_score
+
+            try:
+                register = Register.objects.get(user=freelancer_profile.user)
+                first_name = register.first_name
+                last_name = register.last_name
+                profile_picture = register.profile_picture
+            except Register.DoesNotExist:
+                first_name = "Unknown"
+                last_name = "User"
+                profile_picture = None
+
+            # Format skills for display
+            display_skills = []
+            if freelancer_profile.skills:
+                try:
+                    if isinstance(freelancer_profile.skills, str):
+                        display_skills = [
+                            skill.strip() 
+                            for skill in freelancer_profile.skills.strip('[]').replace("'", "").split(',')
+                            if skill.strip()
+                        ]
+                except:
+                    display_skills = []
+
+            # Format the scoring details into human-readable reasons
+            recommendation_reasons = []
+            
+            # Similar Projects
+            if similar_projects > 0:
+                recommendation_reasons.append(
+                    f"Has completed {similar_projects} similar {project.category} projects"
+                )
+
+            # Skills Match
+            if required_skills and matching_skills > 0:
+                match_percentage = (matching_skills / len(required_skills)) * 100
+                recommendation_reasons.append(
+                    f"Matches {match_percentage:.0f}% of required skills"
+                )
+
+            # Category Rating
+            if category_rating > 0:
+                recommendation_reasons.append(
+                    f"Has {category_rating:.1f}/5 rating in {project.category} projects"
+                )
+
+            # Experience
+            if completed_projects > 0:
+                recommendation_reasons.append(
+                    f"Successfully completed {completed_projects} projects overall"
+                )
+
+            scored_freelancers.append({
+                'freelancer': freelancer_profile,
+                'score': total_score,
+                'scoring_details': scoring_details,
+                'skills': display_skills,
+                'matched_skills': matched_skills,  # Add matched skills to the output
+                'similar_projects_count': similar_projects,
+                'completed_projects': completed_projects,
+                'category_rating': round(category_rating, 1),  # Rounded rating for display
+                'first_name': first_name,
+                'last_name': last_name,
+                'profile_picture': profile_picture,
+                'recommendation_reasons': recommendation_reasons  # Add the reasons
+            })
+
+        except Exception as e:
+            print(f"Error processing freelancer {freelancer_profile.id}: {str(e)}")
+            continue
+
+    # Sort by total score and return top 3
+    scored_freelancers.sort(key=lambda x: x['score'], reverse=True)
+    return scored_freelancers[:3]
 
 
 
@@ -2001,34 +2200,49 @@ def chat_view(request):
         chat_rooms = ChatRoom.objects.filter(participants=client.user_id).prefetch_related('participants')
 
         # Fetch freelancer details for each chat room
-        freelancers = []
+        chat_details = []
         for chat in chat_rooms:
-            # Fetch freelancers excluding the client
-            for participant in chat.participants.exclude(id=client.user_id):
-                try:
-                    freelancer_profile = FreelancerProfile.objects.get(user=participant)
-                    freelancer_register = Register.objects.get(user_id=participant.id)
-                    freelancers.append({
-                        'user': participant,
-                        'profile': freelancer_profile,
-                        'register': freelancer_register,
-                        'chat_room_id': chat.id  # Pass the chat room ID
-                    })  # Store user, profile, register details, and chat room ID
-                except FreelancerProfile.DoesNotExist:
-                    # Handle the case where the freelancer profile does not exist
-                    print(f"FreelancerProfile for user {participant.id} does not exist.")
-                    continue  # Skip this participant if their profile does not exist
-                except Register.DoesNotExist:
-                    # Handle the case where the register does not exist
-                    print(f"Register for user {participant.id} does not exist.")
-                    continue  # Skip this participant if their register does not exist
+            if chat.chat_type == 'group':
+                # For group chats, add group details
+                members = []
+                for participant in chat.participants.all():
+                    try:
+                        register = Register.objects.get(user_id=participant.id)
+                        members.append({
+                            'name': f"{register.first_name} {register.last_name}",
+                            'profile_picture': register.profile_picture.url if register.profile_picture else None
+                        })
+                    except Register.DoesNotExist:
+                        continue
+                
+                chat_details.append({
+                    'chat_room_id': chat.id,
+                    'chat_type': 'group',
+                    'name': chat.name,
+                    'members': members
+                })
+            else:
+                # For private chats, fetch freelancer details
+                for participant in chat.participants.exclude(id=client.user_id):
+                    try:
+                        freelancer_profile = FreelancerProfile.objects.get(user=participant)
+                        freelancer_register = Register.objects.get(user_id=participant.id)
+                        chat_details.append({
+                            'chat_room_id': chat.id,
+                            'chat_type': 'private',
+                            'user': participant,
+                            'profile': freelancer_profile,
+                            'register': freelancer_register
+                        })
+                    except (FreelancerProfile.DoesNotExist, Register.DoesNotExist):
+                        continue
         
         return render(request, 'Client/chat.html', {
             'profile1': profile1,
             'profile2': profile2,
             'client': client,
             'chat_rooms': chat_rooms,
-            'freelancers': freelancers,
+            'chat_details': chat_details,  # Replace freelancers with chat_details
         })
     else:
         return render(request, 'Client/PermissionDenied.html', {
@@ -2075,26 +2289,36 @@ def fetch_messages(request):
     if request.method == 'POST':
         data = json.loads(request.body)
         chat_room_id = data.get('chat_room_id')
-
-        # Fetch messages for the given chat room
+        chat_room = ChatRoom.objects.get(id=chat_room_id)
         messages = Message.objects.filter(chat_room_id=chat_room_id).order_by('timestamp')
 
-        # Prepare messages for response
         messages_list = []
         for message in messages:
-            print(f"Message ID: {message.id}, Content: {message.content}, Image: {message.image}, File: {message.file}")  # Debugging line
+            # Get sender's Register information
+            try:
+                sender_register = Register.objects.get(user_id=message.sender.id)
+                sender_name = f"{sender_register.first_name} {sender_register.last_name}"
+                sender_profile_picture = sender_register.profile_picture.url if sender_register.profile_picture else None
+            except Register.DoesNotExist:
+                sender_name = message.sender.username
+                sender_profile_picture = None
 
-            msg_data = {
-                'content': message.content if message.content else '',  # Ensure content is not None
+            message_data = {
+                'content': message.content if message.content else '',
                 'type': 'sent' if message.sender == request.user else 'received',
-                'image': message.image.url if message.image and hasattr(message.image, 'url') else None,  # Check if image exists
-                'file': message.file.url if message.file and hasattr(message.file, 'url') else None,    # Check if file exists
+                'image': message.image.url if message.image else None,
+                'file': message.file.url if message.file else None,
+                'is_group_chat': chat_room.chat_type == 'group',
+                'sender_name': sender_name,
+                'sender_profile_picture': sender_profile_picture,
+                'timestamp': message.timestamp.strftime("%I:%M %p")  # Adding time in 12-hour format
             }
-            messages_list.append(msg_data)
+            messages_list.append(message_data)
 
-        print(messages_list)  # Debugging line to check the messages list
-
-        return JsonResponse({'success': True, 'messages': messages_list})
+        return JsonResponse({
+            'success': True,
+            'messages': messages_list
+        })
 
     return JsonResponse({'success': False, 'error': 'Invalid request method.'})
 
@@ -2946,6 +3170,20 @@ def manage_single_event(request, event_id):
     leaderboard_data = []
     prize_paid = False
 
+    # Fetch all registered participants
+    registered_participants = []
+    for registration in registrations:
+        freelancer = registration.freelancer
+        register_info = Register.objects.get(user=freelancer)
+        registered_participants.append({
+            'name': f"{register_info.first_name} {register_info.last_name}",
+            'email': freelancer.email,
+            'profile_picture': register_info.profile_picture.url if register_info.profile_picture else None,
+            'registered_at': registration.registration_time,
+            'attended': registration.attended,  # Include attendance status
+            'registration_id': registration.id  # Include registration ID for potential actions
+        })
+
     # Fetch freelancers who attended the event
     attended_freelancers = []
     for registration in registrations:
@@ -3003,9 +3241,12 @@ def manage_single_event(request, event_id):
     context = {
         'event': event,
         'registrations': registrations,
-        'attendees': attended_freelancers,  # Pass attended freelancers to the template
+        'registered_participants': registered_participants,  # Add registered participants to context
+        'attendees': attended_freelancers,
         'leaderboard': leaderboard_data,
-        'prize_paid': prize_paid if event.type == 'quiz' and event.prize_enabled else False
+        'prize_paid': prize_paid if event.type == 'quiz' and event.prize_enabled else False,
+        'total_registered': len(registered_participants),  # Add total registration count
+        'total_attended': len(attended_freelancers),  # Add total attendance count
     }
     
     return render(request, 'Client/manage_single_event.html', context)
@@ -3431,3 +3672,11 @@ def client_repositories(request):
         'repositories': repository_data,
         'is_project_manager': is_project_manager
     })
+
+from core.models import SubscriptionPlan
+def plans(request):
+    plans = SubscriptionPlan.objects.all()
+    
+    for plan in plans:
+        plan.features_list = plan.features.split(',')  
+    return render(request, 'Client/plans.html', {'plans': plans})

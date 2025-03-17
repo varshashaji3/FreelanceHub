@@ -190,56 +190,26 @@
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
     
     <script>
-
-        
-        const duration = {{ duration.total_seconds }} * 1000; // Convert duration to milliseconds
-        const quiz_id = {{ quiz_id }};
-        const endTime = new Date('{{ end_time }}').getTime(); // Add end time
-        let remainingTime = duration;
-        const timerElement = document.getElementById('timer');
-
-        function submitQuiz() {
-            const buttons = document.querySelectorAll('.option-button');
-            let selectedAnswer = null;
-
-            buttons.forEach((button) => {
-                if (button.classList.contains('selected')) {
-                    selectedAnswer = button.innerText;
-                }
-            });
-
-            // Handle the last question's score
-            const questionData = questions[currentQuestionIndex - 1];
-            if (selectedAnswer === questionData.correct_answer) {
-                score += questionData.points;
-            }
-
-            $.ajax({
-                url: "{% url 'freelancer:submit_quiz' quiz_id %}",
-                type: 'POST',
-                data: JSON.stringify({ score: score }),
-                contentType: 'application/json',
-                success: function(response) {
-                    if (!response.success) {
-                        console.error('Failed to submit quiz:', response.message);
-                    }
-                    document.getElementById('quiz-page').style.display = 'none';
-                    document.getElementById('end-page').style.display = 'flex';
-                    showConfetti();
-                },
-                error: function(xhr, status, error) {
-                    console.error('Error submitting quiz:', error);
-                }
-            });
+        // Safely parse the questions JSON with error handling
+        let questions;
+        try {
+            questions = JSON.parse('{{ questions|safe|escapejs }}');
+            console.log('Parsed questions:', questions); // Debug log
+        } catch (e) {
+            console.error('Error parsing questions:', e);
+            questions = [];
         }
 
-        function updateTimer() {
-            const now = new Date().getTime();
-            const timeToEnd = endTime - now;
-            
-            // Use the shorter time between duration and time until end
-            remainingTime = Math.min(remainingTime, timeToEnd);
+        const duration = parseInt('{{ duration.total_seconds }}', 10) * 1000 || 3600000; // Default to 1 hour if parsing fails
+        const quiz_id = parseInt('{{ quiz_id }}', 10);
+        let remainingTime = duration;
+        let currentQuestionIndex = 1;
+        let score = 0;
+        let selectedAnswers = [];
+        
+        const timerElement = document.getElementById('timer');
 
+        function updateTimer() {
             const seconds = Math.floor((remainingTime / 1000) % 60);
             const minutes = Math.floor((remainingTime / (1000 * 60)) % 60);
             const hours = Math.floor((remainingTime / (1000 * 60 * 60)) % 24);
@@ -250,49 +220,72 @@
             if (remainingTime < 0) {
                 clearInterval(timerInterval);
                 timerElement.innerText = "Time's up!";
-                submitQuiz(); // Automatically submit when time runs out
+                submitQuiz();
             }
         }
 
-        let timerInterval = setInterval(updateTimer, 1000); // Update timer every second
-        const questions = {{ questions|safe }};  
-        let currentQuestionIndex = 1;  
-        let score = 0; // Initialize score
-        let selectedAnswers = []; // Array to store selected answers for each question
+        let timerInterval = setInterval(updateTimer, 1000);
+
         document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('start-page').style.display = 'block';
         });
 
         function loadQuestion(index) {
-            const questionData = questions[index - 1]; 
-            document.getElementById('question-index').innerText = index;  
-            document.getElementById('question-text').innerText = questionData.question;
+            if (!questions || !questions.length) {
+                console.error('No questions available');
+                return;
+            }
+
+            const questionData = questions[index - 1];
+            console.log('Loading question:', questionData); // Debug log
+
+            // Update question number
+            document.getElementById('question-index').textContent = index;
+
+            // Update question text
+            const questionElement = document.getElementById('question-text');
+            questionElement.textContent = questionData.question;
+
+            // Clear and update options
             const optionsContainer = document.getElementById('options-container');
             optionsContainer.innerHTML = '';
 
-            const options = [questionData.option1, questionData.option2, questionData.option3, questionData.option4];
+            // Create option buttons
+            const options = [
+                questionData.option1,
+                questionData.option2,
+                questionData.option3,
+                questionData.option4
+            ];
+
             options.forEach((option, i) => {
-                const button = document.createElement('button');
-                button.innerText = option;
-                button.classList.add('option-button');
+                if (option) { // Only create button if option exists
+                    const button = document.createElement('button');
+                    button.textContent = option;
+                    button.className = 'option-button';
+                    
+                    // Check if this option was previously selected
+                    if (selectedAnswers[index - 1] === option) {
+                        button.classList.add('selected');
+                    }
 
-                // Check if there is a previously selected answer for this question
-                if (selectedAnswers[index - 1] === option) {
-                    button.classList.add('selected'); // Mark as selected if it was previously selected
+                    button.onclick = () => {
+                        selectOption(i);
+                        selectedAnswers[index - 1] = option;
+                    };
+                    
+                    optionsContainer.appendChild(button);
                 }
-
-                button.onclick = () => {
-                    selectOption(i);
-                    selectedAnswers[index - 1] = option; // Store the selected answer
-                };
-                optionsContainer.appendChild(button);
             });
 
-            document.getElementById('next-btn').disabled = index === questions.length;  // Disable next button if at last question
-            document.getElementById('next-btn').innerText = index === questions.length ? 'SUBMIT QUIZ' : 'NEXT QUESTION';
-            document.getElementById('next-btn').style.display = index === questions.length ? 'none' : 'block';
-            document.getElementById('submit-btn').style.display = index === questions.length ? 'block' : 'none';
-            document.getElementById('prev-btn').style.display = index === 1 ? 'none' : 'block'; // Hide if first question
+            // Update navigation buttons
+            const nextBtn = document.getElementById('next-btn');
+            const submitBtn = document.getElementById('submit-btn');
+            const prevBtn = document.getElementById('prev-btn');
+
+            nextBtn.style.display = index === questions.length ? 'none' : 'block';
+            submitBtn.style.display = index === questions.length ? 'block' : 'none';
+            prevBtn.style.display = index === 1 ? 'none' : 'block';
         }
 
         function selectOption(selectedIndex) {
@@ -352,7 +345,45 @@
             window.location.href = '/'; 
         });
 
-        document.getElementById('submit-btn').addEventListener('click', submitQuiz);
+        document.getElementById('submit-btn').addEventListener('click', () => {
+            const buttons = document.querySelectorAll('.option-button');
+            let selectedAnswer = null;
+
+            buttons.forEach((button) => {
+                if (button.classList.contains('selected')) {
+                    selectedAnswer = button.innerText; 
+                }
+            });
+
+            const questionData = questions[currentQuestionIndex - 1]; 
+            
+            if (selectedAnswer === questionData.correct_answer) {
+                score += questionData.points; 
+                console.log(`Correct! Score: ${score}`); 
+            } else {
+                console.log(`Incorrect! Score remains: ${score}`); 
+            }
+            $.ajax({
+                url: "{% url 'freelancer:submit_quiz' quiz_id %}",
+                type: 'POST',
+                data: JSON.stringify({ score: score }),
+                contentType: 'application/json',
+                success: function(response) {
+                    if (!response.success) {
+                        console.error('Failed to submit quiz:', response.message);
+                    }
+                    document.getElementById('quiz-page').style.display = 'none';
+                    document.getElementById('end-page').style.display = 'flex';
+                    showConfetti();
+                },
+                error: function(xhr, status, error) {
+                    console.error('Error submitting quiz:', error);
+                }
+            });
+            document.getElementById('quiz-page').style.display = 'none';
+            document.getElementById('end-page').style.display = 'flex';
+            showConfetti();
+        });
 
         loadQuestion(currentQuestionIndex);
     </script>

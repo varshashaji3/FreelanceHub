@@ -73,6 +73,10 @@ except Exception as e:
 # Now you can access the 'skill' column
 standardized_skills = set(standardized_skills_df['skill'].str.strip())  # Store for quick lookup
 
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+import numpy as np
+
 @login_required
 @nocache
 def freelancer_view(request):
@@ -281,6 +285,168 @@ def freelancer_view(request):
         ]
     }
 
+    # Get freelancer's profile and skills
+    try:
+        freelancer = FreelancerProfile.objects.get(user_id=uid)
+        skills = freelancer.skills.strip('[]').replace("'", "").split(', ') if freelancer.skills else []
+        professions = freelancer.professional_title.strip('[]').replace("'", "").split(', ') if freelancer.professional_title else []
+        
+        # Step 1: Print profession to category mapping
+        print("\n=== Step 1: Profession Category Mapping ===")
+        profession_category_map = {
+            'Web Developer': 'Web Development',
+            'Front End Developer': 'Front-End Development',
+            'Back End Developer': 'Back-End Development',
+            'Full Stack Developer': 'Full-Stack Development',
+            'Mobile App Developer': 'Mobile Development',
+            'Android Developer': 'Android Development',
+            'iOS Developer': 'iOS Development',
+            'UI/UX Designer': 'UI/UX Design',
+            'Graphic Designer': 'Graphic Design',
+            'Logo Designer': 'Logo Design',
+            'Poster Designer': 'Poster Design',
+            'Software Developer': 'Software Development',
+            'Machine Learning Engineer': 'Machine Learning Engineering',
+            'Artificial Intelligence Specialist': 'Artificial Intelligence'
+        }
+        print("Available mappings:", profession_category_map)
+
+        # Step 2: Print relevant categories
+        print("\n=== Step 2: Freelancer's Relevant Categories ===")
+        print("Freelancer's professions:", professions)
+        relevant_categories = [profession_category_map[prof] for prof in professions if prof in profession_category_map]
+        print("Mapped categories:", relevant_categories)
+
+        # Step 3: Print submitted proposals
+        print("\n=== Step 3: Already Submitted Proposals ===")
+        submitted_proposal_project_ids = Proposal.objects.filter(
+            freelancer_id=uid
+        ).values_list('project_id', flat=True)
+        print("Already proposed project IDs:", list(submitted_proposal_project_ids))
+
+        # Step 4: Print available projects
+        print("\n=== Step 4: Available Projects ===")
+        available_projects = Project.objects.filter(
+            Q(freelancer__isnull=True) | Q(team_id__isnull=True),
+            project_status='Not Started',
+            status='open'
+        ).filter(
+            Q(category__in=relevant_categories) | 
+            Q(required_skills__isnull=False)  # Changed to just check if skills exist
+        ).exclude(
+            id__in=submitted_proposal_project_ids
+        )
+
+        print("Freelancer skills:", skills)
+        print("Available projects:")
+        filtered_projects = []
+        for project in available_projects:
+            # Split required skills and convert to lowercase for case-insensitive comparison
+            project_skills = [skill.strip().lower() for skill in project.required_skills] if project.required_skills else []
+            freelancer_skills = [skill.strip().lower() for skill in skills]
+            
+            # Check if there's any skill overlap
+            matching_skills = set(project_skills) & set(freelancer_skills)
+            
+            if matching_skills or project.category in relevant_categories:
+                filtered_projects.append(project)
+                print(f"- {project.title}")
+                print(f"  Category: {project.category}")
+                print(f"  Required skills: {project.required_skills}")
+                print(f"  Matching skills: {matching_skills}")
+
+        # Step 5: Print text documents
+        print("\n=== Step 5: Text Documents for Analysis ===")
+        project_docs = []
+        project_objects = []
+        for project in filtered_projects:  # Use filtered_projects instead of available_projects
+            project_text = f"{project.title} {project.description} {' '.join(project.required_skills)}".lower()
+            print(f"\nProject: {project.title}")
+            print(f"Text document: {project_text[:100]}...")  # Print first 100 chars
+            project_docs.append(project_text)
+            project_objects.append(project)
+
+        recommended_projects = []
+        if project_docs:  # Only proceed if there are projects
+            # Step 6: Print similarity scores
+            print("\n=== Step 6: TF-IDF Analysis ===")
+            vectorizer = TfidfVectorizer(stop_words='english')
+            freelancer_text = ' '.join(skills).lower()
+            print(f"Freelancer document: {freelancer_text}")
+            all_docs = [freelancer_text] + project_docs
+            
+            tfidf_matrix = vectorizer.fit_transform(all_docs)
+            cosine_similarities = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:]).flatten()
+            
+            print("\nCosine similarities:")
+            for project, score in zip(project_objects, cosine_similarities):
+                print(f"- {project.title}: {score:.3f}")
+            
+            # Create list of (project, similarity_score) tuples
+            project_scores = list(zip(project_objects, cosine_similarities))
+            
+            # Sort projects by similarity score
+            project_scores.sort(key=lambda x: x[1], reverse=True)
+            
+            # Step 7: Print final recommendations
+            print("\n=== Step 7: Final Recommendations ===")
+            for project, score in project_scores[:5]:  # Limit to top 5
+                client_profile = ClientProfile.objects.get(user=project.user_id)
+                client_register = Register.objects.get(user=project.user_id)
+                
+                if client_profile.client_type == 'Individual':
+                    client_name = f"{client_register.first_name} {client_register.last_name}"
+                else:
+                    client_name = client_profile.company_name
+
+                # Get client's profile picture
+                client_profile_picture = client_register.profile_picture if client_register.profile_picture else None
+
+                # Convert skills to lowercase for case-insensitive comparison
+                project_skills = {skill.lower() for skill in project.required_skills}
+                freelancer_skills = {skill.lower() for skill in skills}
+                
+                # Calculate skill matches
+                matching_skills = project_skills.intersection(freelancer_skills)
+                missing_skills = project_skills - freelancer_skills
+                
+                if project_skills:
+                    match_percentage = len(matching_skills) / len(project_skills) * 100
+                else:
+                    match_percentage = 0
+
+                # Determine category match
+                category_match = project.category in relevant_categories
+
+                # Generate recommendation reasons
+                reasons = []
+                if matching_skills:
+                    reasons.append(f"You have {len(matching_skills)} matching skills: {', '.join(matching_skills)}")
+                if category_match:
+                    reasons.append(f"Project category ({project.category}) matches your professional expertise")
+                if score > 0.3:  # Only include similarity if it's significant
+                    reasons.append(f"Project requirements align with your skill set")
+
+                print(f"\nProject: {project.title}")
+                print(f"- Skill match: {match_percentage:.1f}%")
+                print(f"- Similarity score: {score * 100:.1f}%")
+                print(f"- Matching skills: {matching_skills}")
+                print(f"- Missing skills: {missing_skills}")
+
+                recommended_projects.append({
+                    'project': project,
+                    'client_name': client_name,
+                    'client_profile_picture': client_profile_picture,  # Add this line
+                    'match_percentage': round(match_percentage, 1),
+                    'similarity_score': round(score * 100, 1),
+                    'matching_skills': list(matching_skills),
+                    'missing_skills': list(missing_skills),
+                    'reasons': reasons
+                })
+
+    except FreelancerProfile.DoesNotExist:
+        recommended_projects = []
+
     return render(request, 'freelancer/index.html', {
         'profile2': profile2,
         'profile1': profile1,
@@ -295,6 +461,7 @@ def freelancer_view(request):
         'earnings_data': json.dumps(earnings_data),
         'top_clients_data': json.dumps(top_clients_data),
         'rating_data': rating_data,
+        'recommended_projects': recommended_projects,
     })
 
 
@@ -402,7 +569,7 @@ def AddProfileFreelancer(request, uid):
 def account_settings(request):
     uid=request.user.id
     profession = [
-    'Web Developer','Front-End Developer','Back-End Developer','Full-Stack Developer',
+    'Web Developer','Front End Developer','Back End Developer','Full Stack Developer',
     'Mobile App Developer','Android Developer','iOS Developer','UI/UX Designer','Graphic Designer',
     'Logo Designer','Poster Designer','Machine Learning Engineer','Artificial Intelligence Specialist','Software Developer',
 ]
@@ -1016,9 +1183,9 @@ def view_project(request):
         'Graphic Designer': 'Graphic Design',
         'Logo Designer': 'Logo Design',
         'Poster Designer': 'Poster Design',
+        'Software Developer': 'Software Development',
         'Machine Learning Engineer': 'Machine Learning Engineering',
-        'Artificial Intelligence Specialist': 'Artificial Intelligence',
-        'Software Developer': 'Software Development'
+        'Artificial Intelligence Specialist': 'Artificial Intelligence'
     }
 
     if profile1.permission:
@@ -2082,53 +2249,36 @@ def fetch_messages(request):
     if request.method == 'POST':
         data = json.loads(request.body)
         chat_room_id = data.get('chat_room_id')
-
+        chat_room = ChatRoom.objects.get(id=chat_room_id)
         messages = Message.objects.filter(chat_room_id=chat_room_id).order_by('timestamp')
 
         messages_list = []
         for message in messages:
-            sender_username = 'Unknown'
-            sender_id = None
-            sender_profile_picture = None
-            sender_name = None
+            # Get sender's Register information
+            try:
+                sender_register = Register.objects.get(user_id=message.sender.id)
+                sender_name = f"{sender_register.first_name} {sender_register.last_name}"
+                sender_profile_picture = sender_register.profile_picture.url if sender_register.profile_picture else None
+            except Register.DoesNotExist:
+                sender_name = message.sender.username
+                sender_profile_picture = None
 
-            if message.sender:
-                try:
-                    register = Register.objects.get(user=message.sender)
-                    
-                    # Debug print to check what's being retrieved
-                    print(f"Register found for user {message.sender.username}")
-                    print(f"Profile picture field: {register.profile_picture}")
-                    print(f"Profile picture URL: {register.profile_picture.url if register.profile_picture else 'No URL'}")
-                    
-                    # Make sure we're getting the full URL
-                    if register.profile_picture and register.profile_picture.url:
-                        sender_profile_picture = request.build_absolute_uri(register.profile_picture.url)
-                    
-                    sender_name = f"{register.first_name} {register.last_name}"
-                    sender_username = message.sender.username
-                    sender_id = message.sender.id
-
-                except Register.DoesNotExist:
-                    print(f"No Register profile found for user {message.sender.username}")
-                except Exception as e:
-                    print(f"Error getting profile picture: {str(e)}")
-
-            msg_data = {
+            message_data = {
                 'content': message.content if message.content else '',
                 'type': 'sent' if message.sender == request.user else 'received',
-                'senderUsername': sender_username,
-                'senderId': sender_id,
-                'senderName': sender_name,
-                'senderProfilePicture': sender_profile_picture,
-                'timestamp': message.timestamp.strftime('%Y-%m-%d %H:%M:%S')
+                'image': message.image.url if message.image else None,
+                'file': message.file.url if message.file else None,
+                'is_group_chat': chat_room.chat_type == 'group',
+                'sender_name': sender_name,
+                'sender_profile_picture': sender_profile_picture,
+                'timestamp': message.timestamp.strftime("%I:%M %p")  # Adding time in 12-hour format
             }
-            
-            # Debug print the final message data
-            print(f"Message data being sent: {msg_data}")
-            messages_list.append(msg_data)
+            messages_list.append(message_data)
 
-        return JsonResponse({'success': True, 'messages': messages_list})
+        return JsonResponse({
+            'success': True,
+            'messages': messages_list
+        })
 
     return JsonResponse({'success': False, 'error': 'Invalid request method.'})
 
@@ -2943,45 +3093,44 @@ def manage_team(request, team_id):
         return redirect('login')
 
     team = get_object_or_404(Team, id=team_id)
-    team_projects = Project.objects.filter(team=team)  
+    team_projects = Project.objects.filter(team=team)
     client_details = []
+    salary_paid_all_members = False  # Initialize the variable here
+    payment_received = False  # Initialize payment_received variable
 
     for project in team_projects:
-        client_profile = ClientProfile.objects.get(user=project.user)  # Get client profile for each project
-        client_register = None 
+        client_profile = ClientProfile.objects.get(user=project.user)
+        client_register = None
 
         if client_profile.client_type == 'Individual':
-            client_register = Register.objects.get(user=project.user)  # Get the register info
+            client_register = Register.objects.get(user=project.user)
             client_name = f"{client_register.first_name} {client_register.last_name}"
-           
         else:
-            client_register = Register.objects.get(user=project.user) 
-            client_name = client_profile.company_name  
+            client_register = Register.objects.get(user=project.user)
+            client_name = client_profile.company_name
 
         client_details.append({
             'client_name': client_name,
-            'client_profile_picture': client_register.profile_picture.url if  client_register.profile_picture else None,
-            'client_email': client_profile.user.email  # Get email from CustomUser
+            'client_profile_picture': client_register.profile_picture.url if client_register.profile_picture else None,
+            'client_email': client_profile.user.email
         })
-        contract = get_object_or_404(FreelanceContract, project_id=project.id)
 
-        # Check if all payment installments for the contract are paid
-        installments = PaymentInstallment.objects.filter(contract=contract)
-        all_paid = all(installment.status == 'paid' for installment in installments)
+        try:
+            contract = FreelanceContract.objects.get(project_id=project.id)
+            installments = PaymentInstallment.objects.filter(contract=contract)
+            payment_received = all(installment.status == 'paid' for installment in installments)
 
-        # Store the payment status in a variable to pass to the context
-        payment_received = all_paid  # This will be True or False based on the installments' status
+            team_members = TeamMember.objects.filter(team=team)
+            salaries_paid = SalaryPayment.objects.filter(
+                project_id=project.id,
+                status='completed'
+            ).values_list('team_member_id', flat=True)
 
-        team_members = TeamMember.objects.filter(team=team)
-        salaries_paid = SalaryPayment.objects.filter(
-            project_id=project.id, 
-            status='completed'
-        ).values_list('team_member_id', flat=True)
-
-        team_member_ids = team_members.values_list('id', flat=True)
-        
-        # Check if all team members have salary payment completed (i.e., 5 entries for 5 team members)
-        salary_paid_all_members = len(salaries_paid) == len(team_member_ids)
+            team_member_ids = team_members.values_list('id', flat=True)
+            salary_paid_all_members = len(salaries_paid) == len(team_member_ids)
+        except FreelanceContract.DoesNotExist:
+            payment_received = False
+            salary_paid_all_members = False
     
     team_members = TeamMember.objects.filter(team=team).select_related(
         'user',
@@ -2992,11 +3141,38 @@ def manage_team(request, team_id):
     # Fetch all available freelancers excluding the current user
     available_freelancers = CustomUser.objects.filter(role='freelancer').exclude(id=request.user.id).select_related('register', 'freelancerprofile')
 
-    # Check if all roles are assigned
-    roles = TeamMember.objects.filter(team=team).values_list('role', flat=True)
-    unassigned_roles = TeamMember.objects.filter(team=team, user__isnull=True).values_list('role', flat=True)
+    # Define required roles
+    REQUIRED_ROLES = ['PROJECT_MANAGER', 'DESIGNER', 'FRONTEND_DEV', 'BACKEND_DEV', 'QA_TESTER']
 
-    all_roles_assigned = len(unassigned_roles) == 0
+    # Check if all required roles exist and are assigned
+    all_roles_assigned = all(
+        TeamMember.objects.filter(
+            team=team,
+            role=role,
+            user__isnull=False
+        ).exists()
+        for role in REQUIRED_ROLES
+    )
+
+    # Check if salary percentages are set for all roles
+    salary_percentages_set = all(
+        TeamMember.objects.filter(
+            team=team, 
+            role=role,
+            salary_percentage__gt=0  # Changed to only check if greater than 0
+        ).exists()
+        for role in ['PROJECT_MANAGER', 'DESIGNER', 'FRONTEND_DEV', 'BACKEND_DEV', 'QA_TESTER']
+    )
+
+    print("Salary percentages check:", salary_percentages_set)  # Debug print
+    print("Individual role checks:")  # Debug print
+    for role in ['PROJECT_MANAGER', 'DESIGNER', 'FRONTEND_DEV', 'BACKEND_DEV', 'QA_TESTER']:
+        has_salary = TeamMember.objects.filter(
+            team=team, 
+            role=role,
+            salary_percentage__gt=0
+        ).exists()
+        print(f"{role}: {has_salary}")  # Debug print
 
     # Format team member data
     team_members_data = []
@@ -3081,16 +3257,17 @@ def manage_team(request, team_id):
             role='PROJECT_MANAGER'
         ).exists(),
         'all_roles_assigned': all_roles_assigned,
-        'unassigned_roles': list(unassigned_roles),  
+        'unassigned_roles': REQUIRED_ROLES,  
         'available_freelancers': available_freelancers_data,  
         'invitations': invitations_data,
         'team_projects': team_projects,  # Include team projects in the context
         'client_details': client_details,
-        'project_details':project_details,
+        'project_details': project_details,
         'salary_paid_all_members': salary_paid_all_members,
-        'payment_received':payment_received  # Pass client details to the template
+        'payment_received': payment_received,  # Pass client details to the template
+        'salary_percentages_set': salary_percentages_set,
     }
-    print(salary_paid_all_members)
+
     return render(request, 'freelancer/manage_team.html', context)
 
 
@@ -3429,7 +3606,7 @@ def assign_task(request):
 
 
 
-@csrf_exempt  # Use with caution; consider using proper CSRF protection
+@csrf_exempt  # Use this only if you are not using CSRF tokens in AJAX requests
 def pay_team_salaries(request):
     if request.method == 'POST':
         data = json.loads(request.body)
@@ -3626,6 +3803,8 @@ def register_event(request):
     
     
 from client.models import QuizQuestion  
+import json  # Add this import at the top
+
 def quiz_view(request, quiz_id):
     is_registered = EventRegistration.objects.filter(
         freelancer=request.user,
@@ -3637,24 +3816,29 @@ def quiz_view(request, quiz_id):
         event=quiz_id,
         attended=True
     ).exists()
+    duration = event.duration  
     
-    # Calculate end time by adding duration directly (since it's already a timedelta)
-    duration = event.duration
-    end_time = event.date + duration
-    
+    # Get questions and convert QuerySet to list of dictionaries
     questions = QuizQuestion.objects.filter(quiz=quiz_id).values(
-        'question', 'option1', 'option2', 'option3', 'option4',
-        'correct_answer', 'points'
+        'question', 
+        'option1', 
+        'option2', 
+        'option3', 
+        'option4',
+        'correct_answer',
+        'points'
     )
     questions_list = list(questions)
     
+    # Serialize the questions list to JSON
+    questions_json = json.dumps(questions_list)
+    
     return render(request, 'freelancer/quiz.html', {
         'quiz_id': quiz_id,
-        'questions': questions_list,
+        'questions': questions_json,  # Send serialized JSON
         'is_registered': is_registered,
         'duration': duration,
-        'is_attended': is_attended,
-        'end_time': end_time  # Add end time to context
+        'is_attended': is_attended
     })
     
 from client.models import QuizAttempt  # Add this import at the top
@@ -3735,181 +3919,6 @@ def analyze_skill_gap(request):
         })
 
 
-# from django.http import JsonResponse
-# from django.views.decorators.http import require_http_methods
-# import json
-# import os
-# from .models import FreelancerProfile
-# from dotenv import load_dotenv
-# import google.generativeai as genai
-# import spacy
-# from bs4 import BeautifulSoup
-# import re
-# # Load the spaCy model for NLP
-# nlp = spacy.load('en_core_web_sm')
-
-# def standardize_skill(skill):
-#     # Remove numbers, dashes, and extra characters
-#     skill = re.sub(r'[\d\.\-\(\)]', '', skill)
-    
-#     # Process each skill using NLP lemmatization
-#     clean_skills = []
-#     for s in skill_list:
-#         doc = nlp(s)
-#         clean_s = ' '.join([token.lemma_ for token in doc if not token.is_stop])
-#         clean_s = clean_s.lower().strip()
-#         clean_skills.append(clean_s)
-    
-#     return clean_skills
-# @require_http_methods(["POST"])
-# def get_skill_analysis(request):
-#     try:
-#         data = json.loads(request.body)
-#         job_role = data.get('job_role')
-        
-#         freelancer = FreelancerProfile.objects.get(user=request.user)
-#         existing_skills = []
-#         if freelancer.skills:
-#             skills_str = freelancer.skills.strip('[]')
-#             existing_skills = [
-#                 standardize_skill(skill.strip().strip("'").replace('-', '')) 
-#                 for skill in skills_str.split(',') 
-#                 if skill.strip()
-#             ]
-
-#         load_dotenv()
-#         genai.configure(api_key=os.getenv('GOOGLE_API_KEY'))
-#         model = genai.GenerativeModel('gemini-pro')
-        
-#         fundamental_prompt = f"""I'm interested in a career as a {job_role}. What are the core technical skills I need to develop to be competitive in this field? list main 2 skills name only without any description"""
-        
-#         try:
-#             fundamental_response = model.generate_content(fundamental_prompt)
-#             fundamental_skills = [
-#                 standardize_skill(skill.strip()) 
-#                 for skill in fundamental_response.text.split('\n') 
-#                 if skill.strip()
-#             ]
-
-#             missing_fundamentals = [skill for skill in fundamental_skills if skill not in existing_skills]
-            
-#             if missing_fundamentals:
-#                 course_recommendations = []
-#                 for skill in missing_fundamentals:
-#                     courses = fetch_classcentral_courses(skill)
-#                     course_recommendations.extend(courses)
-                
-#                 return JsonResponse({
-#                     'success': True,
-#                     'existing_skills': existing_skills,
-#                     'fundamental_skills': fundamental_skills,
-#                     'missing_fundamentals': missing_fundamentals,
-#                     'needs_fundamentals': True,
-#                     'course_recommendations': course_recommendations
-#                 })
-            
-#             trending_prompt = f"""I'm a {job_role} looking to stay ahead of the curve. What are the most in-demand technical skills, frameworks, and specific technologies for a {job_role} in 2025? Focus only on specific technical tools, libraries, and frameworks.
-
-# Please provide a list with just the names of main technologies, without any explanations or categories. Each item should be a specific technology name."""
-            
-#             trending_response = model.generate_content(trending_prompt)
-#             trending_skills = [
-#                 standardize_skill(skill.strip()) 
-#                 for skill in trending_response.text.split('\n') 
-#                 if skill.strip()
-#             ]
-
-#             skill_gaps = [skill for skill in trending_skills if skill not in existing_skills]
-            
-#             course_recommendations = []
-#             for skill in skill_gaps:
-#                 courses = fetch_classcentral_courses(skill)
-#                 course_recommendations.extend(courses)
-            
-#             response_data = {
-#                 'success': True,
-#                 'existing_skills': existing_skills,
-#                 'fundamental_skills': fundamental_skills,
-#                 'trending_skills': trending_skills,
-#                 'skill_gaps': skill_gaps,
-#                 'needs_fundamentals': False,
-#                 'course_recommendations': course_recommendations
-#             }
-            
-#             return JsonResponse(response_data)
-            
-#         except Exception as e:
-#             return JsonResponse({
-#                 'success': False,
-#                 'message': f'Error generating recommendations: {str(e)}'
-#             }, status=500)
-            
-#     except FreelancerProfile.DoesNotExist:
-#         return JsonResponse({
-#             'success': False,
-#             'message': 'Freelancer profile not found'
-#         }, status=404)
-#     except Exception as e:
-#         return JsonResponse({
-#             'success': False,
-#             'message': str(e)
-#         }, status=500)
-
-# def fetch_classcentral_courses(skill):
-#     """Fetch courses from Class Central by trying both general search and beginner-level search if necessary."""
-#     base_url = "https://www.classcentral.com/search?q="
-#     headers = {
-#         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-#     }
-
-#     def scrape_courses(url):
-#         """Helper function to scrape courses from a given URL."""
-#         response = requests.get(url, headers=headers)
-#         if response.status_code != 200:
-#             return []
-
-#         soup = BeautifulSoup(response.text, "html.parser")
-#         courses = []
-
-#         for course_card in soup.find_all("li", class_="bg-white", limit=3):  # Fetch top 3 courses
-#             try:
-#                 # Get course title
-#                 title_elem = course_card.find("h2", class_="text-1")
-#                 if not title_elem:
-#                     continue
-#                 title = title_elem.text.strip()
-
-#                 # Get course link
-#                 link_elem = course_card.find("a", class_="color-charcoal")
-#                 link = "https://www.classcentral.com" + link_elem["href"] if link_elem else ""
-
-#                 # Get course image
-#                 img_elem = course_card.find("img")
-#                 img_url = img_elem["src"] if img_elem and "src" in img_elem.attrs else ""
-
-#                 provider_elem = course_card.find("a", class_="color-charcoal")
-#                 provider = provider_elem.text.strip() if provider_elem else "Unknown Provider"
-
-#                 if title and link:
-#                     courses.append({
-#                         "title": title,
-#                         "platform": provider,
-#                         "url": link,
-#                         "image_url": img_url
-#                     })
-#             except Exception as e:
-#                 print(f"Error processing course card: {e}")
-#                 continue
-
-#         return courses
-
-#     courses = scrape_courses(base_url + skill)
-    
-#     if not courses:
-#         courses = scrape_courses(base_url + skill + "&level=beginner")
-
-#     return courses  
-
 
 
 from django.http import JsonResponse
@@ -3985,8 +3994,6 @@ def get_skill_analysis(request):
         job_role = data.get('job_role')
         
         freelancer = FreelancerProfile.objects.get(user=request.user)
-        print("Freelancer profile found:", freelancer)  # Debugging statement
-
         existing_skills = []
         if freelancer.skills:
             skills_str = freelancer.skills.strip('[]')
@@ -3995,22 +4002,24 @@ def get_skill_analysis(request):
                 for skill in skills_str.split(',')
                 if skill.strip()
             ]
-            print("Existing skills:", existing_skills)  # Debugging statement
-
+            
         load_dotenv()
         genai.configure(api_key=os.getenv('GOOGLE_API_KEY'))
-        model = genai.GenerativeModel('gemini-pro')
+        model = genai.GenerativeModel("gemini-1.5-flash")
         
         professional_check_prompt = f"Is {job_role} a professional job role? yes/no"
         professional_check_response = model.generate_content(professional_check_prompt)
-        print(professional_check_response.text)
-        if professional_check_response.text.lower() == 'yes':
+        print(professional_check_response.text)  # For debugging
+
+        # Clean and normalize the response
+        is_professional = professional_check_response.text.strip().lower()
+        if 'yes' in is_professional:  # More flexible check
             
             fundamental_prompt = f"""I'm interested in a career as a {job_role}. 
             What are the core technical skills I need to develop to be competitive in this field?
             List only 5 main skills, without any description."""
             
-            print("Fundamental Prompt:", fundamental_prompt)  # Print the prompt given to the AI
+            print("Fundamental Prompt:", fundamental_prompt)
             
             try:
                 fundamental_response = model.generate_content(fundamental_prompt)
@@ -4041,8 +4050,9 @@ def get_skill_analysis(request):
                     })
 
                 # Get Trending Skills
+                current_year = datetime.now().year
                 trending_prompt = f"""I'm a {job_role} looking to stay ahead of the curve. 
-                What are the most in-demand technical skills, frameworks, and specific technologies for a {job_role} in 2025? 
+                What are the most in-demand technical skills, frameworks, and specific technologies for a {job_role} in {current_year}? 
                 Focus only on specific tools, libraries, and frameworks. Provide just the names, no descriptions."""
 
                 print("Trending Prompt:", trending_prompt)  # Print the prompt given to the AI
@@ -4311,3 +4321,13 @@ def freelancer_repositories(request):
         'repositories': repository_data,
         'is_project_manager': is_project_manager
     })
+
+from core.models import SubscriptionPlan,UserSubscription
+@login_required
+def plans(request):
+    plans = SubscriptionPlan.objects.all()
+    
+    for plan in plans:
+        plan.features_list = plan.features.split(',')  # Split the features by comma
+
+    return render(request, 'freelancer/plans.html', {'plans': plans})

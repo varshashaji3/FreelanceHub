@@ -244,7 +244,13 @@
             </tr>
         {% else %}
             {% for user in users %}
-                <tr>
+                {% with user_month=user.joined|date:'n'|stringformat:"s" %}
+                {% with start_month=request.GET.start_month|default:'' %}
+                {% with end_month=request.GET.end_month|default:'' %}
+                {% with month_range=start_month|add:':'|add:end_month %}
+                    {% if request.GET.year|default:'' == user.joined|date:'Y' or not request.GET.year %}
+                        {% if not start_month or not end_month or user_month|between:month_range %}
+                            <tr>
                                 <td>{{ forloop.counter }}</td>
                                 {% if user.role == 'freelancer' %}
                                     <td>{% if user.profile_picture %}<img src="{{ user.profile_picture }}" width="50" height="50" style="padding-right:10px;">{% else %}N/A{% endif %}   {{ user.freelancer_name }}</td>
@@ -260,6 +266,12 @@
                         
                         <td>{{ user.phone_number }}</td>
                             </tr>
+                        {% endif %}
+                    {% endif %}
+                {% endwith %}
+                {% endwith %}
+                {% endwith %}
+                {% endwith %}
             {% endfor %}
         {% endif %}
     </tbody>

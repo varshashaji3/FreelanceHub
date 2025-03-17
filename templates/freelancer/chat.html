@@ -229,7 +229,7 @@
     <div class="container">
         <div class="sidebar1" id="sidebar1">
             <div class="search-bar">
-                <input type="text" placeholder="Search here...">
+                <input type="text" id="searchInput" placeholder="Search here...">
             </div>
             <div class="favorites">
                 <ul class="contact-list">
@@ -306,7 +306,7 @@
 
         if (!chatRoomId) return; // Exit if no chat room is selected
 
-        fetch("{% url 'client:fetch_messages' %}", { // Update with your fetch URL
+        fetch("{% url 'freelancer:fetch_messages' %}", { // Update with your fetch URL
             method: "POST",
             headers: {
                 'Content-Type': 'application/json',
@@ -318,44 +318,61 @@
         .then(data => {
             if (data.success) {
                 const messagesHTML = data.messages.map(msg => {
-                    let messageContent = `<div class="message ${msg.type}">`;
+                    const defaultProfilePic = "{% static 'img/default-profile.png' %}";
+                    const messageClass = msg.type === 'sent' ? 'sent' : 'received';
+                    
+                    let messageContent = `
+                        <div class="message ${messageClass}" style="display: flex; align-items: start; margin: 20px 0; ${msg.type === 'sent' ? 'flex-direction: row-reverse;' : ''}">
+                            <div class="profile-pic" style="margin: ${msg.type === 'sent' ? '0 0 0 15px' : '0 15px 0 0'}">
+                                <img src="${msg.sender_profile_picture || defaultProfilePic}" 
+                                    alt="${msg.sender_name}"
+                                    onerror="this.onerror=null; this.src='${defaultProfilePic}';"
+                                    style="width: 25px; height: 25px; border-radius: 50%;">
+                            </div>
+                            <div class="message-content" style="max-width: auto;">
+                                <div class="sender-name" style="font-size: 11px; color: #666; margin-bottom: 5px;">${msg.sender_name}</div>
+                                <div class="bubble" style="color: ${msg.type === 'sent' ? '#000' : '#000'}; 
+                                                         padding: 5px ; 
+                                                         font-size: 16px;
+                                                         min-height: 50px;
+                                                         display: inline-block;
+                                                         min-width: 80px;
+                                                         width: 100%;">`;
 
-                    // Check if there's an image
+                    // Handle different types of content
                     if (msg.image) {
-                        const alignmentClass = msg.type === 'sent' ? 'sent' : 'received'; // Determine alignment based on message type
-                        messageContent = `
-                            <div class="${alignmentClass}" style="text-align: ${alignmentClass === 'sent' ? 'right' : 'left'}; position: relative; display: inline-block;">
-                                <img src="${msg.image}" alt="Image" style="max-width: 30%; border-radius: 10px; margin-top: 5px;">
-                                <!-- Download icon placed at the top-right corner of the image -->
+                        messageContent += `
+                            <div style="position: relative;">
+                                <img src="${msg.image}" alt="Image" style="max-width: 300px; border-radius: 10px;">
                                 <a href="${msg.image}" download style="position: absolute; top: 5px; right: 5px;">
                                     <i class="fas fa-download" style="color: #2E4583; font-size: 18px;"></i>
                                 </a>
-                            </div><br>
-                        `;
-                    }
-                    
-                    // Check if there's a file
-                    else if (msg.file) {
-                        const fileName = msg.file.split('/').pop(); // Extract file name from path
-                        messageContent += `<br><p style="display: flex; align-items: center; justify-content: space-between;">
-                            <img src="{% static 'img/file.png' %}" alt="Download File" style="width: 20px; height: 20px; margin-right: 10px;">
-                            <span>${fileName}</span> <!-- Display only the file name -->
-                            <a href="${msg.file}" download style="margin-left: 10px;">
-                                <i class="fas fa-download" style="color: #2E4583;"></i> <!-- Download icon -->
-                            </a>
-                        </p>`;
-                    }
-                    else if (msg.senderUsername) {
-                        console.log(msg.senderUsername); // Print sender_username in console
-                        messageContent += `<p><strong>${msg.senderUsername}:</strong> ${msg.content}</p>`;
-                    }
-                    else {
-                        messageContent += `<p>${msg.content}</p>`;
+                            </div>`;
+                    } else if (msg.file) {
+                        const fileName = msg.file.split('/').pop();
+                        messageContent += `
+                            <div style="display: flex; align-items: center;">
+                                <img src="{% static 'img/file.png' %}" alt="File" style="width: 20px; height: 20px; margin-right: 10px;">
+                                <span>${fileName}</span>
+                                <a href="${msg.file}" download style="margin-left: 10px;">
+                                    <i class="fas fa-download" style="color: #2E4583;"></i>
+                                </a>
+                            </div>`;
+                    } else {
+                        messageContent += `<p style="margin: 0; line-height: 1.4; font-size: 16px;">${msg.content}</p>`;
                     }
 
-                    messageContent += `</div>`;
+                    messageContent += `
+                                </div>
+                                <div class="timestamp" style="font-size: 11px; color: #999; margin-top: 5px; text-align: ${msg.type === 'sent' ? 'right' : 'left'};">
+                                    ${msg.timestamp}
+                                </div>
+                            </div>
+                        </div>`;
+
                     return messageContent;
                 }).join('');
+
                 document.getElementById('chatMessages').innerHTML = messagesHTML;
                 document.getElementById('chatMessages').scrollTop = document.getElementById('chatMessages').scrollHeight;
             }
@@ -366,7 +383,7 @@
     }
 
     // Call fetchMessages every 5 seconds
-    setInterval(fetchMessages, 1000);
+    setInterval(fetchMessages, 5000);
 
     function sendMessage() {
         const chatRoomId = document.getElementById('chatRoomId').value; // Ensure chatRoomId is retrieved here
@@ -510,6 +527,21 @@
     if (document.querySelectorAll('.contact').length === 0) {
         document.getElementById('chatMessages').innerHTML = `<div class="message received"><p>Select a user to start chatting...</p></div>`;
     }
+
+    // Add this near the top of your script section
+    document.getElementById('searchInput').addEventListener('input', function() {
+        const searchTerm = this.value.toLowerCase();
+        const contacts = document.querySelectorAll('.contact');
+        
+        contacts.forEach(contact => {
+            const contactName = contact.querySelector('.contact-info p').textContent.toLowerCase();
+            if (contactName.includes(searchTerm)) {
+                contact.style.display = 'flex';
+            } else {
+                contact.style.display = 'none';
+            }
+        });
+    });
 </script>
 
 <style>

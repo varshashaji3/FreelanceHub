@@ -8,7 +8,7 @@ from django.utils import timezone
 from django.shortcuts import render,redirect
 
 from client.models import ClientProfile, Project, Review
-from .models import EmailVerification, Notification, PasswordReset, CustomUser, Register, SiteReview
+from .models import EmailVerification, Notification, PasswordReset, CustomUser, Register, SiteReview, UserSubscription, SubscriptionPlan
 from django.core.mail import EmailMessage
 from django.contrib import messages
 from django.core.mail import send_mail
@@ -25,6 +25,9 @@ from administrator.views import admin_view
 from urllib.parse import urlparse, parse_qs, urlunparse
 from urllib.parse import urlencode
 from django.http import JsonResponse
+import razorpay
+import json
+from django.views.decorators.csrf import csrf_exempt
 
 
 def index(request):
@@ -692,6 +695,98 @@ def payment_success(request):
         else:
             return JsonResponse({'status': 'failed', 'error': 'Invalid data received'}, status=400)
     
+
+@csrf_exempt
+def initiate_payment(request):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            user_id = data.get('user_id')
+            subscription_plan_id = data.get('subscription_plan_id')
+            
+            # Get the subscription plan and user
+            plan = SubscriptionPlan.objects.get(id=subscription_plan_id)
+            user = CustomUser.objects.get(id=user_id)
+            
+            # Create a subscription entry with pending status
+            subscription = UserSubscription.objects.create(
+                user=user,
+                subscription_plan=plan,
+                payment_status='Pending',
+                amount=plan.price
+            )
+            
+            # Initialize Razorpay client
+            client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
+            
+            # Create a Razorpay order
+            amount = int(plan.price * 100)  # Convert to paise
+            order_data = {
+                'amount': amount,
+                'currency': 'INR',
+                'receipt': f'order_rcptid_{user_id}_{subscription_plan_id}',
+                'payment_capture': 1
+            }
+            order = client.order.create(data=order_data)
+            
+            # Update subscription with order ID
+            subscription.razorpay_order_id = order['id']
+            subscription.save()
+            
+            return JsonResponse({
+                'success': True,
+                'amount': amount,
+                'order_id': order['id'],
+                'subscription_id': subscription.id
+            })
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)})
+    
+    return JsonResponse({'success': False, 'error': 'Invalid request method'})
+
+
+@csrf_exempt
+def subscription_payment_success(request):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            subscription_plan_id = data.get('subscription_plan_id')
+            user_id = data.get('user_id')
+            razorpay_payment_id = data.get('razorpay_payment_id')
+            razorpay_order_id = data.get('razorpay_order_id')
+            razorpay_signature = data.get('razorpay_signature')
+
+            if not (subscription_plan_id and user_id and razorpay_payment_id and razorpay_order_id and razorpay_signature):
+                return JsonResponse({'status': 'failed', 'error': 'Missing required parameters'}, status=400)
+            
+            # Get the user and subscription plan
+            user = CustomUser.objects.get(id=user_id)
+            plan = SubscriptionPlan.objects.get(id=subscription_plan_id)
+            
+            # Find or create a subscription for this user and plan
+            user_subscription, created = UserSubscription.objects.get_or_create(
+                user=user,
+                subscription_plan=plan,
+                payment_status='Pending',
+                defaults={'amount': plan.price}
+            )
+            
+            # Update subscription with payment details
+            user_subscription.razorpay_payment_id = razorpay_payment_id
+            user_subscription.razorpay_order_id = razorpay_order_id
+            user_subscription.payment_status = 'Completed'
+            user_subscription.start_date = timezone.now()
+            user_subscription.save()
+
+            return JsonResponse({'success': True})
+        except json.JSONDecodeError:
+            return JsonResponse({'status': 'failed', 'error': 'Invalid JSON'}, status=400)
+        except (CustomUser.DoesNotExist, SubscriptionPlan.DoesNotExist):
+            return JsonResponse({'status': 'failed', 'error': 'User or subscription plan not found'}, status=404)
+        except Exception as e:
+            return JsonResponse({'status': 'failed', 'error': str(e)}, status=500)
+    
+    return JsonResponse({'status': 'failed', 'error': 'Only POST requests are allowed'}, status=405)
 
 
 

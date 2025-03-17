@@ -68,6 +68,8 @@ class Project(models.Model):
     scope = models.CharField(max_length=10, choices=SCOPE_CHOICES, default='medium')
     team = models.ForeignKey('freelancer.Team', on_delete=models.SET_NULL, null=True, blank=True, related_name='projects')
 
+    required_skills = models.JSONField(default=list)  # Stores skills as a list
+
     def save(self, *args, **kwargs):
         if isinstance(self.budget, str):
             self.budget = int(self.budget)
@@ -374,6 +376,12 @@ class EventAndQuiz(models.Model):
         ('conference', 'Conference'),
     ]
 
+    APPROVAL_STATUS_CHOICES = (
+        ('pending', 'Pending'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+    )
+
     title = models.CharField(max_length=255)
     description = models.TextField()
     date = models.DateTimeField()
@@ -406,6 +414,18 @@ class EventAndQuiz(models.Model):
     ], default='upcoming')  
     certificate_template = models.ImageField(upload_to='certificate_templates/', null=True, blank=True)
     
+    approval_status = models.CharField(
+        max_length=20, 
+        choices=APPROVAL_STATUS_CHOICES, 
+        default='pending',
+        help_text='Approval status of the event/quiz'
+    )
+    rejection_reason = models.TextField(
+        null=True, 
+        blank=True,
+        help_text='Reason for rejection if the event/quiz is rejected'
+    )
+    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -414,9 +434,9 @@ class EventAndQuiz(models.Model):
         if self.max_participants is not None and self.max_participants == self.number_of_registrations:
             self.registration_status = 'closed'
         
-        # Check if registration_end_date has passed
-        # if self.registration_end_date and timezone.now() > self.registration_end_date:
-        #     self.registration_status = 'closed'
+        # New: If this is a new event/quiz, set approval_status to pending
+        if not self.pk:  # if object is being created
+            self.approval_status = 'pending'
         
         super().save(*args, **kwargs)
 

@@ -9,25 +9,29 @@
          
         </div>
         <div class="header-buttons">
-            {% if all_roles_assigned %}
+            {% if not salary_percentages_set %}
+            <button class="invite-button" onclick="openInviteModal()" disabled title="Please set salary percentages for all roles first">
+                <i class="fas fa-user-plus"></i> Invite Member  
+            </button>
+            {% elif all_roles_assigned %}
             <button class="invite-button" onclick="openInviteModal()" disabled title="All roles are assigned, you cannot invite more members.">
                 <i class="fas fa-user-plus"></i> Invite Member  
             </button>
             {% else %}
-            <button class="invite-button" onclick="openInviteModal()">
-                <i class="fas fa-user-plus"></i> Invite Member  
-            </button>
+                <button class="invite-button" onclick="openInviteModal()">
+                    <i class="fas fa-user-plus"></i> Invite Member  
+                </button>
             {% endif %}
-            {% if all_roles_assigned %}
-           <button class="set-salary-button" onclick="openSalaryModal()">Set Salary for Roles</button>
-       
-            {% else %}
-            <button class="set-salary-button" onclick="openSalaryModal()" disabled title="All roles must be assigned first">Set Salary for Roles</button>
-       
-            {% endif %}
+            <button class="set-salary-button" onclick="openSalaryModal()">Set Salary for Roles</button>
             </div>
     </div>
-    {% if not all_roles_assigned %}
+    {% if not salary_percentages_set %}
+    <div class="warning-badge">
+        <i class="fas fa-exclamation-triangle"></i>
+        Salary Percentages Not Set
+        <div class="tooltip">Please set salary percentages for all roles before inviting team members</div>
+    </div>
+    {% elif not all_roles_assigned %}
     <div class="warning-badge">
         <i class="fas fa-exclamation-triangle"></i>
         Incomplete Team - Cannot Submit Proposals

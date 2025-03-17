@@ -113,7 +113,6 @@
                                 <th>Title</th>
                                 <th>Type</th>
                                 <th>Date</th>
-                                <th>Participants</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -127,8 +126,7 @@
                                     </span>
                                 </td>
                                 <td>{{ item.date|date:"M d, Y h:i A" }}</td>
-                                <td>{{ item.registered_participants|default_if_none:"0" }}/{{ item.max_participants|default_if_none:"∞" }}</td>
-                                <td>
+                               <td>
                                     <a href="{% url 'client:manage_single_event' item.id %}" class="btn btn-sm btn-info"><i class="fas fa-users"></i> Manage Event</a>
                                     <a href="#" class="btn btn-sm btn-secondary" data-bs-toggle="modal" data-bs-target="#eventDetailsModal" data-event-id="{{ item.id }}"><i class="fas fa-eye"></i> Show Details</a>
                                    
@@ -241,11 +239,11 @@
                                             <input type="checkbox" class="form-check-input" id="certificateProvided" name="certificate_provided">
                                             <label class="form-check-label fw-bold" for="certificateProvided">Certificate Provided</label>
                                         </div>
-                                        <div class="form-check">
+                                        <div class="form-check" id="prizeEnabledDiv" style="display: none;">
                                             <input type="checkbox" class="form-check-input" id="prizeEnabled" name="prize_enabled">
                                             <label class="form-check-label fw-bold" for="prizeEnabled">Prize Enabled</label>
                                         </div>
-                                        <div  id="prizeAmountDiv" style="display: none;">
+                                        <div id="prizeAmountDiv" style="display: none;">
                                             <label for="prizeAmount" class="form-label fw-bold">Prize Amount</label>
                                             <input type="number" step="0.01" class="form-control" id="prizeAmount" name="prize_amount">
                                         </div>
@@ -314,50 +312,74 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Show/hide type of event field based on type selection
+    // Remove duplicate eventType declaration and consolidate event type handling
     const eventType = document.getElementById('eventType');
     const typeOfEventDiv = document.getElementById('typeOfEventDiv');
     const onlineLinkDiv = document.getElementById('onlineLinkDiv');
+    const quizFileDiv = document.getElementById('quizFileDiv');
+    const quizDurationDiv = document.getElementById('durationDiv');
+    const prizeEnabledDiv = document.getElementById('prizeEnabledDiv');
     
     eventType.addEventListener('change', function() {
         const isEvent = this.value === 'event';
+        const isQuiz = this.value === 'quiz';
+        
+        // Handle event-specific elements
         typeOfEventDiv.style.display = isEvent ? 'block' : 'none';
         onlineLinkDiv.style.display = isEvent ? 'block' : 'none';
         
+        // Handle quiz-specific elements
+        quizFileDiv.style.display = isQuiz ? 'block' : 'none';
+        quizDurationDiv.style.display = isQuiz ? 'block' : 'none';
+        prizeEnabledDiv.style.display = isQuiz ? 'block' : 'none';
+        
+        // Clear fields when switching types
         if (!isEvent) {
             document.getElementById('typeOfEvent').value = '';
             document.getElementById('onlineLink').value = '';
         }
-    });
-
-    // Show/hide quiz file upload field based on event type selection
-    const quizFileDiv = document.getElementById('quizFileDiv');
-
-    eventType.addEventListener('change', function() {
-        if (this.value === 'quiz') {
-            quizFileDiv.style.display = 'block'; // Show the CSV upload field
-            quizDurationDiv.style.display = 'block'; // Show the duration field
-        } else {
-            quizFileDiv.style.display = 'none'; // Hide the CSV upload field
-            document.getElementById('quizFile').value = ''; // Clear the file input
-            quizDurationDiv.style.display = 'none'; // Hide the duration field
-            document.getElementById('eventDuration').value = ''; // Clear the duration input
+        if (!isQuiz) {
+            document.getElementById('quizFile').value = '';
+            document.getElementById('eventDuration').value = '';
+            document.getElementById('prizeEnabled').checked = false;
+            document.getElementById('prizeAmount').value = '';
+            prizeAmountDiv.style.display = 'none';
         }
     });
 
-    // Show/hide duration field based on event type selection
-    const quizDurationDiv = document.getElementById('durationDiv');
+    // Show event details modal on button click
+    const detailButtons = document.querySelectorAll('[data-bs-target="#eventDetailsModal"]');
+    detailButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const eventId = this.getAttribute('data-event-id'); // Get the event ID
+            
+            // Fetch event details from the server
+            fetch("{% url 'client:get_event_details' 0 %}".replace('0', eventId))
+                .then(response => response.json())
+                .then(eventDetails => {
+                    // Populate the modal with event details
+                    document.getElementById('eventDetailsContent').innerHTML = `
+                        <div class="d-flex">
+                            <div class="flex-grow-1 me-3">
+                                <h5>${eventDetails.title}</h5>
+                                <p><strong>Date:</strong> ${new Date(eventDetails.date).toLocaleString()}</p>
+                                <p><strong>Maximum Participants:</strong>  ${eventDetails.max_participants}</p>
+                                <p><strong>Description:</strong> ${eventDetails.description}</p>
+                                ${eventDetails.online_link ? `<p><strong>Online Link:</strong> <a href="${eventDetails.online_link}" target="_blank">${eventDetails.online_link}</a></p>` : ''}
+                                ${eventDetails.prize_enabled ? `<p><strong>Prize Amount:</strong> ${eventDetails.prize_amount}</p>` : ''}
+                            </div>
+                            ${eventDetails.type === 'event' ? `<img src="${eventDetails.poster}" alt="Event Poster" class="img-fluid" style="height:200px;width:200px;">` : ''}
+                        </div>
+                    `;
 
-    eventType.addEventListener('change', function() {
-        if (this.value === 'quiz') {
-            quizFileDiv.style.display = 'block'; // Show the CSV upload field
-            quizDurationDiv.style.display = 'block'; // Show the duration field
-        } else {
-            quizFileDiv.style.display = 'none'; // Hide the CSV upload field
-            document.getElementById('quizFile').value = ''; // Clear the file input
-            quizDurationDiv.style.display = 'none'; // Hide the duration field
-            document.getElementById('eventDuration').value = ''; // Clear the duration input
-        }
+                    const modal = new bootstrap.Modal(document.getElementById('eventDetailsModal'));
+                    modal.show();
+                })
+                .catch(error => {
+                    console.error('Error fetching event details:', error);
+                    document.getElementById('eventDetailsContent').innerHTML = '<p class="text-danger">Error loading event details.</p>';
+                });
+        });
     });
 
     // Section toggle functionality
@@ -395,41 +417,6 @@ document.addEventListener('DOMContentLoaded', function() {
             Object.keys(sections).forEach(key => {
                 sections[key].style.display = key === this.dataset.section ? 'block' : 'none';
             });
-        });
-    });
-
-    // Show event details modal on button click
-    const detailButtons = document.querySelectorAll('[data-bs-target="#eventDetailsModal"]');
-    detailButtons.forEach(button => {
-        button.addEventListener('click', function() {
-            const eventId = this.getAttribute('data-event-id'); // Get the event ID
-            
-            // Fetch event details from the server
-            fetch("{% url 'client:get_event_details' 0 %}".replace('0', eventId))
-                .then(response => response.json())
-                .then(eventDetails => {
-                    // Populate the modal with event details
-                    document.getElementById('eventDetailsContent').innerHTML = `
-                        <div class="d-flex">
-                            <div class="flex-grow-1 me-3">
-                                <h5>${eventDetails.title}</h5>
-                                <p><strong>Date:</strong> ${new Date(eventDetails.date).toLocaleString()}</p>
-                                <p><strong>Maximum Participants:</strong>  ${eventDetails.max_participants}</p>
-                                <p><strong>Description:</strong> ${eventDetails.description}</p>
-                                ${eventDetails.online_link ? `<p><strong>Online Link:</strong> <a href="${eventDetails.online_link}" target="_blank">${eventDetails.online_link}</a></p>` : ''}
-                                ${eventDetails.prize_enabled ? `<p><strong>Prize Amount:</strong> ${eventDetails.prize_amount}</p>` : ''}
-                            </div>
-                            ${eventDetails.type === 'event' ? `<img src="${eventDetails.poster}" alt="Event Poster" class="img-fluid" style="height:200px;width:200px;">` : ''}
-                        </div>
-                    `;
-
-                    const modal = new bootstrap.Modal(document.getElementById('eventDetailsModal'));
-                    modal.show();
-                })
-                .catch(error => {
-                    console.error('Error fetching event details:', error);
-                    document.getElementById('eventDetailsContent').innerHTML = '<p class="text-danger">Error loading event details.</p>';
-                });
         });
     });
 });
