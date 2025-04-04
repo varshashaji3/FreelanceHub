@@ -6,7 +6,9 @@ from django.utils import timezone
 from django.conf import settings
 
 from dateutil.relativedelta import relativedelta
-
+from django.core.exceptions import ValidationError
+from django.db.models.signals import pre_save
+from django.dispatch import receiver
 
 class CustomUserManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
@@ -82,7 +84,8 @@ class Register(models.Model):
     linkedin = models.URLField(max_length=255, blank=True, null=True)
     instagram = models.URLField(max_length=255, blank=True, null=True)
     twitter = models.URLField(max_length=255, blank=True, null=True)
-    
+    def __str__(self):
+        return f"{self.first_name} {self.last_name}"
     
     
     
@@ -180,42 +183,184 @@ class RefundPayment(models.Model):
         return f"Refund Payment of {self.amount} to {self.pay_to} for Project {self.project.id}"
 
 class SubscriptionPlan(models.Model):
-    PLAN_CHOICES = [
-        ('basic', 'Basic Plan'),
-        ('standard', 'Standard Plan'),
-        ('pro', 'Pro Plan'),
-        ('ultimate', 'Ultimate Plan'),
-    ]
+    # Basic Details
+    name = models.CharField(
+        max_length=100, 
+        unique=True,
+        null=False, 
+        blank=False,
+        help_text="Plan name (e.g., Basic, Premium, Pro)"
+    )
+    price = models.DecimalField(
+        max_digits=10, 
+        decimal_places=2,
+        null=False,
+        blank=False,
+        default=0.00,
+        help_text="Price for the plan"
+    )
+    duration_days = models.IntegerField(
+        null=False,
+        blank=False,
+        default=30,
+        help_text="Duration of the plan in days"
+    )
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Whether the plan is currently active"
+    )
     
-    name = models.CharField(max_length=50, choices=PLAN_CHOICES)
-    price = models.DecimalField(max_digits=10, decimal_places=2)
-    duration = models.PositiveIntegerField()  # Duration in months
-    features = models.TextField()  
+    # Client Features
+    can_hire_freelancer = models.BooleanField(
+        default=False,
+        help_text="Allow clients to hire freelancers"
+    )
+    can_create_events = models.BooleanField(
+        default=False,
+        help_text="Allow clients to create events"
+    )
+    project_creation_limit = models.IntegerField(
+        default=0,
+        null=False,
+        blank=False,
+        help_text="Maximum number of projects a client can create"
+    )
+    ai_freelancer_recommendations = models.BooleanField(
+        default=False,
+        help_text="Enable AI freelancer recommendations for clients"
+    )
+    
+    # Freelancer Features
+    # The code `can_participate_events` is not a valid Python code snippet. It seems to be a function
+    # or variable name, but without the actual code implementation, it is not possible to determine
+    # what it is doing. If you provide the code implementation, I can help explain its functionality.
+    can_participate_events = models.BooleanField(
+        default=False,
+        help_text="Allow freelancers to participate in events"
+    )
+    ai_skill_gap_analysis = models.BooleanField(
+        default=False,
+        help_text="Enable AI skill gap analysis for freelancers"
+    )
+    can_create_portfolio = models.BooleanField(
+        default=False,
+        help_text="Allow freelancers to create portfolio"
+    )
+    max_proposals_limit = models.IntegerField(
+        default=0,
+        null=False,
+        blank=False,
+        help_text="Maximum number of proposals a freelancer can submit"
+    )
+    ai_project_recommendations = models.BooleanField(
+        default=False,
+        help_text="Enable AI project recommendations for freelancers"
+    )
+    team_creation = models.BooleanField(
+        default=False,
+        help_text="Allow freelancers to create teams"
+    )
+    
+    # Timestamps
+    created_at = models.DateTimeField(
+        default=timezone.now,
+        help_text="When the plan was created"
+    )
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        help_text="When the plan was last updated"
+    )
+
+    class Meta:
+        ordering = ['price', 'name']
+        verbose_name = "Subscription Plan"
+        verbose_name_plural = "Subscription Plans"
 
     def __str__(self):
+        return f"{self.name} (${self.price})"
+
+    @property
+    def badge(self):
+        """Returns the plan name as the badge"""
         return self.name
 
 class UserSubscription(models.Model):
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    subscription_plan = models.ForeignKey(SubscriptionPlan, on_delete=models.CASCADE)
-    start_date = models.DateTimeField(auto_now_add=True)
-    end_date = models.DateTimeField(null=True, blank=True)  # Allow null initially
-    is_active = models.BooleanField(default=True)
-
-    # New fields for payment details
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='subscriptions')
+    plan = models.ForeignKey(SubscriptionPlan, on_delete=models.CASCADE, null=True, blank=True)
+    
+    # Payment Details
     amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    payment_status = models.CharField(max_length=20, default='Pending')
     razorpay_order_id = models.CharField(max_length=255, null=True, blank=True)
     razorpay_payment_id = models.CharField(max_length=255, null=True, blank=True)
-    payment_status = models.CharField(max_length=20, default='Pending')  # e.g., 'Completed', 'Failed'
-
-    def save(self, *args, **kwargs):
-        # Make sure start_date is set
-        if self.payment_status == 'Completed' and not self.end_date:
-            if self.start_date and self.subscription_plan and self.subscription_plan.duration:
-                # Calculate end date based on the plan duration in months
-                self.end_date = self.start_date + relativedelta(months=self.subscription_plan.duration)
-        
-        super().save(*args, **kwargs)
+    
+    # Subscription Dates
+    start_date = models.DateTimeField(default=timezone.now)
+    end_date = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the subscription ends"
+    )
+    is_active = models.BooleanField(default=True)
+    
+    # Timestamps
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"{self.user.email} - {self.subscription_plan.name}"
+        return f"{self.user.email} - {self.plan.name if self.plan else 'No Plan'}"
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        if self.is_active:
+            UserSubscription.objects.filter(
+                user=self.user,
+                is_active=True
+            ).exclude(pk=self.pk).update(is_active=False)
+        super().save(*args, **kwargs)
+
+    class Meta:
+        ordering = ['-start_date']
+
+    @property
+    def payment_completed(self):
+        return self.payment_status == 'Completed'
+
+    @property
+    def is_expired(self):
+        if self.end_date:
+            return timezone.now() > self.end_date
+        return False
+
+    @property
+    def days_remaining(self):
+        if self.end_date:
+            delta = self.end_date - timezone.now()
+            return max(0, delta.days)
+        return 0
+
+    def set_subscription_period(self):
+        """Set the subscription period based on the plan duration"""
+        if self.plan and self.plan.duration_days:
+            self.start_date = timezone.now()
+            self.end_date = self.start_date + timedelta(days=self.plan.duration_days)
+            self.save()
+            return True
+        return False
+
+    @property
+    def check_expiry(self):
+        """Check if subscription has expired"""
+        if self.end_date and timezone.now() > self.end_date:
+            self.is_active = False
+            self.save()
+
+# Signal to check expiry before any subscription is accessed
+@receiver(pre_save, sender=UserSubscription)
+def check_subscription_expiry(sender, instance, **kwargs):
+    if instance.end_date and timezone.now() > instance.end_date:
+        instance.is_active = False
+
+def set_subscription_end_date(subscription):
+    subscription.end_date = subscription.start_date + timedelta(days=subscription.plan.duration_days)
+    subscription.save()

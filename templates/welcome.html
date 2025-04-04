@@ -1,105 +1,124 @@
-
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-    <title>Welcome Email</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@400;700&display=swap" rel="stylesheet">
+    <title>Freelancer Analytics Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body {
-            background-color: #f4f4f4;
-            margin: 0;
-            padding: 0;
             font-family: Arial, sans-serif;
-        }
-
-        .email-container {
-            width: 100%;
-            max-width: 600px;
-            margin: 0 auto;
-            background-color: #ffffff;
-            border-radius: 8px;
-            overflow: hidden;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-        }
-
-        .header {
-            background-color: #fff;
+            background: #f4f4f4;
             padding: 20px;
-            text-align: center;
         }
-
-        .header img {
-            max-width: 150px;
-            height: auto;
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
         }
-
-        .content {
+        .card {
+            background: white;
             padding: 20px;
-            text-align: center;
-        }
-
-        .content img {
-            max-width: 100%;
-            height: auto;
             border-radius: 8px;
-            margin-top: -30px;
-        }
-
-        .content h1 {
-            font-size: 30px;
-            margin: 20px 0;
-            margin-top: -10px;
-            color: #063970;
-            font-family: 'Dancing Script', cursive;
-        }
-
-        .content p {
-            color: #555555;
-            font-size: 16px;
-            line-height: 1.5;
-            margin: 10px 0;
-        }
-
-        .footer {
-            background-color: #063970;
-            color: #ffffff;
-            padding: 10px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
             text-align: center;
-            font-size: 14px;
         }
-
-        .footer a {
-            color: #ffffff;
-            text-decoration: none;
+        .chart-container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            grid-column: span 2;
+        }
+        .subscription {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            grid-column: span 3;
         }
     </style>
 </head>
-
 <body>
-    <div class="email-container">
-        <div class="header">
-            <img src="https://i.postimg.cc/mks7tgfG/logo.png" alt="Company Logo">
+    <div class="dashboard">
+        <div class="card" style="grid-column: span 2;">Total Earnings: $4500</div>
+        <div class="card">Active Projects: 5</div>
+        <div class="card">Completed Projects: 12</div>
+        <div class="card" style="grid-column: span 2;">Pending Payments: $700</div>
+        
+        <div class="chart-container">
+            <h3>Earnings Trend</h3>
+            <canvas id="earningsChart"></canvas>
         </div>
-        <div class="content">
-            <img src="https://i.postimg.cc/xjcwRjzP/welcome.png" alt="Welcome Image">
-            <h1>Welcome to FreelanceHub!
-            </h1>
-            <p>Thank you for registering with FreelanceHub. <br>Collaborate, create, and conquer your
-                projects
-                with
-                ease.
-                <br>Dive into a community of professionals ready to bring your vision to life.<br>
-                <br> <b>Let's make great things
-                    happen together!</b>
-            </p>
+        <div class="chart-container">
+            <h3>Skill Demand Analysis</h3>
+            <canvas id="skillDemandChart"></canvas>
         </div>
-        <div class="footer">
-            &copy; 2024 FreelanceHub. All rights reserved.</a>
+        <div class="chart-container">
+            <h3>Project Categories</h3>
+            <canvas id="projectCategoryChart"></canvas>
+        </div>
+        
+        <div class="subscription">
+            <h2>Subscription Renewal Countdown</h2>
+            <progress id="subscriptionProgress" value="30" max="30"></progress>
+            <p id="daysLeft">30 days left</p>
+            <button onclick="renewSubscription()">Renew Now</button>
         </div>
     </div>
-</body>
 
+    <script>
+        // Earnings Chart
+        const earningsCtx = document.getElementById('earningsChart').getContext('2d');
+        new Chart(earningsCtx, {
+            type: 'line',
+            data: {
+                labels: ['Jan', 'Feb', 'Mar', 'Apr'],
+                datasets: [{
+                    label: 'Earnings',
+                    data: [1000, 1200, 800, 1500],
+                    borderColor: 'blue',
+                    borderWidth: 2,
+                    fill: false
+                }]
+            }
+        });
+
+        // Skill Demand Chart
+        const skillDemandCtx = document.getElementById('skillDemandChart').getContext('2d');
+        new Chart(skillDemandCtx, {
+            type: 'bar',
+            data: {
+                labels: ['React', 'Django', 'UI/UX'],
+                datasets: [{
+                    label: 'Demand',
+                    data: [25, 20, 15],
+                    backgroundColor: ['red', 'green', 'blue']
+                }]
+            }
+        });
+
+        // Project Categories Chart
+        const projectCategoryCtx = document.getElementById('projectCategoryChart').getContext('2d');
+        new Chart(projectCategoryCtx, {
+            type: 'pie',
+            data: {
+                labels: ['Web Dev', 'AI/ML', 'Design'],
+                datasets: [{
+                    data: [40, 30, 30],
+                    backgroundColor: ['orange', 'purple', 'cyan']
+                }]
+            }
+        });
+
+        // Subscription Countdown
+        function renewSubscription() {
+            alert('Subscription renewed!');
+            document.getElementById('subscriptionProgress').value = 30;
+            document.getElementById('daysLeft').textContent = '30 days left';
+        }
+    </script>
+</body>
 </html>

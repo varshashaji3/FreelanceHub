@@ -130,15 +130,17 @@
         <span class="close-modal" onclick="closeModal()">&times;</span>
         <h2>Schedule Meeting</h2>
         <div class="form-group">
-            <label for="meetingLink">Meeting Link</label>
+            <label for="meetingLink">Meeting Link (Google Meet, Zoom, Microsoft Teams only)</label>
             <input type="text" id="meetingLink" placeholder="Enter meeting link">
+            <div class="error-message" id="meetingLinkError"></div>
         </div>
         <div class="form-group">
             <label for="meetingDate">Select Date and Time</label>
             <input type="datetime-local" id="meetingDate">
+            <div class="error-message" id="meetingDateError"></div>
         </div>
         <input type="hidden" id="invitationId" value="">
-        <button class="submit-btn" onclick="submitMeeting()">Submit</button>
+        <button class="submit-btn" id="submitBtn" onclick="submitMeeting()" disabled>Submit</button>
     </div>
 </div>
 
@@ -385,9 +387,95 @@ tbody tr:hover {
 .submit-btn:hover {
     background-color: #3333cc;
 }
+
+.error-message {
+    color: #dc3545;
+    font-size: 0.875rem;
+    margin-top: 0.25rem;
+    display: none;
+}
+
+.form-group input.is-invalid {
+    border-color: #dc3545;
+}
+
+.form-group input.is-valid {
+    border-color: #28a745;
+}
+
+.submit-btn:disabled {
+    background-color: #cccccc;
+    cursor: not-allowed;
+}
 </style>
 
 <script>
+    // Meeting link regex pattern
+    const meetingLinkPattern = /^(https:\/\/)?(meet\.google\.com\/[a-z]{3}-[a-z]{4}-[a-z]{3}|zoom\.us\/j\/\d{9,11}(\?pwd=[A-Za-z0-9]+)?|teams\.microsoft\.com\/l\/meetup-join\/[A-Za-z0-9\/?=&.-]+)$/;
+
+    // Validation flags
+    let meetingLinkValid = false;
+    let meetingDateValid = false;
+
+    // Function to validate meeting link
+    function validateMeetingLink() {
+        const meetingLink = document.getElementById('meetingLink');
+        const meetingLinkError = document.getElementById('meetingLinkError');
+        const value = meetingLink.value.trim();
+        
+        if (meetingLinkPattern.test(value)) {
+            meetingLink.classList.remove('is-invalid');
+            meetingLink.classList.add('is-valid');
+            meetingLinkError.style.display = 'none';
+            meetingLinkValid = true;
+        } else {
+            meetingLink.classList.remove('is-valid');
+            meetingLink.classList.add('is-invalid');
+            meetingLinkError.textContent = 'Please enter a valid meeting link (Google Meet, Zoom, or Teams)';
+            meetingLinkError.style.display = 'block';
+            meetingLinkValid = false;
+        }
+        
+        checkSubmitButton();
+    }
+
+    // Function to validate meeting date and time
+    function validateMeetingDateTime() {
+        const meetingDate = document.getElementById('meetingDate');
+        const meetingDateError = document.getElementById('meetingDateError');
+        const selectedDateTime = new Date(meetingDate.value);
+        const now = new Date();
+        
+        // Add 1 day to current date for minimum allowed date
+        const minDate = new Date();
+        minDate.setDate(minDate.getDate() + 1);
+        
+        if (selectedDateTime > now && selectedDateTime >= minDate) {
+            meetingDate.classList.remove('is-invalid');
+            meetingDate.classList.add('is-valid');
+            meetingDateError.style.display = 'none';
+            meetingDateValid = true;
+        } else {
+            meetingDate.classList.remove('is-valid');
+            meetingDate.classList.add('is-invalid');
+            meetingDateError.textContent = 'Meeting must be scheduled at least 1 day after today';
+            meetingDateError.style.display = 'block';
+            meetingDateValid = false;
+        }
+        
+        checkSubmitButton();
+    }
+
+    // Function to check if all validations pass
+    function checkSubmitButton() {
+        const submitBtn = document.getElementById('submitBtn');
+        if (meetingLinkValid && meetingDateValid) {
+            submitBtn.disabled = false;
+        } else {
+            submitBtn.disabled = true;
+        }
+    }
+
     // Function to open the modal
     function openModal(invitationId) {
         document.getElementById('scheduleModal').style.display = 'block';
@@ -395,8 +483,21 @@ tbody tr:hover {
         document.getElementById('meetingDate').value = '';
         document.getElementById('meetingLink').dataset.invitationId = invitationId;
         document.getElementById('invitationId').value = invitationId;
-        console.log(invitationId)
+        
+        // Reset validation states
+        meetingLinkValid = false;
+        meetingDateValid = false;
+        checkSubmitButton();
+        
+        // Set minimum date to tomorrow
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        document.getElementById('meetingDate').min = tomorrow.toISOString().slice(0, 16);
     }
+
+    // Add event listeners for validation
+    document.getElementById('meetingLink').addEventListener('keyup', validateMeetingLink);
+    document.getElementById('meetingDate').addEventListener('change', validateMeetingDateTime);
 
     // Function to close the modal
     function closeModal() {

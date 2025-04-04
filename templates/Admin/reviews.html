@@ -1,67 +1,92 @@
 {% extends 'Admin/base.html'%}
 {% block 'admin_content' %}
 {% load custom_filters %}
+{% load static %}
 <style>
+    /* Modern Reviews Page Styling */
+
     /* Page Background */
     body {
         background-color: #f8f9fa;
-        font-family: Arial, sans-serif;
+        font-family: 'Inter', 'Segoe UI', sans-serif;
     }
 
-    h1 {
+    /* Header Styling */
+    h3 {
+        color: #2d3748;
+        font-size: 2rem;
+        font-weight: 700;
         text-align: center;
-        color: #007bff;
-        font-size: 2.5rem; /* Increased font size */
-        margin-bottom: 30px; /* Increased margin */
-        animation: slideIn 1s ease-in-out;
+        margin: 2rem 0;
+        position: relative;
     }
-    
-    /* Enhanced Filter Form Styles */
+
+    h3:after {
+        content: '';
+        position: absolute;
+        bottom: -10px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 60px;
+        height: 4px;
+        background: #ff0057;
+        border-radius: 2px;
+    }
+
+    /* Filter Form Styling */
     #filter-form {
         background: white;
-        padding: 25px;
-        border-radius: 15px;
-        margin: 20px auto;
-        width: 970px;
-        margin-left: -30px;
+        padding: 1.5rem;
+        border-radius: 16px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        max-width: 1200px;
+        margin: 2rem auto;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1.5rem;
+        align-items: center;
+        justify-content: center;
     }
-    
+
     #filter-form label {
         font-weight: 600;
-        color: #2c3e50;
-        margin-right: 10px;
+        color: #4a5568;
         font-size: 0.95rem;
     }
-    
+
     #filter-form select {
         background-color: #f8f9fa;
-        border: 2px solid #e9ecef;
-        border-radius: 8px;
-        padding: 10px 15px;
-        margin-right: 20px;
-        color: #495057;
+        border: 2px solid #e2e8f0;
+        border-radius: 10px;
+        padding: 0.75rem 1rem;
+        color: #2d3748;
         font-size: 0.95rem;
-        min-width: 150px;
+        min-width: 180px;
         cursor: pointer;
-        transition: all 0.3s ease;
+        transition: all 0.2s ease;
+        appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%234a5568' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 1rem center;
+        background-size: 1em;
     }
-    
+
     #filter-form select:hover {
-        border-color: #007bff;
+        border-color: #ff0057;
     }
-    
+
     #filter-form select:focus {
         outline: none;
-        border-color: #007bff;
-        box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25);
+        border-color: #ff0057;
+        box-shadow: 0 0 0 3px rgba(255, 0, 87, 0.1);
     }
-    
+
     #filter-form button {
-        background: #103b69;
+        background: #ff0057;
         color: white;
         border: none;
-        padding: 10px 25px;
-        border-radius: 8px;
+        padding: 0.75rem 2rem;
+        border-radius: 10px;
         font-weight: 600;
         cursor: pointer;
         transition: all 0.3s ease;
@@ -69,83 +94,94 @@
         letter-spacing: 0.5px;
         font-size: 0.9rem;
     }
-    
+
     #filter-form button:hover {
         transform: translateY(-2px);
-        box-shadow: 0 4px 15px rgba(0, 123, 255, 0.4);
+        box-shadow: 0 4px 12px rgba(255, 0, 87, 0.2);
     }
-    
-    #filter-form button:active {
-        transform: translateY(0);
-    }
-    
-    /* Review Cards Container */
+
+    /* Reviews Container */
     #reviews-container {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 20px; /* Increased gap */
-        justify-content: center; /* Centered cards */
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1rem;
+        padding: 1rem;
+        margin-left: -10px;
     }
-    
+
     /* Review Cards */
     .review-card {
-        background-color: #fff;
-        border: 1px solid #ddd;
-        border-radius: 12px;
-        padding: 20px;
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        background: white;
+        border-radius: 16px;
+        padding: 0.5rem;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
         transition: all 0.3s ease;
-        width: calc(30% - 20px); /* Adjusted width */
-        box-sizing: border-box;
-        animation: fadeInUp 1s ease-in-out;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        margin-bottom: 0;
+        height: fit-content;
+
     }
-    
+
     .review-card:hover {
-        box-shadow: 0 12px 24px rgba(0, 0, 0, 0.2);
         transform: translateY(-5px);
+        box-shadow: 0 12px 20px rgba(0, 0, 0, 0.1);
     }
-    
+
     .review-card h3 {
-        margin-top: 0;
-        color: #007bff;
-        font-size: 1.5rem; /* Increased font size */
+        color: #2d3748;
+        font-size: 1.25rem;
+        margin: 0;
+        text-align: left;
     }
-    
+
+    .review-card h3:after {
+        display: none;
+    }
+
+    .star-rating {
+        display: flex;
+        gap: 0.25rem;
+    }
+
+    .star-rating i {
+        color: #ffd700;
+        font-size: 1.1rem;
+    }
+
     .review-card p {
-        margin: 10px 0; /* Increased margin */
+        color: #4a5568;
+        line-height: 1.6;
+        margin: 0;
     }
-    
+
     /* Load More Button */
     #load-more-btn {
-        display: block;
-        width: 100%;
-        padding: 15px;
-        background-color: #007bff;
-        color: #fff;
+        background: #ff0057;
+        color: white;
         border: none;
-        border-radius: 8px;
+        padding: 1rem 2rem;
+        border-radius: 12px;
+        font-weight: 600;
         cursor: pointer;
-        font-size: 1.2rem; /* Increased font size */
-        transition: background-color 0.3s ease, transform 0.3s ease;
-        animation: fadeIn 1s ease-in-out;
+        transition: all 0.3s ease;
+        margin: 2rem auto;
+        display: block;
+        width: fit-content;
+        min-width: 200px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
     }
-    
+
     #load-more-btn:hover {
-        background-color: #0056b3;
-        transform: scale(1.05);
+        background: #e0004c;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(255, 0, 87, 0.2);
     }
-    
+
     /* Animations */
     @keyframes fadeIn {
-        from {
-            opacity: 0;
-        }
-        to {
-            opacity: 1;
-        }
-    }
-    
-    @keyframes fadeInUp {
         from {
             opacity: 0;
             transform: translateY(20px);
@@ -155,67 +191,329 @@
             transform: translateY(0);
         }
     }
-    
+
+    .review-card {
+        animation: fadeIn 0.5s ease-out forwards;
+    }
+
+    /* Responsive Design */
+    @media (max-width: 1024px) {
+        .container {
+            grid-template-columns: 1fr;
+        }
+
+        .rating-summary {
+            position: static;
+        }
+    }
+
+    /* Add mobile breakpoint for reviews */
+    @media (max-width: 768px) {
+        #reviews-container {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    /* Main container layout */
+    .container {
+        display: grid;
+        grid-template-columns: 300px 1fr;
+        gap: 2rem;
+        padding: 2rem;
+        max-width: 1400px;
+        margin: 0 auto;
+    }
+
+    /* Rating Summary Styles */
+    .rating-summary {
+        background: white;
+        padding: 2rem;
+        border-radius: 16px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        height: 350px;
+    }
+
+    .rating-bars {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        margin-top: 2rem;
+    }
+
+    .rating-bar-item {
+        display: grid;
+        grid-template-columns: 20px 1fr 40px;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .rating-label {
+        color: #2d3748;
+        font-weight: 600;
+        text-align: center;
+    }
+
+    .rating-bar {
+        height: 8px;
+        background: #e2e8f0;
+        border-radius: 4px;
+        overflow: hidden;
+        width: 100%;
+    }
+
+    .bar-fill {
+        height: 100%;
+        border-radius: 4px;
+        transition: width 0.3s ease;
+    }
+
+    /* Bar colors for different ratings */
+    .bar-fill-5 {
+        background-color: #4CAF50; /* Green */
+    }
+
+    .bar-fill-4 {
+        background-color: #2196F3; /* Blue */
+    }
+
+    .bar-fill-3 {
+        background-color: #FFC107; /* Yellow */
+    }
+
+    .bar-fill-2 {
+        background-color: #FF9800; /* Orange */
+    }
+
+    .bar-fill-1 {
+        background-color: #f44336; /* Red */
+    }
+
+    .rating-count {
+        color: #4a5568;
+        font-weight: 500;
+        font-size: 0.9rem;
+        text-align: right;
+        min-width: 30px;
+    }
+
+    /* Overall rating styles */
+    .overall-rating {
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+
+    .overall-rating h2 {
+        font-size: 3rem;
+        margin: 0;
+        color: #2d3748;
+        font-weight: 700;
+    }
+
+    .overall-rating p {
+        color: #718096;
+        margin: 0.5rem 0;
+        font-size: 0.9rem;
+    }
+
+    .star-rating {
+        display: flex;
+        gap: 0.25rem;
+        justify-content: center;
+        margin-top: 0.5rem;
+    }
+
     .star-rating i {
-        color: #FFD700;
+        color: #FFC107;
+        font-size: 1.25rem;
+    }
+
+    /* Reviews Section Styles */
+    .reviews-section {
+        flex: 1;
+        
+    }
+
+    /* Profile picture styling */
+    .profile-pic {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 2px solid #fff;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        background-color: #f0f0f0;
+    }
+
+    .profile-pic[src=""], 
+    .profile-pic:not([src]) {
+        opacity: 0;
+    }
+
+    /* Review header layout */
+    .review-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
+
+    /* Profile and Review Card Styling */
+    .user-info {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        min-height: 48px; /* Ensure consistent height even if image fails to load */
+    }
+
+    .user-details {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .user-details h3 {
+        margin: 0;
+        font-size: 1.1rem;
+        color: #2d3748;
+    }
+
+    .review-date {
+        font-size: 0.85rem;
+        color: #718096;
+    }
+
+    .rating-section {
+        display: flex;
+        align-items: center;
+    }
+
+    .review-text {
+        color: #4a5568;
+        line-height: 1.6;
+        margin: 0;
+    }
+
+    .default-profile {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        background-color: #e2e8f0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #94a3b8;
+        font-size: 1.5rem;
     }
 </style>
+
+<!-- Debug Information -->
+<div style="display: none;">
+    <h4>Available Profile Pictures:</h4>
+    {% for user_id, pic_url in profile_pics.items %}
+        <p>User {{ user_id }}: {{ pic_url }}</p>
+    {% endfor %}
+</div>
 
 <div class="row" style="background-color:white;padding:10px;border-radius:10px;">
     <h3 align="center" style="margin:1% auto;color:#ff0057">Site Reviews</h3>
 </div>
-<div class="container">
 
-    <!-- Filter Form -->
-    <form id="filter-form" method="GET" action="{% url 'administrator:reviews' %}">
-        <label for="rating">Filter by Rating:</label>
-        <select id="rating" name="rating">
-            <option value="">Any Rating</option>
-            <option value="1">1 Star</option>
-            <option value="2">2 Stars</option>
-            <option value="3">3 Stars</option>
-            <option value="4">4 Stars</option>
-            <option value="5">5 Stars</option>
-        </select>
+<!-- Filter Form at the top -->
+<form id="filter-form" method="GET" action="{% url 'administrator:reviews' %}">
+    <label for="rating">Filter by Rating:</label>
+    <select id="rating" name="rating">
+        <option value="">Any Rating</option>
+        <option value="1">1 Star</option>
+        <option value="2">2 Stars</option>
+        <option value="3">3 Stars</option>
+        <option value="4">4 Stars</option>
+        <option value="5">5 Stars</option>
+    </select>
 
-        <label for="sort">Sort by:</label>
-        <select id="sort" name="sort">
-            <option value="newest">Newest First</option>
-            <option value="rating">Rating</option>
-        </select>
+    <label for="sort">Sort by:</label>
+    <select id="sort" name="sort">
+        <option value="newest">Newest First</option>
+        <option value="rating">Rating</option>
+    </select>
 
-        <button type="submit">Apply Filters</button>
-    </form><br>
+    <button type="submit">Apply Filters</button>
+</form>
 
-    <!-- Review Cards -->
-     <div id="reviews-container">
-        {% for review in reviews %}
-            <div class="review-card">
-                <h3>{{ review.user.username }}</h3>
-                <div class="rating-section">
-                    <span class="star-rating">
-                        {% for i in 1|to:5 %}
-                            {% if i <= review.rating %}
-                                <i class="fas fa-star"></i> <!-- Full Star -->
-                            {% elif i == review.rating|floatformat:1|stringformat:".1"|slice:":-2" %}
-                                <i class="fas fa-star-half-alt"></i> <!-- Half Star -->
-                            {% else %}
-                                <i class="far fa-star"></i> <!-- Empty Star -->
-                            {% endif %}
-                        {% endfor %}
-                    </span>
-                </div>
-                <p>{{ review.review_text }}</p>
+<!-- Main Content Container -->
+<div class="container" style="margin-left: -30px;">
+    <!-- Rating Summary Section (Left) -->
+    <div class="rating-summary">
+        <div class="overall-rating">
+            <h2>{{ rating_stats.average_rating }}</h2>
+            <p>based on {{ rating_stats.total_reviews }} ratings</p>
+            <div class="star-rating">
+                {% for i in 1|to:5 %}
+                    {% if i <= rating_stats.average_rating %}
+                        <i class="fas fa-star"></i>
+                    {% else %}
+                        <i class="far fa-star"></i>
+                    {% endif %}
+                {% endfor %}
             </div>
-        {% empty %}
-            <p>No reviews found.</p>
-        {% endfor %}
+        </div>
+        <div class="rating-bars">
+            {% for rating in "54321"|make_list %}
+                {% with rating_int=rating|stringformat:"s"|add:"0"|slice:"0:1" %}
+                <div class="rating-bar-item">
+                    <span class="rating-label">{{ rating }}</span>
+                    <div class="rating-bar">
+                        <div class="bar-fill bar-fill-{{ rating }}" 
+                             style="width: {% if rating_stats.total_reviews > 0 %}{% widthratio rating_stats.rating_counts|get_item:rating_int rating_stats.total_reviews 100 %}{% else %}0{% endif %}%">
+                        </div>
+                    </div>
+                    <span class="rating-count">{{ rating_stats.rating_counts|get_item:rating_int }}</span>
+                </div>
+                {% endwith %}
+            {% endfor %}
+        </div>
     </div>
 
-    <!-- Load More Button -->
-    {% if reviews.has_next %}
-        <button id="load-more-btn">Load More</button>
-    {% endif %}
+    <!-- Reviews Section (Right) -->
+    <div class="reviews-section">
+        <div id="reviews-container">
+            {% for review in reviews %}
+                <div class="review-card">
+                    <div class="review-header">
+                        <div class="user-info">
+                            {% with profile_url=profile_pics|get_item:review.user.id %}
+                                {% if profile_url %}
+                                    <img src="{{ profile_url }}" alt="Profile" class="profile-pic">
+                                {% else %}
+                                    <img src="{% static 'images/default-avatar.png' %}" alt="Default Profile" class="profile-pic">
+                                {% endif %}
+                            {% endwith %}
+                            <div class="user-details">
+                                <h3>{{ review.user.username }}</h3>
+                                <span class="review-date">{{ review.created_at|date:"M d, Y" }}</span>
+                            </div>
+                        </div>
+                        <div class="rating-section">
+                            <span class="star-rating">
+                                {% for i in 1|to:5 %}
+                                    {% if i <= review.rating %}
+                                        <i class="fas fa-star"></i>
+                                    {% else %}
+                                        <i class="far fa-star"></i>
+                                    {% endif %}
+                                {% endfor %}
+                            </span>
+                        </div>
+                    </div>
+                    <p class="review-text">{{ review.review_text }}</p>
+                </div>
+            {% empty %}
+                <p>No reviews found.</p>
+            {% endfor %}
+        </div>
+
+        {% if reviews.has_next %}
+            <button id="load-more-btn">Load More</button>
+        {% endif %}
+    </div>
 </div>
 
 <!-- JavaScript to handle Load More functionality -->
@@ -230,10 +528,26 @@
                     data.reviews.forEach(review => {
                         const reviewCard = document.createElement('div');
                         reviewCard.className = 'review-card';
+                        const profilePicHtml = review.user.register.profile_pic 
+                            ? `<img src="${review.user.register.profile_pic}" alt="Profile" class="profile-pic">`
+                            : `<div class="default-profile"><i class="fas fa-user"></i></div>`;
+                        
                         reviewCard.innerHTML = `
-                            <h3>${review.user}</h3>
-                            <p>Rating: ${review.rating}</p>
-                            <p>${review.review_text}</p>
+                            <div class="review-header">
+                                <div class="user-info">
+                                    ${profilePicHtml}
+                                    <div class="user-details">
+                                        <h3>${review.user.username}</h3>
+                                        <span class="review-date">${new Date(review.created_at).toLocaleDateString()}</span>
+                                    </div>
+                                </div>
+                                <div class="rating-section">
+                                    <span class="star-rating">
+                                        ${generateStars(review.rating)}
+                                    </span>
+                                </div>
+                            </div>
+                            <p class="review-text">${review.review_text}</p>
                         `;
                         reviewsContainer.appendChild(reviewCard);
                     });
@@ -243,8 +557,18 @@
                 });
         }
     });
+
+    function generateStars(rating) {
+        let stars = '';
+        for (let i = 1; i <= 5; i++) {
+            if (i <= rating) {
+                stars += '<i class="fas fa-star"></i>';
+            } else {
+                stars += '<i class="far fa-star"></i>';
+            }
+        }
+        return stars;
+    }
 </script>
 
-
-           
 {% endblock %}

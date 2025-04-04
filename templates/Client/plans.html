@@ -184,11 +184,52 @@
                 grid-template-columns: 1fr;
             }
         }
+
+        .feature-item {
+            padding: 8px;
+            margin: 4px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .feature-name {
+            color: #333;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .tick {
+            color: #28a745;  /* Green color */
+            font-weight: bold;
+        }
+
+        .cross {
+            color: #dc3545;  /* Red color */
+            font-weight: bold;
+        }
+
+        .number {
+            font-weight: bold;
+            color: #2196F3;  /* Blue color */
+        }
+
+        .price {
+            font-size: 1.5rem;
+            font-weight: bold;
+            margin: 1rem 0;
+        }
     </style>
 
     <div class="container">
         <div class="header">
             <h1>Choose your plan</h1><br>
+            {% if active_subscription %}
+            <div class="alert alert-info" style="border-radius: 10px; background-color: #e3f2fd; border-color: #b3e5fc; color: #01579b; padding: 15px 20px; margin-bottom: 20px;">
+                <strong>Current Plan: {{ active_subscription.plan.name }}</strong>
+                <p>Valid until: {{ active_subscription.end_date|date:"F d, Y" }}</p>
+                <p>Days remaining: {{ active_subscription.days_remaining }}</p>
+            </div>
+            {% endif %}
             <p class="subtitle">Get the right plan for your business. Plans can be upgraded in the future.</p>
         </div>
 
@@ -196,13 +237,54 @@
         <div class="plans-container">
             {% for plan in plans %}
             <div class="plan-card">
-                <h2 class="plan-name">{{ plan.name }}</h2> <br>
-                <div class="price">₹{{ plan.price }} <span>/ {{ plan.duration }} months</span></div>
-                <ul class="features">
-                    {% for feature in plan.features_list %}
-                    <li class="check-icon">{{ feature }}</li>
-                    {% endfor %}
-                </ul>
+                <h3>{{ plan.name }}</h3>
+                <div class="price">₹{{ plan.price }}</div>
+                
+                <div class="features-list">
+                    <!-- Participate in Events -->
+                    <div class="feature-item">
+                        <span class="feature-name">
+                            {% if plan.features.create_events.enabled %}
+                                <span class="tick">✓</span>
+                            {% else %}
+                                <span class="cross">✗</span>
+                            {% endif %}
+                            {{ plan.features.create_events.name }}
+                        </span>
+                    </div>
+
+                    <!-- Hire Freelancers -->
+                    <div class="feature-item">
+                        <span class="feature-name">
+                            {% if plan.features.hire_freelancer.enabled %}
+                                <span class="tick">✓</span>
+                            {% else %}
+                                <span class="cross">✗</span>
+                            {% endif %}
+                            {{ plan.features.hire_freelancer.name }}
+                        </span>
+                    </div>
+
+                    <!-- AI Freelancer Recommendations -->
+                    <div class="feature-item">
+                        <span class="feature-name">
+                            {% if plan.features.ai_recommendations.enabled %}
+                                <span class="tick">✓</span>
+                            {% else %}
+                                <span class="cross">✗</span>
+                            {% endif %}
+                            {{ plan.features.ai_recommendations.name }}
+                        </span>
+                    </div>
+
+                    <!-- Project Creation Limit -->
+                    <div class="feature-item">
+                        <span class="feature-name">
+                            <span class="number">{{ plan.features.projects.value }}</span>
+                            {{ plan.features.projects.name }}
+                        </span>
+                    </div>
+                </div>
                 <button class="get-plan-btn" data-plan-id="{{ plan.id }}">Get Plan</button>
             </div>
             {% endfor %}
@@ -378,4 +460,4 @@
         }
     </script>
 
-    {% endblock %}
+{% endblock %}

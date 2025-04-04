@@ -64,6 +64,10 @@
   </script>
 
   <style>
+    body{
+      background-color: #f5f7ff;
+    }
+    
     .preview-item {
       padding: 10px;
       border-bottom: 1px solid #e0e0e0;
@@ -559,9 +563,15 @@
         
         <ul class="navbar-nav navbar-nav-right ml-auto">
           <li class="nav-item d-none d-sm-inline-block">
+            {% if active_subscription %}
+            <span class="badge badge-info py-2 px-3" style="font-size: 0.9rem; border-radius: 20px; background-color: #063970;">
+              {{ active_subscription.plan.name }}
+            </span>
+            {% else %}
             <a href="{% url 'client:plans' %}" id="upgradeBtn" class="btn btn-warning">
               Upgrade
             </a>
+            {% endif %}
           </li>
           <li class="nav-item dropdown">
             <a class="nav-link count-indicator dropdown-toggle" id="notificationDropdown" href="#"
@@ -630,11 +640,7 @@
               </a>
             </div>
           </li>
-          <li class="nav-item nav-settings d-none d-lg-flex">
-            <a class="nav-link" href="#">
-              <i class="icon-ellipsis"></i>
-            </a>
-          </li>
+         
         </ul>
         <button class="navbar-toggler navbar-toggler-right d-lg-none align-self-center" type="button"
           data-toggle="offcanvas">
@@ -645,48 +651,7 @@
     <!-- partial -->
     <div class="container-fluid page-body-wrapper">
 
-      <div id="right-sidebar" class="settings-panel">
-        <i class="settings-close ti-close"></i>
-        <ul class="nav nav-tabs border-top" id="setting-panel" role="tablist">
-          <li class="nav-item">
-            <a class="nav-link active" id="todo-tab" data-toggle="tab" href="#todo-section" role="tab"
-              aria-controls="todo-section" aria-expanded="true">TO DO LIST</a>
-          </li>
-          <!-- <li class="nav-item">
-            <a class="nav-link" id="chats-tab" data-toggle="tab" href="#chats-section" role="tab" aria-controls="chats-section">CHATS</a>
-          </li> -->
-        </ul>
-        <div class="tab-content" id="setting-content">
-          <div class="tab-pane fade show active scroll-wrapper" id="todo-section" role="tabpanel"
-            aria-labelledby="todo-section">
-            <div class="add-items d-flex px-3 mb-0">
-              <form class="form w-100">
-                <div class="form-group d-flex">
-                  <input type="text" class="form-control todo-list-input" placeholder="Add To-do">
-                  <button type="submit" class="add btn btn-primary todo-list-add-btn" id="add-task">Add</button>
-                </div>
-              </form>
-            </div>
-            <div class="list-wrapper px-3">
-              <ul class="d-flex flex-column-reverse todo-list">
-                <li>
-                  <div class="form-check">
-                    <label class="form-check-label">
-                      <input class="checkbox" type="checkbox">
-                      Team review meeting at 3.00 PM
-                    </label>
-                  </div>
-                  <i class="remove ti-close"></i>
-                </li>
-
-              </ul>
-            </div>
-
-          </div>
-          <!-- To do section tab ends -->
-
-        </div>
-      </div>
+      
       <!-- partial -->
       <!-- partial:partials/_sidebar.html -->
       <nav class="sidebar sidebar-offcanvas" id="sidebar" style="margin-left:-13px;">

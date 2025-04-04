@@ -104,9 +104,277 @@
     -ms-overflow-style: none;  /* IE and Edge */
     scrollbar-width: none;  /* Firefox */
   }
+
+  .card {
+    transition: transform 0.3s ease;
+    height: 300px;
+    margin-bottom: 20px;
+  }
+  
+  .card:hover {
+    transform: translateY(-5px);
+  }
+
+  .wave-container svg {
+    width: 100%;
+    height: 100%;
+  }
+
+  .wave-container path {
+    animation: wave 2s infinite linear;
+  }
+
+  @keyframes wave {
+    0% {
+      transform: translateX(0);
+    }
+    100% {
+      transform: translateX(-30px);
+    }
+  }
+
+  .card-body {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  canvas {
+    flex: 1;
+    width: 100% !important;
+    height: auto !important;
+  }
+  
+  /* For the small stat cards */
+  .stat-card {
+    height: 130px !important;
+  }
+
+  .stat-card {
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+  }
+
+  .stat-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+  }
+
+  .wave-container path {
+    animation: wave 2s infinite linear;
+    opacity: 0.8;
+  }
+
+  @keyframes wave {
+    0% {
+      transform: translateX(0);
+    }
+    100% {
+      transform: translateX(-30px);
+    }
+  }
+
+  .schedule-badge {
+    background-color: #f8f9fa;
+    color: #2D2A3F;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  .schedule-list {
+    max-height: 270px;
+    overflow-y: auto;
+    padding-right: 5px;
+  }
+
+  .schedule-item {
+    display: flex;
+    align-items: center;
+    padding: 15px;
+    margin-bottom: 12px;
+    border-radius: 12px;
+    background-color: #fff;
+    transition: all 0.3s ease;
+    border: 1px solid #f0f0f0;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+  }
+
+  .schedule-item:hover {
+    background-color: #f8f9fa;
+    transform: translateX(5px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  }
+
+  .time {
+    min-width: 85px;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 8px 12px;
+    border-radius: 10px;
+    text-align: center;
+    background: linear-gradient(135deg, #FFE5E5 0%, #FFD1D1 100%);
+    color: #A91D3A;
+    box-shadow: 0 2px 4px rgba(169, 29, 58, 0.1);
+    border: 1px solid rgba(169, 29, 58, 0.1);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+  }
+
+  .time::before {
+    content: '';
+    position: absolute;
+    left: -2px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 4px;
+    height: 70%;
+    background: #A91D3A;
+    border-radius: 2px;
+  }
+
+  .schedule-item:nth-child(2) .time {
+    background: linear-gradient(135deg, #E5F0FF 0%, #D1E3FF 100%);
+    color: #063970;
+    box-shadow: 0 2px 4px rgba(6, 57, 112, 0.1);
+    border: 1px solid rgba(6, 57, 112, 0.1);
+  }
+
+  .schedule-item:nth-child(2) .time::before {
+    background: #063970;
+  }
+
+  .schedule-item:nth-child(3) .time {
+    background: linear-gradient(135deg, #FFF2E5 0%, #FFE6CC 100%);
+    color: #B75E00;
+    box-shadow: 0 2px 4px rgba(183, 94, 0, 0.1);
+    border: 1px solid rgba(183, 94, 0, 0.1);
+  }
+
+  .schedule-item:nth-child(3) .time::before {
+    background: #B75E00;
+  }
+
+  .schedule-item:nth-child(4) .time {
+    background: linear-gradient(135deg, #E5F6FF 0%, #CCF0FF 100%);
+    color: #0085B7;
+    box-shadow: 0 2px 4px rgba(0, 133, 183, 0.1);
+    border: 1px solid rgba(0, 133, 183, 0.1);
+  }
+
+  .schedule-item:nth-child(4) .time::before {
+    background: #0085B7;
+  }
+
+  .meeting-info {
+    flex-grow: 1;
+    margin-left: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .meeting-info h6 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: #2D2A3F;
+  }
+
+  .join-meeting {
+    padding: 8px 18px;
+    border: none;
+    border-radius: 8px;
+    background-color: #2D2A3F;
+    color: white;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    opacity: 1;
+    letter-spacing: 0.3px;
+  }
+
+  .join-meeting:hover {
+    background-color: #1a1824;
+    transform: scale(1.05);
+    box-shadow: 0 4px 12px rgba(45, 42, 63, 0.2);
+  }
+
+  /* Custom scrollbar */
+  .schedule-list::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .schedule-list::-webkit-scrollbar-track {
+    background: #f1f1f1;
+  }
+
+  .schedule-list::-webkit-scrollbar-thumb {
+    background: #ddd;
+    border-radius: 4px;
+  }
+
+  .schedule-list::-webkit-scrollbar-thumb:hover {
+    background: #ccc;
+  }
+
+  @media (max-width: 768px) {
+    .card {
+      margin-left: 0 !important;
+      width: 100% !important;
+    }
+    
+    .schedule-item {
+      padding: 10px;
+    }
+    
+    .time {
+      min-width: 75px;
+      font-size: 13px;
+    }
+  }
+ 
 </style>
 <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 <script>
+  function animateValue(obj, start, end, duration) {
+    let startTimestamp = null;
+    const step = (timestamp) => {
+        if (!startTimestamp) startTimestamp = timestamp;
+        const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+        const currentNumber = Math.floor(progress * (end - start) + start);
+        obj.innerHTML = currentNumber.toLocaleString();
+        if (progress < 1) {
+            window.requestAnimationFrame(step);
+        }
+    };
+    window.requestAnimationFrame(step);
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    // Add intersection observer for animation trigger
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                const counter = entry.target;
+                const targetValue = parseInt(counter.getAttribute('data-target'));
+                animateValue(counter, 0, targetValue, 2000); // 2000ms = 2s duration
+                observer.unobserve(counter); // Only animate once
+            }
+        });
+    }, { threshold: 0.5 });
+
+    // Observe all counter elements
+    document.querySelectorAll('.counter-number').forEach(counter => {
+        observer.observe(counter);
+    });
+  });
+
   function initiatePayment(installmentId) {
     fetch("{% url 'client:make_payment' 0 %}".replace('0', installmentId), {
         method: 'POST',
@@ -197,14 +465,13 @@
 
 
 <div class="row" style="margin-bottom: 20px;">
-  <div class="col-md-8">
-    <div class="row welcome-card" style="background-color:white;padding:30px;border-radius:10px; position: relative; overflow: hidden;width: 620px;height: 150px;margin-left:2px;">
+  <div class="col-md-6">
+    <div class="row welcome-card card" style="background-color:white;padding:30px;border-radius:10px; position: relative; overflow: hidden;width: 540px;height: 150px;margin-left:2px;">
       <div class="confetti-overlay" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-image: url('{% static 'img/confetti.gif' %}'); background-repeat: repeat; opacity: 0.6; pointer-events: none;"></div>
       <div class="col-md-12 grid-margin">
         <div class="row">
           <div class="col-9 col-sm-8 mb-4 mb-xl-0 welcome-message">
             <h3 class="font-weight-bold" style="color: #00008B;">Welcome {% if client.client_type == 'Individual' %}{{ profile2.first_name }}
-         
               {% else %}
               {{ client.company_name }}
               {% endif %} 🎉</h3>
@@ -217,24 +484,285 @@
       </div>
     </div>
   </div>
-  
-  <div class="col-md-4">
-    <div class="row">
-     
 
-      <a href="{% url 'client:project_list' %}" class="col-md-6 col-sm-6 info-card">
-        <img src="{% static 'img/project.png' %}" alt="Projects">
-        <h5 class="card-title">View Projects</h5>
-       
-      </a>
+
+  <div class="col-md-6" style="margin-top: -20px;"> 
+    {% if active_subscription %}
+    <div class="row" style="padding:20px;width: 500px;height: 120px;margin-left:35px;">
+      <div class="col-md-12">
+        <div class="card stat-card" style="background: linear-gradient(135deg, #e6e6fa, #d8d5f0); border-radius: 15px; border: none; box-shadow: 0 4px 15px rgba(93, 78, 139, 0.1); padding: 10px;">
+          <div class="card-body" style="padding: 0px;">
+            <div class="row">
+              <!-- Left column: Plan details -->
+              <div class="col-7">
+                <h5 class="card-title" style="color: #5d4e8b; font-weight: 600; margin-bottom: 3px; font-size: 15px;">
+                  <i class="fas fa-crown" style="margin-right: 8px;"></i>{{ active_subscription.plan.name }} Plan
+                </h5>
+                <p style="color: #6c5ce7; margin-bottom: 3px; font-size: 12px;">Valid until: {{ active_subscription.end_date|date:"F d, Y" }}</p>
+                
+                {% if active_subscription.days_remaining <= 5 and active_subscription.days_remaining > 1 %}
+                <div style="background-color: rgba(231, 76, 60, 0.1); border-radius: 6px; padding: 3px; margin-top: 3px; color: #e74c3c; font-size: 10px; display: flex; align-items: center;">
+                  <i class="fas fa-exclamation-circle" style="margin-right: 5px;"></i>
+                  Expiring soon
+                </div>
+                {% elif active_subscription.days_remaining == 1 %}
+                <div style="background-color: rgba(231, 76, 60, 0.1); border-radius: 6px; padding: 3px; margin-top: 3px; color: #e74c3c; font-size: 10px; display: flex; align-items: center;">
+                  <i class="fas fa-exclamation-circle" style="margin-right: 5px;"></i>
+                  Expires tomorrow
+                </div>
+                {% elif active_subscription.days_remaining == 0 %}
+                <div style="background-color: rgba(231, 76, 60, 0.1); border-radius: 6px; padding: 3px; margin-top: 3px; color: #e74c3c; font-size: 10px; display: flex; align-items: center;">
+                  <i class="fas fa-exclamation-circle" style="margin-right: 5px;"></i>
+                  Expires tomorrow
+                </div>
+                {% elif active_subscription.days_remaining < 0 %}
+                <div style="background-color: rgba(231, 76, 60, 0.2); border-radius: 6px; padding: 3px; margin-top: 3px; color: #e74c3c; font-size: 10px; display: flex; align-items: center;">
+                  <i class="fas fa-exclamation-triangle" style="margin-right: 5px;"></i>
+                  Expired
+                </div>
+                {% endif %}
+                
+                {% if active_subscription.days_remaining <= 10 and active_subscription.days_remaining >= 0 %}
+                <div class="mt-1">
+                  <a href="{% url 'client:plans' %}" class="btn btn-sm" style="background-color: #6c5ce7; color: white; padding: 2px 10px; border-radius: 20px; font-size: 10px; font-weight: 500;">Renew Plan</a>
+                </div>
+                {% endif %}
+              </div>
+              
+              <!-- Right column: Countdown -->
+              <div class="col-5" style="display: flex; flex-direction: column; justify-content: center; align-items: center;">
+                {% if active_subscription.days_remaining > 0 %}
+                <div style="background-color: rgba(255, 255, 255, 0.8); border-radius: 50%; width: 60px; height: 60px; display: flex; flex-direction: column; justify-content: center; align-items: center; box-shadow: 0 3px 10px rgba(93, 78, 139, 0.15);">
+                  <div style="font-size: 22px; font-weight: 700; color: #6c5ce7; line-height: 1;">{{ active_subscription.days_remaining }}</div>
+                  <div style="font-size: 10px; color: #7f78a7; line-height: 1;">days left</div>
+                </div>
+                {% elif active_subscription.days_remaining == 0 %}
+                <!-- Countdown for less than a day -->
+                <div id="hourly-countdown" style="background-color: rgba(255, 255, 255, 0.8); border-radius: 10px; padding: 5px 10px; display: flex; flex-direction: column; justify-content: center; align-items: center; box-shadow: 0 3px 10px rgba(93, 78, 139, 0.15);">
+                  <div style="display: flex; justify-content: center; gap: 2px;">
+                    <div style="text-align: center;">
+                      <div id="hours" style="font-size: 18px; font-weight: 700; color: #e74c3c; line-height: 1;"></div>
+                      <div style="font-size: 9px; color: #7f78a7;">hrs</div>
+                    </div>
+                    <div style="font-size: 18px; color: #7f78a7; font-weight: 700;">:</div>
+                    <div style="text-align: center;">
+                      <div id="minutes" style="font-size: 18px; font-weight: 700; color: #e74c3c; line-height: 1;"></div>
+                      <div style="font-size: 9px; color: #7f78a7;">min</div>
+                    </div>
+                    <div style="font-size: 18px; color: #7f78a7; font-weight: 700;">:</div>
+                    <div style="text-align: center;">
+                      <div id="seconds" style="font-size: 18px; font-weight: 700; color: #e74c3c; line-height: 1;"></div>
+                      <div style="font-size: 9px; color: #7f78a7;">sec</div>
+                    </div>
+                  </div>
+                </div>
+                {% else %}
+                <div style="background-color: rgba(231, 76, 60, 0.1); border-radius: 50%; width: 60px; height: 60px; display: flex; flex-direction: column; justify-content: center; align-items: center; box-shadow: 0 3px 10px rgba(93, 78, 139, 0.15);">
+                  <i class="fas fa-exclamation-triangle" style="font-size: 20px; color: #e74c3c;"></i>
+                  <div style="font-size: 10px; color: #e74c3c; font-weight: 500; margin-top: 3px;">Expired</div>
+                </div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Script for hourly countdown -->
+    {% if active_subscription.days_remaining == 0 %}
+    <script>
+      // Set the countdown date to the end of tomorrow
+      const countdownDate = new Date('{{ active_subscription.end_date|date:"Y-m-d" }}').getTime();
+      
+      // Update the countdown every second
+      const countdownTimer = setInterval(function() {
+        // Get current date and time
+        const now = new Date().getTime();
+        
+        // Calculate the time remaining
+        const timeRemaining = countdownDate - now;
+        
+        // Calculate hours, minutes, and seconds
+        const hours = Math.floor((timeRemaining % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const minutes = Math.floor((timeRemaining % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((timeRemaining % (1000 * 60)) / 1000);
+        
+        // Display the result
+        document.getElementById("hours").innerHTML = hours < 10 ? "0" + hours : hours;
+        document.getElementById("minutes").innerHTML = minutes < 10 ? "0" + minutes : minutes;
+        document.getElementById("seconds").innerHTML = seconds < 10 ? "0" + seconds : seconds;
+        
+        // If the countdown is over, show expired
+        if (timeRemaining < 0) {
+          clearInterval(countdownTimer);
+          document.getElementById("hours").innerHTML = "00";
+          document.getElementById("minutes").innerHTML = "00";
+          document.getElementById("seconds").innerHTML = "00";
+        }
+      }, 1000);
+    </script>
+    {% endif %}
+  {% endif %}
+
+    
+
+    <div class="row" {% if active_subscription %}style="padding:20px;width: 500px;height: 150px;margin-left:35px;margin-top: 30px;"{% else %}style="padding:20px;width: 500px;height: 150px;margin-left:35px;"{% endif %}>
+      <div class="col-md-6">
+        <div class="card stat-card" style="background: linear-gradient(135deg, #FFE5E5 0%, #FFD1D1 100%); border-radius: 15px; border: none;">
+          <div class="card-body">
+            <h5 class="card-title" style="color: #A91D3A; font-weight: 600;">Total Sales</h5>
+            <div class="d-flex justify-content-between align-items-center">
+              <h2 style="color: #A91D3A; font-weight: bold;" class="mb-0">
+                <span class="counter-number" data-target="570">0</span>
+              </h2>
+              <div class="wave-container" style="width: 100px; height: 40px;">
+                <svg viewBox="0 0 100 40">
+                  <path d="M 0,20 Q 25,5 50,20 T 100,20" fill="none" stroke="#A91D3A" stroke-width="2"/>
+                </svg>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+  
+      <div class="col-md-6">
+        <div class="card stat-card" style="background: linear-gradient(135deg, #E5F0FF 0%, #D1E3FF 100%); border-radius: 15px; border: none;">
+          <div class="card-body">
+            <h5 class="card-title" style="color: #063970; font-weight: 600;">Transactions</h5>
+            <div class="d-flex justify-content-between align-items-center">
+              <h2 style="color: #063970; font-weight: bold;" class="mb-0">
+                <span class="counter-number" data-target="484">0</span>
+              </h2>
+              <div class="wave-container" style="width: 100px; height: 40px;">
+                <svg viewBox="0 0 100 40">
+                  <path d="M 0,20 Q 25,35 50,20 T 100,20" fill="none" stroke="#063970" stroke-width="2"/>
+                </svg>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+  </div>
+  
+  <div class="row" style="padding:20px;width: 500px;height: 150px;margin-left:35px;">
+      <div class="col-md-6">
+        <div class="card stat-card" style="background: linear-gradient(135deg, #FFF2E5 0%, #FFE6CC 100%); border-radius: 15px; border: none;">
+          <div class="card-body">
+            <h5 class="card-title" style="color: #B75E00; font-weight: 600;">Completed Projects</h5>
+            <div class="d-flex justify-content-between align-items-center">
+              <h2 style="color: #B75E00; font-weight: bold;" class="mb-0">
+                <span class="counter-number" data-target="570">0</span>
+              </h2>
+              <div class="wave-container" style="width: 100px; height: 40px;">
+                <svg viewBox="0 0 100 40">
+                  <path d="M 0,20 Q 25,5 50,20 T 100,20" fill="none" stroke="#B75E00" stroke-width="2"/>
+                </svg>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+  
+      <div class="col-md-6">
+        <div class="card stat-card" style="background: linear-gradient(135deg, #E5F6FF 0%, #CCF0FF 100%); border-radius: 15px; border: none;">
+          <div class="card-body">
+            <h5 class="card-title" style="color: #0085B7; font-weight: 600;">Total Tasks</h5>
+            <div class="d-flex justify-content-between align-items-center">
+              <h2 style="color: #0085B7; font-weight: bold;" class="mb-0">
+                <span class="counter-number" data-target="570">0</span>
+              </h2>
+              <div class="wave-container" style="width: 100px; height: 40px;">
+                <svg viewBox="0 0 100 40">
+                  <path d="M 0,20 Q 25,35 50,20 T 100,20" fill="none" stroke="#0085B7" stroke-width="2"/>
+                </svg>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+
+<div class="row" style="margin-top: -120px;margin-bottom: 20px;">
+  <div class="col-md-6" {% if active_subscription %}style="margin-top: -160px;"{% endif %}>
+    <div class="card" style="height: 350px; width: 540px;background-color: white; padding: 15px; border-radius: 10px;">
+      <div class="card-body p-0">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <div>
+            <p class="card-title mb-0" style="color: #063970; font-size: 14px;">Projects Posted Comparison</p>
+            <small class="text-muted">Monthly comparison</small>
+          </div>
+        </div>
+        <div style="height: 80px;"> <!-- Container for chart with fixed height -->
+          <canvas id="projectsPostedChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+
+  <div class="col-md-6">
+    <div class="card" style="margin-top:120px;margin-left: 70px;height: 350px; width: 430px;background-color: white; padding: 20px; border-radius: 15px; box-shadow: 0 2px 15px rgba(0,0,0,0.05);">
+      <div class="card-body p-0">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+          <div>
+            <h5 class="card-title mb-1" style="color: #2D2A3F; font-weight: 600;">Today's Schedule</h5>
+            <p class="text-muted mb-0" style="font-size: 13px;">{{ current_date|date:"l, F j" }}</p>
+          </div>
+          <div class="schedule-badge">4 Meetings</div>
+        </div>
+        
+        <div class="schedule-list">
+          <!-- Meeting Item 1 -->
+          <div class="schedule-item">
+            <div class="time">09:00 AM</div>
+            <div class="meeting-info">
+              <h6>Project Review Meeting</h6>
+              <button class="join-meeting">Join</button>
+            </div>
+          </div>
+
+          <!-- Meeting Item 2 -->
+          <div class="schedule-item">
+            <div class="time">11:30 AM</div>
+            <div class="meeting-info">
+              <h6>Client Presentation</h6>
+              <button class="join-meeting">Join</button>
+            </div>
+          </div>
+
+          <!-- Meeting Item 3 -->
+          <div class="schedule-item">
+            <div class="time">02:00 PM</div>
+            <div class="meeting-info">
+              <h6>Team Sync-up</h6>
+              <button class="join-meeting">Join</button>
+            </div>
+          </div>
+
+          <!-- Meeting Item 4 -->
+          <div class="schedule-item">
+            <div class="time">04:30 PM</div>
+            <div class="meeting-info">
+              <h6>Sprint Planning</h6>
+              <button class="join-meeting">Join</button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
 
-<br>
-<div class="row">
+
+<div class="row"  {% if active_subscription %}style="margin-top: -300px;"{% else %}style="margin-top: -140px;"{% endif %}>
   <div class="col-md-7 grid-margin stretch-card">
-    <div class="card position-relative">
+    <div class="card position-relative" style="height: 500px;background-color: white;">
       <div class="card-body">
         <div id="detailedReports" class="carousel slide detailed-report-carousel position-static pt-2"
           data-ride="carousel">
@@ -251,31 +779,30 @@
 
                 <div class="col-md-12 border-right">
                   <div class="table-responsive mb-3 mb-md-0 mt-3">
-                    <table class="table table-borderless report-table">
+                    <table class="table table-borderless report-table" style="max-height: 300px; overflow-y: auto;">
                       <thead>
                         <tr>
-                          <th>Status</th>
-                          <th>Message</th>
-                          <th>Action</th>
+                          <th style="width: 80%">Message</th>
+                          <th style="width: 20%">Status</th>
                         </tr>
                       </thead>
                       <tbody>
-                        <!-- Replace with dynamic notification data -->
                         {% for notification in notifications %}
                         <tr class="{% if not notification.is_read %}table-warning{% else %}table-light{% endif %}">
-                          <td>
-                            {% if notification.is_read %}
-                            <span class="badge badge-success">Read</span>
-                            {% else %}
-                            <span class="badge badge-danger">Unread</span>
-                            {% endif %}
+                          <td style="word-wrap: break-word; 
+                                     max-width: 250px; 
+                                     white-space: normal; 
+                                     overflow-wrap: break-word;">
+                            {{ notification.message }}
                           </td>
-                          <td>{{ notification.message }}</td>
-                          <td>{% if not notification.is_read %}
-                            <form action="{% url 'client:notification_mark_as_read' notification.id %}" method="post">
+                          <td class="text-nowrap">
+                            {% if not notification.is_read %}
+                            <form action="{% url 'client:notification_mark_as_read' notification.id %}" method="post" style="display: inline;">
                               {% csrf_token %}
                               <button type="submit" class="btn btn-success btn-sm">Mark as Read</button>
                             </form>
+                            {% else %}
+                            <span class="badge badge-success">Read</span>
                             {% endif %}
                           </td>
                         </tr>
@@ -347,28 +874,38 @@
     </div>
   </div>
 
-  <div class="col-md-5 grid-margin stretch-card">
-    <div class="card">
-      <div class="card-body">
-        <br>
-        <div class="d-flex justify-content-between">
-
-          <p class="card-title">Project Completion Report</p>
+  <div class="row">
+    <div class="col-md-7 grid-margin stretch-card" >
+      <div class="card">
+        <div class="card-body">
+          <p class="card-title">Project Status Overview</p>
+          <p class="font-weight-500">Distribution of projects by their current status</p>
+          <canvas id="projectStatusChart"></canvas>
         </div>
-        <p class="font-weight-500">
-          This chart provides an overview of the project completion status. It displays the percentage of projects that
-          are completed versus those that are still pending, giving you insight into the current state of your projects.
-        </p>
+      </div>
+    </div>
 
-        <br>
-        <canvas id="pieChart"></canvas>
-        <div id="sales-legend" class="chartjs-legend mt-4 mb-2"></div>
+    <div class="col-md-5 grid-margin stretch-card" {% if active_subscription %}style="margin-top: -280px;width: 430px;"{% else %}style="margin-top: -430px;width: 430px;"{% endif %}>
+      <div class="card" style="height: 380px;">
+        <div class="card-body">
+          <div class="d-flex justify-content-between">
+
+            <p class="card-title">Project Completion Report</p>
+          </div>
+          <p class="font-weight-500">
+            This chart provides an overview of the project completion status. It displays the percentage of projects that
+            are completed versus those that are still pending, giving you insight into the current state of your projects.
+          </p>
+  
+          
+          <canvas id="pieChart"></canvas>
+          <div id="sales-legend" class="chartjs-legend mt-4 mb-2"></div>
+        </div>
+        </div>
       </div>
     </div>
   </div>
-
-
-
+  
 
 
   <div class="row">
@@ -393,9 +930,11 @@
                   <td>{{ project_data.project.title }}</td>
                   <td> {% if project_data.project.team %}
                     {{ project_data.project.team.name }}  (Team)
-                  {% else %}
-                  {{ project_data.project.freelancer.register.first_name }} {{ project_data.project.freelancer.register.last_name }}
-                  {% endif %}</td>
+                    {%  elif project_data.project.freelancer %}
+                    {{ project_data.project.freelancer.register.first_name }} {{ project_data.project.freelancer.register.last_name }}
+                    {% else %}
+                    <p>No Freelancer/Team</p>
+                    {% endif %}</td>
                   <td class="font-weight-bold">{{ project_data.project.budget }}</td>
                   <td class="font-weight-medium">
                     <div class="badge 
@@ -426,6 +965,7 @@
         </div>
       </div>
     </div>
+
   </div>
 
 
@@ -569,6 +1109,177 @@
     });
   </script>
   
+  
+  
+  <script>
+document.addEventListener('DOMContentLoaded', function() {
+    const projectsCtx = document.getElementById('projectsPostedChart').getContext('2d');
+    const currentYear = new Date().getFullYear();
+    
+    // Dummy data with realistic patterns
+    const currentYearData = [22000, 24000, 21000, 25000, 27000, 24000, 23000, 25000, 26000, 24000, 25000, 23000];
+    const previousYearData = [19000, 21000, 20000, 22000, 23000, 21000, 20000, 22000, 21000, 20000, 22000, 21000];
+    
+    new Chart(projectsCtx, {
+        type: 'line',
+        data: {
+            labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+            datasets: [{
+                label: `${currentYear}`,
+                data: currentYearData,
+                borderColor: '#A91D3A',
+                backgroundColor: 'rgba(169, 29, 58, 0.1)',
+                tension: 0.4,
+                fill: true,
+                pointRadius: 0,
+                borderWidth: 2
+            }, {
+                label: `${currentYear - 1}`,
+                data: previousYearData,
+                borderColor: '#063970',
+                backgroundColor: 'rgba(6, 57, 112, 0.1)',
+                tension: 0.4,
+                fill: true,
+                pointRadius: 0,
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    backgroundColor: 'white',
+                    titleColor: '#063970',
+                    bodyColor: '#063970',
+                    titleFont: {
+                        size: 11
+                    },
+                    bodyFont: {
+                        size: 11
+                    },
+                    padding: 8,
+                    displayColors: false,
+                    borderColor: 'rgba(0, 0, 0, 0.1)',
+                    borderWidth: 1
+                }
+            },
+            scales: {
+                y: {
+                    display: false
+                },
+                x: {
+                    display: false
+                }
+            }
+        }
+    });
+});
+</script>
+
+
+
+  
+ 
+  
+  
+  <script>
+document.addEventListener('DOMContentLoaded', function() {
+    const statusCtx = document.getElementById('projectStatusChart').getContext('2d');
+    
+    // Dummy data for demonstration
+    const projectData = {
+        notStarted: 25,
+        inProgress: 38,
+        completed: 42,
+        cancelled: 15
+    };
+    
+    new Chart(statusCtx, {
+        type: 'bar',
+        data: {
+            labels: ['Not Started', 'In Progress', 'Completed', 'Cancelled'],
+            datasets: [{
+                data: [
+                    projectData.notStarted,
+                    projectData.inProgress,
+                    projectData.completed,
+                    projectData.cancelled
+                ],
+                backgroundColor: [
+                    '#6C757D', // Grey for Not Started
+                    '#FFC100', // Yellow for In Progress
+                    '#57B657', // Green for Completed
+                    '#DC3545'  // Red for Cancelled
+                ],
+                borderWidth: 0,
+                borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    backgroundColor: 'white',
+                    titleColor: '#2D2A3F',
+                    bodyColor: '#2D2A3F',
+                    titleFont: {
+                        size: 13,
+                        weight: 'bold'
+                    },
+                    bodyFont: {
+                        size: 12
+                    },
+                    padding: 12,
+                    displayColors: true,
+                    borderColor: 'rgba(0, 0, 0, 0.1)',
+                    borderWidth: 1,
+                    callbacks: {
+                        label: function(context) {
+                            const value = context.raw || 0;
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = ((value / total) * 100).toFixed(1);
+                            return `${value} projects (${percentage}%)`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    grid: {
+                        display: true,
+                        color: 'rgba(0, 0, 0, 0.05)'
+                    },
+                    ticks: {
+                        font: {
+                            size: 11
+                        }
+                    }
+                },
+                x: {
+                    grid: {
+                        display: false
+                    },
+                    ticks: {
+                        font: {
+                            size: 11
+                        }
+                    }
+                }
+            }
+        }
+    });
+});
+</script>
+
+
+
   {% endblock %}
-
-

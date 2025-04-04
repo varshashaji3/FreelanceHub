@@ -7,7 +7,7 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import redirect, get_object_or_404
 from client.models import ClientProfile, Complaint, EventAndQuiz
 from core.decorators import nocache
-from core.models import CustomUser, Notification, Register, SiteReview
+from core.models import CustomUser, Notification, Register, SiteReview, SubscriptionPlan, UserSubscription
 from freelancer.models import FreelancerProfile
 
 from django.contrib import messages
@@ -25,6 +25,9 @@ from django.db.models.functions import TruncMonth
 import json
 
 from datetime import datetime
+
+from django.http import JsonResponse
+from django.views.decorators.http import require_POST, require_http_methods
 
 
 @login_required
@@ -502,12 +505,32 @@ def notification_mark_as_read(request,not_id):
 
 
 from django.core.paginator import Paginator
+from django.db.models import Count, Avg
+from core.models import Register  # Make sure this import is added
+
 def reviews(request):
     rating_filter = request.GET.get('rating')
     sort_order = request.GET.get('sort', 'newest')
 
-    reviews_list = SiteReview.objects.all()
-    
+    # Get all reviews
+    reviews_list = SiteReview.objects.select_related('user').all()
+
+    # Calculate rating statistics
+    rating_counts = {}
+    for i in range(1, 6):
+        count = SiteReview.objects.filter(rating=i).count()
+        rating_counts[i] = count
+
+    total_reviews = sum(rating_counts.values())
+    avg_rating = SiteReview.objects.aggregate(avg=Avg('rating'))['avg'] or 0
+
+    # Get register data with profile pics
+    profile_pics = {}
+    registers = Register.objects.all()
+    for reg in registers:
+        if reg.profile_picture:
+            profile_pics[reg.user_id] = reg.profile_picture.url
+
     if rating_filter:
         reviews_list = reviews_list.filter(rating=rating_filter)
     
@@ -518,6 +541,12 @@ def reviews(request):
 
     context = {
         'reviews': reviews_list,
+        'profile_pics': profile_pics,
+        'rating_stats': {
+            'total_reviews': total_reviews,
+            'average_rating': round(avg_rating, 1),
+            'rating_counts': rating_counts
+        }
     }
     
     return render(request, 'Admin/reviews.html', context)
@@ -679,11 +708,6 @@ def update_solution(request):
 
 
 
-
-
-
-
-
 @login_required
 @nocache
 def events(request):
@@ -785,6 +809,137 @@ def reject_event(request, event_id):
             'success': False,
             'message': str(e)
         }, status=500)
+
+
+@login_required
+def subscription_list(request):
+    # Just get the subscription plans
+    plans = SubscriptionPlan.objects.all()
+    
+    context = {
+        'plans': plans
+    }
+    return render(request, 'Admin/subscriptions_list.html', context)
+
+
+@login_required
+@require_POST
+def toggle_plan_status(request, pk):
+    try:
+        plan = SubscriptionPlan.objects.get(pk=pk)
+        plan.is_active = not plan.is_active
+        plan.save()
+        return JsonResponse({'success': True})
+    except SubscriptionPlan.DoesNotExist:
+        return JsonResponse({'success': False}, status=404)
+
+
+@login_required
+def create_subscription_plan(request):
+    if request.method == 'POST':
+        try:
+            plan = SubscriptionPlan.objects.create(
+                name=request.POST['name'],
+                price=request.POST['price'],
+                duration_days=request.POST['duration_days'],
+                is_active=True,
+                
+                # Client Features
+                can_hire_freelancer=request.POST.get('can_hire_freelancer') == 'true',
+                can_create_events=request.POST.get('can_create_events') == 'true',
+                project_creation_limit=request.POST.get('project_creation_limit', 0),
+                ai_freelancer_recommendations=request.POST.get('ai_freelancer_recommendations') == 'true',
+                
+                # Freelancer Features
+                can_participate_events=request.POST.get('can_participate_events') == 'true',
+                can_create_portfolio=request.POST.get('can_create_portfolio') == 'true',
+                max_proposals_limit=request.POST.get('max_proposals_limit', 0),
+                ai_skill_gap_analysis=request.POST.get('ai_skill_gap_analysis') == 'true',
+                ai_project_recommendations=request.POST.get('ai_project_recommendations') == 'true',
+                team_creation=request.POST.get('team_creation') == 'true',
+            )
+            return JsonResponse({'success': True})
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=400)
+    return JsonResponse({'error': 'Invalid request'}, status=400)
+
+
+@login_required
+def get_plan_details(request, pk):
+    try:
+        plan = SubscriptionPlan.objects.get(pk=pk)
+        return JsonResponse({
+            'name': plan.name,
+            'price': plan.price,
+            'duration_days': plan.duration_days,
+            'is_active': plan.is_active,
+            # Client Features
+            'can_hire_freelancer': plan.can_hire_freelancer,
+            'can_create_events': plan.can_create_events,
+            'project_creation_limit': plan.project_creation_limit,
+            'ai_freelancer_recommendations': plan.ai_freelancer_recommendations,
+            # Freelancer Features
+            'can_participate_events': plan.can_participate_events,
+            'can_create_portfolio': plan.can_create_portfolio,
+            'max_proposals_limit': plan.max_proposals_limit,
+            'ai_skill_gap_analysis': plan.ai_skill_gap_analysis,
+            'ai_project_recommendations': plan.ai_project_recommendations,
+            'team_creation': plan.team_creation,
+        })
+    except SubscriptionPlan.DoesNotExist:
+        return JsonResponse({'error': 'Plan not found'}, status=404)
+
+@login_required
+def update_subscription_plan(request, pk):
+    if request.method == 'POST':
+        try:
+            plan = SubscriptionPlan.objects.get(pk=pk)
+            plan.name = request.POST.get('name')
+            plan.price = request.POST.get('price')
+            plan.duration_days = request.POST.get('duration_days')
+            
+            # Update features
+            plan.can_hire_freelancer = request.POST.get('can_hire_freelancer') == 'true'
+            plan.can_create_events = request.POST.get('can_create_events') == 'true'
+            plan.project_creation_limit = request.POST.get('project_creation_limit', 0)
+            plan.ai_freelancer_recommendations = request.POST.get('ai_freelancer_recommendations') == 'true'
+            
+            plan.can_participate_events = request.POST.get('can_participate_events') == 'true'
+            plan.can_create_portfolio = request.POST.get('can_create_portfolio') == 'true'
+            plan.max_proposals_limit = request.POST.get('max_proposals_limit', 0)
+            plan.ai_skill_gap_analysis = request.POST.get('ai_skill_gap_analysis') == 'true'
+            plan.ai_project_recommendations = request.POST.get('ai_project_recommendations') == 'true'
+            plan.team_creation = request.POST.get('team_creation') == 'true'
+            
+            plan.save()
+            return JsonResponse({'success': True})
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=400)
+    return JsonResponse({'error': 'Invalid request'}, status=400)
+
+@require_http_methods(["POST"])
+def check_plan_name_exists(request):
+    try:
+        name = request.POST.get('name', '').strip()
+        current_id = request.POST.get('current_id')
+        
+        # Query to check if name exists
+        query = SubscriptionPlan.objects.filter(name__iexact=name)
+        
+        # If editing, exclude the current plan
+        if current_id:
+            query = query.exclude(id=current_id)
+        
+        exists = query.exists()
+        
+        return JsonResponse({
+            'exists': exists,
+            'message': 'Plan name already exists' if exists else 'Plan name is available'
+        })
+    except Exception as e:
+        return JsonResponse({
+            'error': str(e)
+        }, status=400)
 
 
 

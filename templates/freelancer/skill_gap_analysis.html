@@ -4,7 +4,7 @@
 {% block 'freelancer_content' %}
 <div class="container">
     <div class="row">
-        <div class="col-12">
+        <div class="col-md-6">
             <h2 class="mb-4">Skill Gap Analysis</h2>
             
             <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -17,50 +17,60 @@
                     <div id="jobRoleError" class="text-danger mb-2" style="display: none;">Please enter a valid job role (letters, spaces between words, and only - or / allowed)</div>
                     <button id="analyzeBtn" class="btn btn-primary" disabled>Analyze Skills</button>
                 </div>
+                </div>
             </div>
             
-            <!-- Analysis Results -->
-            <div id="analysisResults" style="display: none;">
-                <div class="row">
-                    <!-- Existing Skills -->
-                    <div class="col-md-4">
+        <div class="col-md-6">
+            <!-- Display existing skills from context -->
                         <div class="card">
                             <div class="card-body">
                                 <h5 class="card-title">Your Skills</h5>
-                                <div id="existingSkills" class="skill-list"></div>
+                    <div id="initialExistingSkills" class="skill-list">
+                        <!-- Populate from Django context -->
+                        {% for skill in existing_skills %}
+                            <span class="skill-badge">{{ skill }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
                             </div>
                         </div>
                     </div>
-                    
-                    <!-- Fundamental Skills -->
-                    <div class="col-md-4">
+<br><br>
+<div id="analysisResults" style="display: none;background-color: #f8f9fa;">
+    <!-- Your Skills Section -->
+    <div class="analysis-section">
+        <h4 class="section-title">Current Skill Profile</h4>
+        <div class="row">
+           
+            
+            <div class="col-md-6">
                         <div class="card">
                             <div class="card-body">
-                                <h5 class="card-title">Required Fundamental Skills</h5>
+                        <h5 class="card-title">Required Skills <span style="font-size: 0.8rem; font-weight: normal; font-style: italic; color: #6c757d;">(✓ = you have, ✗ = you need)</span></h5>
                                 <div id="fundamentalSkills" class="skill-list"></div>
                             </div>
                         </div>
                     </div>
-                    
-                    <!-- Missing Fundamentals or Trending Skills -->
-                    <div class="col-md-4">
+            <div class="col-md-6">
                         <div class="card">
                             <div class="card-body">
-                                <h5 class="card-title" id="thirdColumnTitle">Skills to Learn</h5>
-                                <div id="skillsToLearn" class="skill-list"></div>
+                        <h5 class="card-title">
+                            Trending Skills To Learn
+                            <span class="trending-label">TODAY</span>
+                        </h5>
+                        <div id="trendingSkills" class="skill-list"></div>
+                   </div>
                             </div>
                         </div>
                     </div>
                 </div>
                 
-                <!-- Alert for Missing Fundamentals -->
-                <div id="fundamentalsAlert" class="alert alert-warning mt-4" style="display: none;">
-                    <i class="fas fa-exclamation-triangle me-2"></i>
-                    We noticed you're missing some fundamental skills. We recommend focusing on these core skills before moving to advanced topics.
-                </div>
-
-                <!-- Course Recommendations -->
-                <div class="card mt-4">
+    
+    <!-- Course Recommendations Section -->
+    <div class="analysis-section">
+        <h4 class="section-title">Learning Recommendations</h4>
+        <div class="card">
                     <div class="card-body">
                         <h5 class="card-title" id="courseRecommendationsTitle">Recommended Courses</h5>
                         <div id="courseRecommendations"></div>
@@ -68,111 +78,416 @@
                 </div>
             </div>
         </div>
-    </div>
-</div>
-
 <style>
+/* Pastel color palette */
+:root {
+    --pastel-1: #FFB7B2; /* Salmon */
+    --pastel-2: #FFDAC1; /* Peach */
+    --pastel-3: #E2F0CB; /* Light green */
+    --pastel-4: #B5EAD7; /* Mint */
+    --pastel-5: #C7CEEA; /* Lavender */
+    --pastel-6: #FF9AA2; /* Light red */
+    --pastel-7: #9CF6F6; /* Turquoise */
+    --pastel-8: #F6A6FF; /* Purple */
+    --pastel-9: #BDB2FF; /* Periwinkle */
+    --pastel-10: #A0C4FF; /* Blue */
+    --pastel-11: #FFC6FF; /* Pink */
+    --pastel-12: #CAFFBF; /* Lime */
+    --pastel-13: #FDFFB6; /* Yellow */
+    --pastel-14: #FFADAD; /* Coral */
+    --pastel-15: #FFD6A5; /* Orange */
+}
+
+/* Base skill badge styles */
+.skill-badge {
+    color: #333; /* Darker text for better readability on pastel backgrounds */
+    border-radius: 50px;
+    padding: 8px 16px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+}
+
+/* Status indicator styles */
+.skill-status {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    margin-left: 5px;
+    font-size: 12px;
+    background-color: rgba(255, 255, 255, 0.7);
+}
+
+.skill-status.has {
+    color: #28a745; /* Green checkmark */
+}
+
+.skill-status.missing {
+    color: #dc3545; /* Red X */
+}
+
+/* Class-based color assignments */
+.skill-color-1 { background-color: var(--pastel-1); }
+.skill-color-2 { background-color: var(--pastel-2); }
+.skill-color-3 { background-color: var(--pastel-3); }
+.skill-color-4 { background-color: var(--pastel-4); }
+.skill-color-5 { background-color: var(--pastel-5); }
+.skill-color-6 { background-color: var(--pastel-6); }
+.skill-color-7 { background-color: var(--pastel-7); }
+.skill-color-8 { background-color: var(--pastel-8); }
+.skill-color-9 { background-color: var(--pastel-9); }
+.skill-color-10 { background-color: var(--pastel-10); }
+.skill-color-11 { background-color: var(--pastel-11); }
+.skill-color-12 { background-color: var(--pastel-12); }
+.skill-color-13 { background-color: var(--pastel-13); }
+.skill-color-14 { background-color: var(--pastel-14); }
+.skill-color-15 { background-color: var(--pastel-15); }
+
+/* Professional Color Scheme */
+:root {
+    --primary: #dc3545;  /* Red to match your site theme */
+    --primary-dark: #c82333;
+    --secondary: #6c757d;
+    --success: #28a745;
+    --warning: #ffc107;
+    --danger: #dc3545;
+    --light: #f8f9fa;
+    --dark: #343a40;
+    --white: #ffffff;
+    --shadow: rgba(0, 0, 0, 0.1);
+}
+
+/* Main Container */
 .container {
-    background-color: #f8f9fa; /* Light background for better contrast */
-    border-radius: 8px;
-    padding: 20px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    background-color: var(--white);
+    border-radius: 15px;
+    padding: 30px;
+    max-height: 500px;   
+
 }
 
-.card {
-    border: none; /* Remove default card border */
-    border-radius: 8px; /* Rounded corners for cards */
-    transition: transform 0.3s; /* Smooth transform on hover */
+/* Typography */
+h2 {
+    color: var(--primary);
+    font-family: 'Dancing script', 'Courier New', serif;
+    font-weight: 600;
+    font-size: 2.5rem;
+    margin-bottom: 25px;
+    text-transform: uppercase;
+    position: relative;
+    display: inline-block;
 }
 
-.card:hover {
-    transform: translateY(-5px); /* Lift effect on hover */
-    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15); /* Shadow on hover */
+h2:after {
+    content: '';
+    position: absolute;
+    left: 0;
+    bottom: -10px;
+    width: 70px;
+    height: 3px;
+    background-color: var(--primary);
 }
 
+.card-title {
+    color: var(--primary);
+    font-family: 'Dancing script', 'Courier New', serif;
+    font-weight: 600;
+    font-size: 1.4rem;
+    margin-bottom: 20px;
+}
+
+/* Cards */
+.container .card {
+    border: none;
+    border-radius: 15px;
+    overflow: hidden;
+    max-height: 300px;
+}
+
+.card-body {
+    padding: 25px;
+}
+
+/* Input Field */
+#jobRoleInput {
+    border: 2px solid #e9ecef;
+    border-radius: 12px;
+    padding: 15px 20px;
+    font-size: 1rem;
+    transition: color 0.3s;
+    background-color: var(--light);
+}
+
+#jobRoleInput:focus {
+    border-color: var(--primary);
+    background-color: var(--white);
+}
+
+#jobRoleInput::placeholder {
+    color: #adb5bd;
+    font-style: italic;
+}
+
+/* Button */
+.btn-primary {
+    background-color: var(--primary);
+    border: none;
+    border-radius: 12px;
+    padding: 12px 30px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    transition: background-color 0.3s;
+}
+
+.btn-primary:hover:not(:disabled) {
+    background-color: var(--primary-dark);
+    transform: none;
+}
+
+.btn-primary:disabled {
+    background-color: #e9ecef;
+    color: #6c757d;
+    box-shadow: none;
+}
+
+/* Skills List */
 .skill-list {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
-}
-
-.skill-badge {
-    background-color: #007bff; /* Primary color for skill badges */
-    color: white; /* White text for contrast */
-    border-radius: 16px;
-    padding: 6px 12px; /* Increased padding for better touch targets */
-    font-size: 14px;
-    transition: background-color 0.3s; /* Smooth background color transition */
+    gap: 10px;
+    padding: 10px 0;
 }
 
 .skill-badge:hover {
-    background-color: #0056b3; /* Darker shade on hover */
+    background-color: var(--primary);
 }
 
-.btn-primary {
-    background-color: #28a745; /* Green button for primary actions */
-    border: none; /* Remove border */
-    transition: background-color 0.3s; /* Smooth background color transition */
+/* Alert */
+.alert {
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+    border-left: 5px solid var(--warning);
 }
 
-.btn-primary:hover {
-    background-color: #218838; /* Darker green on hover */
+.alert i {
+    color: var(--warning);
+    font-size: 1.2rem;
+    margin-right: 10px;
+}
+
+/* Updated Course Recommendations Grid */
+.course-recommendations-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); /* Reduced from 250px */
+    gap: 15px; /* Reduced from 25px */
+    margin-top: 15px;
+}
+
+/* Updated Course Card */
+.course-card {
+    background: var(--white);
+    border-radius: 12px; /* Reduced from 15px */
+    overflow: hidden;
+    transition: all 0.3s;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.05); /* Reduced shadow */
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    border: none;
+    padding: 0;
+    max-width: 200px; /* Added max-width */
+}
+
+/* Smaller Course Image */
+.course-image {
+    width: 100%;
+    height: 120px; /* Reduced from 180px */
+    object-fit: cover;
+    border-top-left-radius: 12px;
+    border-top-right-radius: 12px;
+}
+
+/* Updated Course Content */
+.course-content {
+    padding: 12px; /* Reduced from 20px */
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+}
+
+/* Updated Course Title */
+.course-content h6 {
+    font-size: 0.9rem; /* Reduced from 1.1rem */
+    font-weight: 600;
+    color: var(--dark);
+    margin-bottom: 10px; /* Reduced from 15px */
+    line-height: 1.3;
+    /* Limit to 2 lines with ellipsis */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    height: 2.6em; /* Fixed height for 2 lines */
+}
+
+/* Smaller Button */
+.btn-sm.btn-outline-primary {
+    padding: 4px 10px; /* Reduced padding */
+    font-size: 0.8rem; /* Smaller font */
+    border-width: 1px; /* Thinner border */
+}
+
+/* SweetAlert Customization */
+.swal2-popup {
+    border-radius: 20px !important;
+    padding: 30px !important;
+}
+
+.swal2-title {
+    font-family: 'Dancing script', 'Courier New', serif !important;
+    color: var(--primary) !important;
+    font-weight: 600 !important;
+}
+
+.swal2-confirm {
+    background-color: var(--primary) !important;
+    border-radius: 50px !important;
+    padding: 12px 30px !important;
+}
+
+/* Responsive adjustments */
+@media (max-width: 992px) {
+    .container {
+        padding: 20px;
+    }
+    
+    h2 {
+        font-size: 2rem;
 }
 
 .course-recommendations-grid {
-    display: grid; /* Use grid layout for better control */
-    grid-template-columns: repeat(4, 1fr); /* Four cards per row */
-    gap: 20px; /* Space between cards */
-    margin-top: 16px;
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    }
 }
 
-.course-card {
-    background: #ffffff; /* White background for course cards */
-    border: 1px solid #dee2e6; /* Light border */
-    border-radius: 8px; /* Rounded corners */
-    padding: 16px;
-    transition: transform 0.3s, box-shadow 0.3s; /* Smooth transitions */
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1); /* Subtle shadow for depth */
-}
-
-.course-card:hover {
-    transform: scale(1.05); /* Slightly enlarge on hover */
-    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15); /* Shadow on hover */
+@media (max-width: 768px) {
+    .card-body {
+        padding: 20px;
+    }
+    
+    h2 {
+        font-size: 1.8rem;
+    }
+    
+    #jobRoleInput {
+        padding: 12px 15px;
+    }
+    
+    .btn-primary {
+        width: 100%;
+        padding: 12px 20px;
 }
 
 .course-image {
-    width: 100%;
-    height: 160px;  /* Increased height for better visibility */
-    object-fit: cover;
-    border-radius: 4px;
-    margin-bottom: 12px; /* Space between image and content */
+        height: 100px;
+    }
+}
+
+@media (max-width: 576px) {
+    .container {
+        padding: 15px;
+    }
+    
+    .course-recommendations-grid {
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 10px;
 }
 
 .course-content {
-    display: flex;
-    flex-direction: column;
-    gap: 8px; /* Space between title and button */
+        padding: 8px;
+    }
+    
+    .skill-badge {
+        padding: 6px 12px;
+        font-size: 0.85rem;
+    }
 }
 
-.course-title {
-    font-size: 16px; /* Increased font size for title */
-    font-weight: bold; /* Bold title for emphasis */
-    color: #333; /* Darker color for better readability */
-}
-
-.platform-badge {
-    background-color: #007bff;
-    color: white;
-    border-radius: 4px;
-    padding: 2px 8px;
-    font-size: 12px;
-    margin-left: 8px;
-}
-
+/* Loading Animation */
 .spinner-border {
-    width: 1rem;
-    height: 1rem;
-    vertical-align: middle;
+    width: 1.5rem;
+    height: 1.5rem;
+    border-width: 0.2em;
+    color: var(--primary);
+}
+
+/* Hide the third column since we're not using it anymore */
+#analysisResults .col-md-4:last-child {
+    display: none;
+}
+
+#analysisResults .col-md-4:nth-child(2) {
+    flex: 0 0 auto;
+    width: 50%; /* Make it take up the space of the removed card */
+}
+
+/* Add separation between cards */
+.card {
+    background-color: rgba(255, 255, 255, 0.95);
+    margin-bottom: 20px; /* Add bottom margin to all cards */
+    border: 1px solid rgba(0, 0, 0, 0.08); /* Light border for better definition */
+}
+
+/* Add a divider between sections */
+.section-divider {
+    height: 1px;
+    background: linear-gradient(to right, transparent, rgba(220, 53, 69, 0.3), transparent);
+    margin: 25px 0;
+    position: relative;
+}
+
+.section-divider::after {
+    content: '';
+    position: absolute;
+    width: 80px;
+    height: 3px;
+    background-color: var(--primary);
+    top: -1px;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+/* Add section titles */
+.section-title {
+    font-family: 'Dancing script', 'Courier New', serif;
+    color: var(--primary);
+    margin-bottom: 15px;
+    font-size: 1.5rem;
+    font-weight: 600;
+}
+
+/* Add hover effect only to the course cards */
+.course-card {
+    transition: all 0.3s ease;
+}
+
+.course-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
+}
+
+/* Space around section containers */
+.analysis-section {
+    padding: 10px 0;
 }
 </style>
 
@@ -226,8 +541,11 @@ document.getElementById('analyzeBtn').addEventListener('click', async () => {
             body: JSON.stringify({ job_role: jobRole })
         });
         
+        if (!response.ok) {
+            throw new Error(`Server error: ${response.status}`);
+        }
+        
         const data = await response.json();
-        // Close loading alert
         loadingAlert.close();
         
         if (data.success) {
@@ -235,18 +553,32 @@ document.getElementById('analyzeBtn').addEventListener('click', async () => {
         } else {
             Swal.fire({
                 icon: 'error',
-                title: 'Error',
-                text: data.message || 'Error analyzing skills'
+                title: 'Analysis Error',
+                text: data.message || 'Error analyzing skills. Please try again.',
+                confirmButtonColor: '#dc3545'
             });
         }
     } catch (error) {
         console.error('Error:', error);
         loadingAlert.close();
-        Swal.fire({
-            icon: 'error',
-            title: 'Error',
-            text: 'An error occurred while analyzing skills'
-        });
+        
+        // Specific error message for server error
+        if (error.message.includes('500')) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Server Error',
+                text: 'The server encountered an error while processing your request. Please try again in a few moments.',
+                confirmButtonColor: '#dc3545',
+                confirmButtonText: 'Try Again'
+            });
+        } else {
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'An error occurred while analyzing skills. Please try again.',
+                confirmButtonColor: '#dc3545'
+            });
+        }
     }
 });
 
@@ -265,43 +597,85 @@ function getCookie(name) {
     return cookieValue;
 }
 
+// Function to generate a consistent color class based on string
+function getColorClass(str) {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+        hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    // Get a number between 1 and 15 (for our 15 colors)
+    const colorIndex = Math.abs(hash % 15) + 1;
+    return `skill-color-${colorIndex}`;
+}
+
+// Update the displayResults function to check for skills
 function displayResults(data) {
     // Show results container
     document.getElementById('analysisResults').style.display = 'block';
     
-    // Display existing skills
-    const existingSkillsDiv = document.getElementById('existingSkills');
-    existingSkillsDiv.innerHTML = data.existing_skills
-        .map(skill => `<span class="skill-badge">${skill}</span>`)
-        .join('');
-    
-    // Display fundamental skills
+    // Debugging: Log the data received
+    console.log('Received data:', data);
+
+    // Check if fundamental skills are present
+    if (!Array.isArray(data.fundamental_skills) || data.fundamental_skills.length === 0) {
+        Swal.fire({
+            icon: 'error',
+            title: 'Data Error',
+            text: 'The analysis did not return all necessary skill data. Please try again later.',
+            confirmButtonColor: '#dc3545'
+        });
+        return;
+    }
+
+    // Display fundamental skills with status indicators
     const fundamentalSkillsDiv = document.getElementById('fundamentalSkills');
     fundamentalSkillsDiv.innerHTML = data.fundamental_skills
-        .map(skill => `<span class="skill-badge">${skill}</span>`)
+        .map(skill => {
+            const hasSkill = data.existing_skills.includes(skill);
+            const colorClass = getColorClass(skill);
+            return `<span class="skill-badge ${colorClass}">
+                ${skill}
+                <span class="skill-status ${hasSkill ? 'has' : 'missing'}">
+                    ${hasSkill ? '✓' : '✗'}
+                </span>
+            </span>`;
+        })
         .join('');
-    
-    // Handle missing fundamentals or trending skills
-    const thirdColumnTitle = document.getElementById('thirdColumnTitle');
-    const skillsToLearnDiv = document.getElementById('skillsToLearn');
-    const fundamentalsAlert = document.getElementById('fundamentalsAlert');
-    const courseRecommendationsTitle = document.getElementById('courseRecommendationsTitle');
+
+    // Update card titles and content based on needs_fundamentals
+    const trendingSkillsDiv = document.getElementById('trendingSkills');
+    const trendingTitle = trendingSkillsDiv.closest('.card').querySelector('.card-title');
     
     if (data.needs_fundamentals) {
-        thirdColumnTitle.textContent = 'Missing Fundamental Skills';
-        skillsToLearnDiv.innerHTML = data.missing_fundamentals
-            .map(skill => `<span class="skill-badge">${skill}</span>`)
+        // Update trending skills card to show missing fundamentals
+        trendingTitle.innerHTML = 'Missing Fundamental Skills <span class="trending-label">PRIORITY</span>';
+        trendingSkillsDiv.innerHTML = data.missing_fundamentals
+            .map(skill => {
+                const colorClass = getColorClass(skill);
+                return `<span class="skill-badge ${colorClass}">
+                    ${skill}
+                    <span class="skill-status missing">✗</span>
+                </span>`;
+            })
             .join('');
-        fundamentalsAlert.style.display = 'block';
-        courseRecommendationsTitle.textContent = 'Recommended Fundamental Courses';
     } else {
-        thirdColumnTitle.textContent = 'Trending Skills to Learn';
-        skillsToLearnDiv.innerHTML = data.skill_gaps
-            .map(skill => `<span class="skill-badge">${skill}</span>`)
+        // Show trending skills
+        trendingTitle.innerHTML = 'Trending Skills To Learn <span class="trending-label">TODAY</span>';
+        trendingSkillsDiv.innerHTML = data.skill_gaps
+            .map(skill => {
+                const colorClass = getColorClass(skill);
+                return `<span class="skill-badge ${colorClass}">
+                    ${skill}
+                </span>`;
+            })
             .join('');
-        fundamentalsAlert.style.display = 'none';
-        courseRecommendationsTitle.textContent = 'Recommended Advanced Courses';
     }
+    
+    // Update course recommendations title
+    const courseRecommendationsTitle = document.getElementById('courseRecommendationsTitle');
+    courseRecommendationsTitle.textContent = data.needs_fundamentals ? 
+        'Recommended Courses For Missing Fundamental Skills' : 
+        'Recommended Courses For Trending Skills';
     
     // Display course recommendations
     const courseRecsDiv = document.getElementById('courseRecommendations');
@@ -313,13 +687,23 @@ function displayResults(data) {
                          alt="${course.title}" 
                          class="course-image">
                     <div class="course-content">
-                        <h6>${course.title || course.skill}</h6>
-                        <a href="${course.url}" target="_blank" class="btn btn-sm btn-outline-primary">View Course</a>
+                        <h6 title="${course.title || course.skill}">${course.title || course.skill}</h6>
+                        <a href="${course.url}" target="_blank" class="btn btn-sm btn-outline-primary">View</a>
                     </div>
                 </div>
             `).join('')}
         </div>
     `;
 }
+
+// Apply colors to initial skills as well
+document.addEventListener('DOMContentLoaded', function() {
+    const initialSkills = document.querySelectorAll('#initialExistingSkills .skill-badge');
+    initialSkills.forEach(badge => {
+        const skillName = badge.textContent.trim();
+        const colorClass = getColorClass(skillName);
+        badge.classList.add(colorClass);
+    });
+});
 </script>
 {% endblock %}

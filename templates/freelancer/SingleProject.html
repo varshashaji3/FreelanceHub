@@ -26,14 +26,99 @@
         margin-left: 280px;
     }
     #client_profile_picture{
-        width:200px;
-        height:200px;
-        border-radius:50%;
-        margin-top:-620px;
-        margin-right:50px;
+        width: 200px;
+        height: 200px;
+        border-radius: 50%;
+        margin-top: 0;
+        margin-right: 0;
+    }
+
+    /* Update responsive styles */
+    @media screen and (max-width: 992px) {
+        .row {
+            width: 95% !important; /* Override inline styles */
+            margin: 0 auto !important;
+        }
+
+        p[style*="max-width:700px"] {
+            max-width: 100% !important;
+        }
+    }
+
+    @media screen and (max-width: 768px) {
+        .row {
+            flex-direction: column-reverse;
+            padding: 15px !important;
+        }
+
+        #client_profile_picture {
+            width: 150px;
+            height: 150px;
+            margin: 20px auto;
+        }
+
+        h5 {
+            margin-left: 0;
+            text-align: center;
+        }
+
+        .container {
+            padding: 10px !important;
+            width: 100% !important;
+        }
+
+        h1 {
+            font-size: 24px;
+            text-align: center;
+            margin-top: 10px;
+        }
+
+        div[style*="margin-left:auto"] {
+            margin-left: 0 !important;
+            text-align: center;
+        }
+
+        .btn {
+            display: block;
+            width: 100%;
+            margin-top: 10px;
+        }
+    }
+
+    @media screen and (max-width: 480px) {
+        #client_profile_picture {
+            width: 120px;
+            height: 120px;
+        }
+
+        strong {
+            font-size: 15px;
+            display: inline-block;
+            margin-bottom: 5px;
+        }
+
+        p {
+            line-height: 24px;
+            font-size: 14px;
+            margin-bottom: 15px;
+        }
+
+        .row {
+            padding: 10px !important;
+        }
+
+        h1 {
+            font-size: 20px;
+        }
+
+        /* Adjust SweetAlert responsive styling */
+        .swal2-popup {
+            width: 90% !important;
+            font-size: 14px !important;
+        }
     }
 </style>
-<div class="row" style="background-color:white;padding:10px;border-radius:10px;display:flex;align-items:center;">
+<div class="row" style="background-color:white;padding:10px;border-radius:10px;display:flex;align-items:center;width: 100%;max-width: 1200px;margin: 0 auto;">
     <div class="container" style="background-color:white;padding:20px;border-radius:10px;">
         <br>
         <h1>{{ project.title }}</h1>
@@ -119,6 +204,38 @@
             }
         });
     }
+
+    // Add responsive styling for SweetAlert
+    const originalFire = Swal.fire;
+    Swal.fire = function(...args) {
+        if (typeof args[0] === 'object') {
+            args[0] = {
+                ...args[0],
+                customClass: {
+                    ...args[0].customClass,
+                    container: 'responsive-swal-container',
+                    popup: 'responsive-swal-popup'
+                }
+            };
+        }
+        return originalFire.apply(this, args);
+    };
 </script>
+
+<!-- Add these styles at the end of your existing styles -->
+<style>
+    /* SweetAlert Responsive Styles */
+    @media screen and (max-width: 480px) {
+        .responsive-swal-popup {
+            width: 90% !important;
+            margin: 0 auto !important;
+        }
+        
+        .swal2-select {
+            width: 100% !important;
+            max-width: 100% !important;
+        }
+    }
+</style>
 
 {% endblock %}

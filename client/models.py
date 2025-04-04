@@ -1,4 +1,4 @@
-from datetime import datetime, date
+from datetime import datetime, date, time
 from django.db import models
 from django.conf import settings
 from django.utils import timezone
@@ -6,6 +6,9 @@ from core.models import CustomUser
 from decimal import Decimal
 from django.contrib.auth.models import User
 from django.core.validators import MinValueValidator, MaxValueValidator
+from django.contrib.auth import get_user_model
+
+CustomUser = get_user_model()
 
 class ClientProfile(models.Model):
     CLIENT_TYPE_CHOICES = (
@@ -157,9 +160,31 @@ class Task(models.Model):
         super().save(*args, **kwargs)
         
     
-        
-        
-        
+class Meeting(models.Model):
+    MEETING_STATUS_CHOICES = [
+        ('scheduled', 'Scheduled'),
+        ('completed', 'Completed'),
+        ('cancelled', 'Cancelled'),
+        ('expired', 'Expired')
+    ]
+
+    title = models.CharField(max_length=255)
+    datetime = models.DateTimeField()
+    meeting_link = models.URLField()
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='meetings')
+    created_by = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='created_meetings')
+    attendees = models.ManyToManyField(CustomUser, related_name='meetings')
+    status = models.CharField(max_length=20, choices=MEETING_STATUS_CHOICES, default='scheduled')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.title} - {self.datetime.strftime('%Y-%m-%d %H:%M')}"
+
+    class Meta:
+        ordering = ['-datetime']
+
+    
 
 
 class FreelanceContract(models.Model):
@@ -236,14 +261,6 @@ class Review(models.Model):
         default=0
     )
     review_date = models.DateTimeField(auto_now_add=True)
-    
-    
-    
-    
-
-    
-    
-    
     
 
 class ChatRoom(models.Model):

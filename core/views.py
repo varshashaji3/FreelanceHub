@@ -711,7 +711,7 @@ def initiate_payment(request):
             # Create a subscription entry with pending status
             subscription = UserSubscription.objects.create(
                 user=user,
-                subscription_plan=plan,
+                plan=plan,
                 payment_status='Pending',
                 amount=plan.price
             )
@@ -766,7 +766,7 @@ def subscription_payment_success(request):
             # Find or create a subscription for this user and plan
             user_subscription, created = UserSubscription.objects.get_or_create(
                 user=user,
-                subscription_plan=plan,
+                plan=plan,
                 payment_status='Pending',
                 defaults={'amount': plan.price}
             )
@@ -776,6 +776,8 @@ def subscription_payment_success(request):
             user_subscription.razorpay_order_id = razorpay_order_id
             user_subscription.payment_status = 'Completed'
             user_subscription.start_date = timezone.now()
+            duration_days = plan.duration_days
+            user_subscription.end_date = user_subscription.start_date + timezone.timedelta(days=duration_days)
             user_subscription.save()
 
             return JsonResponse({'success': True})

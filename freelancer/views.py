@@ -1,4 +1,3 @@
-from datetime import datetime as dt, date as dt_date, timedelta
 import random
 import string
 from django.http import HttpResponse
@@ -6,6 +5,8 @@ from django.template.loader import get_template
 from xhtml2pdf import pisa
 import io
 import os
+import time
+from datetime import datetime  # Add this import
 from django.shortcuts import get_object_or_404, redirect, render
 
 from client.models import Message,ClientProfile, FreelanceContract, PaymentInstallment, Project, Review,SharedFile, SharedNote,SharedURL,Repository, Task,Complaint
@@ -89,6 +90,18 @@ def freelancer_view(request):
     profile2 = Register.objects.get(user_id=uid)
     todos = Todo.objects.filter(user_id=uid)
     profile1 = CustomUser.objects.get(id=uid)
+    
+    
+    active_subscription = UserSubscription.objects.filter(
+        user=request.user,
+        is_active=True,
+        
+        payment_status='Completed',
+        plan__ai_project_recommendations=True,  # Check for AI recommendations permission
+        end_date__gt=timezone.now()
+    ).first()
+
+    has_ai_recommendations = bool(active_subscription) 
     notifications = Notification.objects.filter(user=logged_user).order_by('-created_at')[:5]
 
     current_date = timezone.now().date()
@@ -447,6 +460,26 @@ def freelancer_view(request):
     except FreelancerProfile.DoesNotExist:
         recommended_projects = []
 
+    # Get upcoming meetings where the current user is an attendee
+    current_time = timezone.now()
+    upcoming_meetings = Meeting.objects.filter(
+        attendees=logged_user,
+        datetime__gt=current_time,
+        status='scheduled'
+    ).order_by('datetime')
+
+    # Add meeting details to the context
+    meeting_details = []
+    for meeting in upcoming_meetings:
+        meeting_details.append({
+                'title': meeting.title,
+                'datetime': meeting.datetime,
+            'meeting_link': meeting.meeting_link,
+            'project': meeting.project,
+            'created_by': meeting.created_by,
+            'status': meeting.status
+        })
+
     return render(request, 'freelancer/index.html', {
         'profile2': profile2,
         'profile1': profile1,
@@ -462,6 +495,8 @@ def freelancer_view(request):
         'top_clients_data': json.dumps(top_clients_data),
         'rating_data': rating_data,
         'recommended_projects': recommended_projects,
+        'upcoming_meetings': meeting_details, 
+        'has_ai_recommendations':has_ai_recommendations,# Add this to the context
     })
 
 
@@ -1804,16 +1839,27 @@ def view_repository(request, repo_id):
 
         if project.freelancer:
             is_project_manager = False  
+            is_team_project = False
         else:
             if project.team_id:
+                is_team_project = True
                 is_project_manager = TeamMember.objects.filter(team_id=project.team_id, user=request.user, role='PROJECT_MANAGER').exists()
                 team_members = TeamMember.objects.filter(team=project.team_id).select_related('user')
                 for member in team_members:
                     if member.user:
+                        # Get the Register information for this team member
+                        try:
+                            register = Register.objects.get(user_id=member.user.id)
+                            member_name = f"{register.first_name} {register.last_name}"
+                        except Register.DoesNotExist:
+                            # Fallback to username if Register record doesn't exist
+                            member_name = member.user.username
+                            
                         team_members_data.append({
-                            'username': member.user.username,  # Fetch the username
-                            'role': member.role,  # Fetch the role
-                            'user_id': member.user.id,  # Pass the user ID
+                            'username': member.user.username,
+                            'name': member_name,  # Add the full name
+                            'role': member.role,
+                            'user_id': member.user.id,
                         })
             else:
                 is_project_manager = False 
@@ -1864,7 +1910,23 @@ def view_repository(request, repo_id):
         except CancellationRequest.DoesNotExist:
             cancellation_details = None  # Set to None if no cancellation request exists
         
-        return render(request, 'freelancer/SingleRepository.html', {
+        # Add this to load meetings for the repository
+        meetings = Meeting.objects.filter(
+            project=project
+        ).prefetch_related('attendees').order_by('-datetime')
+        
+        # Create two lists: all meetings and meetings where user is an attendee
+        user_meetings = []
+        for meeting in meetings:
+            # Check if user is an attendee
+            is_attendee = meeting.attendees.filter(register__user_id=request.user.id).exists()
+            meeting.user_is_attendee = is_attendee
+            
+            # If user is an attendee, add to user_meetings list
+            if is_attendee:
+                user_meetings.append(meeting)
+
+        context = {
             'profile1': profile1,
             'profile2': profile2,
             'freelancer': freelancer,
@@ -1881,7 +1943,11 @@ def view_repository(request, repo_id):
             'project': project,
             'cancellation_details': cancellation_details,
             'team_members': team_members_data,
-        })
+            'meetings': meetings,  # All meetings
+            'user_meetings': user_meetings,  # Only meetings where user is an attendee
+            'is_team_project': is_team_project,
+        }
+        return render(request, 'freelancer/SingleRepository.html', context)
     else:
         return render(request, 'freelancer/PermissionDenied.html', {
             'profile1': profile1,
@@ -2393,7 +2459,37 @@ def add_complaint(request):
             'profile2': profile2,
             'freelancer': freelancer,
         })
+    
+    
+    
+
+from core.models import UserSubscription  # Add this import at the top
+
+def check_portfolio_access(view_func):
+    def wrapper(request, *args, **kwargs):
+        # Check if user has an active subscription
+        active_subscription = UserSubscription.objects.filter(
+            user=request.user,
+            is_active=True,
+            plan__can_create_portfolio=True,
+            end_date__gt=timezone.now()
+        ).first()
         
+        if not active_subscription:
+            return render(request, 'freelancer/base.html', {
+                'show_subscription_alert': True,
+                'alert_data': {
+                    'message': 'This feature requires an active subscription with portfolio access.',
+                    'redirect_url': reverse('freelancer:plans')
+                }
+            })
+            
+        return view_func(request, *args, **kwargs)
+    
+    return wrapper
+    
+@login_required
+@check_portfolio_access 
 def template_list(request):
     if 'uid' not in request.session:
         return redirect('login')
@@ -2645,7 +2741,8 @@ def download_resume(request, document_id):
     
     
     
-
+@login_required
+@check_portfolio_access 
 def my_portfolios(request):
     
     if 'uid' not in request.session:
@@ -3037,43 +3134,35 @@ def create_team(request):
     if request.method == 'POST':
         team_name = request.POST.get('team_name')
         try:
-            # Generate join code
             while True:
                 join_code = str(uuid.uuid4())[:8]
-                # Check if this code already exists
                 if not Team.objects.filter(join_code=join_code).exists():
                     break
             
-            # Create team with the generated join code
             team = Team.objects.create(
                 name=team_name,
                 created_by=request.user,
                 join_code=join_code
             )
-
-            # Add the team creator as a project manager
             TeamMember.objects.create(
                 team=team,
                 user=request.user,
                 role='PROJECT_MANAGER'
             )
-
             messages.success(request, f'Team "{team_name}" created successfully! Join code: {team.join_code}')
         except Exception as e:
             messages.error(request, f'Failed to create team: {str(e)}')
-            
-        
     return redirect('freelancer:my_teams')
 
 
 def edit_team(request, team_id):
     team = get_object_or_404(Team, id=team_id)
     if request.method == 'POST':
-        team_name = request.POST.get('team_name')  # Get the team name from the POST data
-        if team_name:  # Validate that the team name is provided
-            team.name = team_name  # Update the team name
-            team.save()  # Save the changes
-            return redirect('freelancer:my_teams')  # Redirect to the team management page
+        team_name = request.POST.get('team_name') 
+        if team_name:  
+            team.name = team_name  
+            team.save()  
+            return redirect('freelancer:my_teams')  
     
     return redirect('freelancer:my_teams')
 
@@ -3082,7 +3171,7 @@ def delete_team(request, team_id):
     team = get_object_or_404(Team, id=team_id)
     if request.method == 'POST':
         team.delete()
-        return redirect('freelancer:my_teams')  # Redirect to the team management page
+        return redirect('freelancer:my_teams') 
     return redirect('freelancer:my_teams')
 
 from django.shortcuts import render, get_object_or_404
@@ -3669,6 +3758,24 @@ from client.models import EventAndQuiz, EventRegistration
 
 @login_required
 def events_and_quizzes_view(request):
+    # Check for active subscription with events participation permission
+    active_subscription = UserSubscription.objects.filter(
+        user=request.user,
+        is_active=True,
+        plan__can_participate_events=True,  # Check for events participation permission
+        end_date__gt=timezone.now()
+    ).first()
+
+    if not active_subscription:
+        return render(request, 'freelancer/base.html', {
+            'show_subscription_alert': True,
+            'alert_data': {
+                'message': 'Participating in events and quizzes requires an active subscription with this feature.',
+                'redirect_url': reverse('freelancer:plans'),
+                'previous_url': request.META.get('HTTP_REFERER', reverse('freelancer:freelancer_view'))
+            }
+        })
+
     current_time = timezone.now()
     upcoming_events = EventAndQuiz.objects.filter(
         date__gt=current_time,
@@ -3686,7 +3793,6 @@ def events_and_quizzes_view(request):
     
     registered_events = {reg['event_id']: reg['attended'] for reg in registrations}
     
-    print(registered_events)
     upcoming_events_list = upcoming_events.filter(type='event')
     upcoming_quizzes = upcoming_events.filter(type='quiz')
     past_events_list = past_events.filter(type='event')
@@ -3699,11 +3805,11 @@ def events_and_quizzes_view(request):
 
     if os.path.exists(certificates_path):
         for filename in os.listdir(certificates_path):
-            if filename.endswith('.pdf') or filename.endswith('.jpg') or filename.endswith('.png'):  # Adjust as needed
+            if filename.endswith('.pdf') or filename.endswith('.jpg') or filename.endswith('.png'):
                 certificates.append({
                     'name': filename,
-                    'view_url': f'/media/certificates/{user_id}/{filename}',  # URL to view the certificate
-                    'download_url': f'/media/certificates/{user_id}/{filename}'  # URL to download the certificate
+                    'view_url': f'/media/certificates/{user_id}/{filename}',
+                    'download_url': f'/media/certificates/{user_id}/{filename}'
                 })
 
     context = {
@@ -3711,9 +3817,9 @@ def events_and_quizzes_view(request):
         'upcoming_quizzes': upcoming_quizzes,
         'past_events': past_events_list,
         'past_quizzes': past_quizzes,
-        'registered_events': registered_events,  # Now contains both event_id and attended status
+        'registered_events': registered_events,
         'active_page': 'events_quizzes',
-        'certificates': certificates  # Add certificates to context
+        'certificates': certificates
     }
     
     return render(request, 'freelancer/events_and_quizzes.html', context)
@@ -3901,15 +4007,42 @@ def analyze_skill_gap(request):
     profile1 = CustomUser.objects.get(id=uid)
     profile2 = Register.objects.get(user_id=uid)
     freelancer = FreelancerProfile.objects.get(user_id=uid)
-    
+
+    # Check for active subscription with AI skill gap analysis permission
+    active_subscription = UserSubscription.objects.filter(
+        user=request.user,
+        is_active=True,
+        plan__ai_skill_gap_analysis=True,  # Check for AI skill gap analysis permission
+        end_date__gt=timezone.now()
+    ).first()
+
+    if not active_subscription:
+        return render(request, 'freelancer/base.html', {
+            'show_subscription_alert': True,
+            'alert_data': {
+                'message': 'AI Skill Gap Analysis requires an active subscription with this feature.',
+                'redirect_url': reverse('freelancer:plans'),
+                'previous_url': request.META.get('HTTP_REFERER', reverse('freelancer:freelancer_view'))
+            }
+        })
+
+    existing_skills = []
+    if freelancer.skills:
+        skills_str = freelancer.skills.strip('[]')
+        existing_skills = [
+            standardize_skill(skill.strip().strip("'").replace('-', ''))
+            for skill in skills_str.split(',')  
+            if skill.strip()
+        ]
     if profile1.permission:
         
         context = {
             'profile1': profile1,
             'profile2': profile2,
             'freelancer': freelancer,
+            'existing_skills': existing_skills,
         }
-        
+        print("Existing Skills:", existing_skills)
         return render(request, 'freelancer/skill_gap_analysis.html', context)
     else:
         return render(request, 'freelancer/PermissionDenied.html', {
@@ -3977,9 +4110,18 @@ def clean_and_match_skills(raw_skills):
     
     for skill in raw_skills:
         cleaned_skill = standardize_skill(skill)
-        words = cleaned_skill.split()
-
-        matched_skill = next((s for s in standardized_skills if fuzz.partial_ratio(s, cleaned_skill) > 80), None)
+        
+        # Exact match check first
+        if cleaned_skill in standardized_skills:
+            cleaned_skills.append(cleaned_skill)
+            continue
+            
+        # If no exact match, then try fuzzy matching
+        matched_skill = next(
+            (s for s in standardized_skills 
+             if fuzz.ratio(s, cleaned_skill) > 85),  
+            None
+        )
 
         if matched_skill:
             cleaned_skills.append(matched_skill)
@@ -3989,56 +4131,70 @@ def clean_and_match_skills(raw_skills):
 
 @require_http_methods(["POST"])
 def get_skill_analysis(request):
+    start_time = time.time()
+    print("\nStarting skill analysis...")
+    
     try:
         data = json.loads(request.body)
         job_role = data.get('job_role')
         
+        # Time for profile fetch
+        profile_start = time.time()
         freelancer = FreelancerProfile.objects.get(user=request.user)
         existing_skills = []
         if freelancer.skills:
             skills_str = freelancer.skills.strip('[]')
             existing_skills = [
                 standardize_skill(skill.strip().strip("'").replace('-', ''))
-                for skill in skills_str.split(',')
+                for skill in skills_str.split(',')  
                 if skill.strip()
             ]
-            
+        profile_time = time.time() - profile_start
+        print(f"Profile fetch time: {profile_time:.2f}s")
+
+        # Time for AI model setup
+        ai_setup_start = time.time()
         load_dotenv()
         genai.configure(api_key=os.getenv('GOOGLE_API_KEY'))
         model = genai.GenerativeModel("gemini-1.5-flash")
-        
+        ai_setup_time = time.time() - ai_setup_start
+        print(f"AI model setup time: {ai_setup_time:.2f}s")
+
+        # Time for professional role check
+        role_check_start = time.time()
         professional_check_prompt = f"Is {job_role} a professional job role? yes/no"
         professional_check_response = model.generate_content(professional_check_prompt)
-        print(professional_check_response.text)  # For debugging
+        role_check_time = time.time() - role_check_start
+        print(f"Professional role check time: {role_check_time:.2f}s")
 
-        # Clean and normalize the response
         is_professional = professional_check_response.text.strip().lower()
-        if 'yes' in is_professional:  # More flexible check
-            
+        if 'yes' in is_professional:
+            # Time for fundamental skills analysis
+            fund_analysis_start = time.time()
             fundamental_prompt = f"""I'm interested in a career as a {job_role}. 
             What are the core technical skills I need to develop to be competitive in this field?
-            List only 5 main skills, without any description."""
-            
-            print("Fundamental Prompt:", fundamental_prompt)
+            List only 5 specific technical skills. Do not include any brackets, examples, or descriptions.
+            List each skill directly by name (like HTML, CSS, JavaScript, Python, Git)."""
             
             try:
                 fundamental_response = model.generate_content(fundamental_prompt)
-                print("Fundamental Response:", fundamental_response.text)  # Print the response from the AI
-                
                 raw_fundamental_skills = [skill.strip() for skill in fundamental_response.text.split('\n') if skill.strip()]
                 fundamental_skills = clean_and_match_skills(raw_fundamental_skills)
-
-                print("Standardized Fundamental Skills:", fundamental_skills)  # Print standardized skills
-
                 missing_fundamentals = [skill for skill in fundamental_skills if skill not in existing_skills]
-                print("Missing Fundamentals:", missing_fundamentals)  # Debugging statement
+                fund_analysis_time = time.time() - fund_analysis_start
+                print(f"Fundamental skills analysis time: {fund_analysis_time:.2f}s")
 
-                # If fundamental skills are missing, recommend courses
+                # Time for course recommendations
+                course_rec_start = time.time()
                 if missing_fundamentals:
                     course_recommendations = []
                     for skill in missing_fundamentals:
                         courses = fetch_classcentral_courses(skill)
                         course_recommendations.extend(courses)
+                    course_rec_time = time.time() - course_rec_start
+                    total_time = time.time() - start_time
+                    print(f"Course recommendations time: {course_rec_time:.2f}s")
+                    print(f"Total processing time: {total_time:.2f}s")
 
                     return JsonResponse({
                         'success': True,
@@ -4046,31 +4202,45 @@ def get_skill_analysis(request):
                         'fundamental_skills': fundamental_skills,
                         'missing_fundamentals': missing_fundamentals,
                         'needs_fundamentals': True,
-                        'course_recommendations': course_recommendations
+                        'course_recommendations': course_recommendations,
+                        'timing': {
+                            'profile_fetch': f"{profile_time:.2f}s",
+                            'ai_setup': f"{ai_setup_time:.2f}s",
+                            'role_check': f"{role_check_time:.2f}s",
+                            'fundamental_analysis': f"{fund_analysis_time:.2f}s",
+                            'course_recommendations': f"{course_rec_time:.2f}s",
+                            'total_time': f"{total_time:.2f}s"
+                        }
                     })
 
-                # Get Trending Skills
+                # Time for trending skills analysis
+                trend_analysis_start = time.time()
                 current_year = datetime.now().year
                 trending_prompt = f"""I'm a {job_role} looking to stay ahead of the curve. 
-                What are the most in-demand technical skills, frameworks, and specific technologies for a {job_role} in {current_year}? 
-                Focus only on specific tools, libraries, and frameworks. Provide just the names, no descriptions."""
+                What are the 5 most in-demand technical skills, frameworks, and specific technologies for a {job_role} in {current_year} right now?
+                Focus only on what's trending today in the industry.
+                List exactly 5 specific tools, libraries, or frameworks by name only.
+                Do not include any brackets, examples, or descriptions.
+                List each skill directly (like React, Docker, TypeScript)."""
 
-                print("Trending Prompt:", trending_prompt)  # Print the prompt given to the AI
-                
                 trending_response = model.generate_content(trending_prompt)
-                print("Trending Response:", trending_response.text)  # Print the response from the AI
-                
                 raw_trending_skills = [skill.strip() for skill in trending_response.text.split('\n') if skill.strip()]
                 trending_skills = clean_and_match_skills(raw_trending_skills)
-
-                print("Standardized Trending Skills:", trending_skills)  # Print standardized skills
-
                 skill_gaps = [skill for skill in trending_skills if skill not in existing_skills]
+                trend_analysis_time = time.time() - trend_analysis_start
 
+                # Time for course recommendations
+                course_rec_start = time.time()
                 course_recommendations = []
                 for skill in skill_gaps:
                     courses = fetch_classcentral_courses(skill)
                     course_recommendations.extend(courses)
+                course_rec_time = time.time() - course_rec_start
+                total_time = time.time() - start_time
+
+                print(f"Trending skills analysis time: {trend_analysis_time:.2f}s")
+                print(f"Course recommendations time: {course_rec_time:.2f}s")
+                print(f"Total processing time: {total_time:.2f}s")
 
                 return JsonResponse({
                     'success': True,
@@ -4079,19 +4249,34 @@ def get_skill_analysis(request):
                     'trending_skills': trending_skills,
                     'skill_gaps': skill_gaps,
                     'needs_fundamentals': False,
-                    'course_recommendations': course_recommendations
+                    'course_recommendations': course_recommendations,
+                    'timing': {
+                        'profile_fetch': f"{profile_time:.2f}s",
+                        'ai_setup': f"{ai_setup_time:.2f}s",
+                        'role_check': f"{role_check_time:.2f}s",
+                        'fundamental_analysis': f"{fund_analysis_time:.2f}s",
+                        'trending_analysis': f"{trend_analysis_time:.2f}s",
+                        'course_recommendations': f"{course_rec_time:.2f}s",
+                        'total_time': f"{total_time:.2f}s"
+                    }
                 })
 
             except Exception as e:
-                print("Error in fundamental skills generation:", str(e))  # Debugging statement
-                return JsonResponse({'success': False, 'message': f'Error generating recommendations: {str(e)}'}, status=500)
+                total_time = time.time() - start_time
+                print(f"Error occurred after {total_time:.2f}s")
+                return JsonResponse({'success': False, 'message': str(e), 'time_elapsed': f"{total_time:.2f}s"}, status=500)
         else:
-            return JsonResponse({'success': False, 'message': "It is not a professional job role."}, status=400)
-    except FreelancerProfile.DoesNotExist:
-        return JsonResponse({'success': False, 'message': 'Freelancer profile not found'}, status=404)
+            total_time = time.time() - start_time
+            print(f"Not a professional role. Process completed in {total_time:.2f}s")
+            return JsonResponse({
+                'success': False, 
+                'message': "It is not a professional job role.",
+                'time_elapsed': f"{total_time:.2f}s"
+            }, status=400)
     except Exception as e:
-        print("General error:", str(e))  # Debugging statement
-        return JsonResponse({'success': False, 'message': str(e)}, status=500)
+        total_time = time.time() - start_time
+        print(f"Error occurred after {total_time:.2f}s")
+        return JsonResponse({'success': False, 'message': str(e), 'time_elapsed': f"{total_time:.2f}s"}, status=500)
 
 
 def fetch_classcentral_courses(skill):
@@ -4149,122 +4334,7 @@ def fetch_classcentral_courses(skill):
     return courses
 
 
-# Refactored FreelanceHub API with Performance and NLP Improvements
-
-# import json
-# import os
-# import requests
-# from bs4 import BeautifulSoup
-# from django.http import JsonResponse
-# from django.views.decorators.http import require_http_methods
-# from django.core.cache import cache
-# from concurrent.futures import ThreadPoolExecutor
-# from django.db.models import F
-# from fuzzywuzzy import fuzz
-# import spacy
-# import google.generativeai as genai
-# from dotenv import load_dotenv
-# from .models import FreelancerProfile
-# import re
-
-
-# nlp = spacy.load('en_core_web_sm')
-
-# def standardize_skill(skill):
-#     doc = nlp(skill)
-#     clean_skill = re.sub(r'[^a-zA-Z0-9\s]', '', ' '.join([token.lemma_ for token in doc if not token.is_stop]))
-#     return clean_skill.lower().strip()
-
-# def scrape_courses(skill):
-#     base_url = f"https://www.classcentral.com/search?q={skill}"
-#     response = requests.get(base_url, headers={"User-Agent": "Mozilla/5.0"})
-#     if response.status_code != 200:
-#         return []
-#     soup = BeautifulSoup(response.text, "html.parser")
-#     courses = []
-#     for card in soup.find_all("li", class_="bg-white", limit=3):
-#         title = card.find("h2", class_="text-1")
-#         link = card.find("a", class_="color-charcoal")
-#         if title and link:
-#             courses.append({"title": title.text.strip(), "url": "https://www.classcentral.com" + link["href"]})
-#     return courses
-
-# def fetch_courses_concurrently(skills):
-#     with ThreadPoolExecutor() as executor:
-#         results = list(executor.map(scrape_courses, skills))
-#     return [course for sublist in results for course in sublist]
-
-# @require_http_methods(["POST"])
-# def get_skill_analysis(request):
-#     try:
-#         data = json.loads(request.body)
-#         print("Received data:", data)  # Debugging statement
-#         job_role = data.get('job_role')
-#         print("Job role:", job_role)  # Debugging statement
-        
-#         freelancer = FreelancerProfile.objects.get(user=request.user)
-#         existing_skills = [
-#             skill.strip().strip("'").lower().replace('-', '')
-#             for skill in freelancer.skills.strip('[]').split(',') if skill.strip()
-#         ] if freelancer.skills else []
-#         print("Existing skills:", existing_skills)  # Debugging statement
-
-#         load_dotenv()
-#         genai.configure(api_key=os.getenv('GOOGLE_API_KEY'))
-#         model = genai.GenerativeModel('gemini-pro')
-
-#         fundamental_response = model.generate_content(f"I'm interested in a career as a {job_role}. List 2 core technical skills needed (names only).")
-#         fundamental_skills = [standardize_skill(skill) for skill in fundamental_response.text.split('\n') if skill.strip()]
-#         print("Fundamental skills:", fundamental_skills)  # Debugging statement
-        
-#         # Clean up fundamental skills by removing numeric prefixes
-#         cleaned_fundamental_skills = [skill.split(' ', 1)[-1].strip() for skill in fundamental_skills]
-#         print("Cleaned fundamental skills:", cleaned_fundamental_skills)  # Debugging statement
-
-#         missing_fundamentals = []
-#         for skill in cleaned_fundamental_skills:
-#             is_missing = not any(fuzz.partial_ratio(skill, es) > 80 for es in existing_skills)
-#             print(f"Checking if '{skill}' is missing: {is_missing}")  # Debugging statement
-#             if is_missing:
-#                 missing_fundamentals.append(skill)
-
-#         print("Missing fundamentals:", missing_fundamentals)  # Debugging statement
-        
-#         if missing_fundamentals:
-#             fundamental_courses = fetch_courses_concurrently(missing_fundamentals)
-#             return JsonResponse({
-#                 'success': True,
-#                 'needs_fundamentals': True,
-#                 'fundamental_skills': cleaned_fundamental_skills,
-#                 'missing_fundamentals': missing_fundamentals,
-#                 'course_recommendations': fundamental_courses
-#             })
-
-#         trending_response = model.generate_content(f"What are the most in-demand technologies for {job_role} in 2025? Provide a plain list of names only.")
-#         trending_skills = [standardize_skill(skill) for skill in trending_response.text.split('\n') if skill.strip()]
-#         print("Trending skills:", trending_skills)  # Debugging statement
-
-#         skill_gaps = []
-#         for skill in trending_skills:
-#             is_gap = not any(fuzz.ratio(skill, es) > 80 for es in existing_skills)
-#             print(f"Checking if '{skill}' is a skill gap: {is_gap}")  # Debugging statement
-#             if is_gap:
-#                 skill_gaps.append(skill)
-
-#         print("Skill gaps:", skill_gaps)  # Debugging statement
-
-#         trending_courses = fetch_courses_concurrently(skill_gaps)
-#         return JsonResponse({
-#             'success': True,
-#             'needs_fundamentals': False,
-#             'trending_skills': trending_skills,
-#             'skill_gaps': skill_gaps,
-#             'course_recommendations': trending_courses
-#         })
-#     except Exception as e:
-#         print("Error occurred:", str(e))  # Debugging statement
-#         return JsonResponse({'success': False, 'message': str(e)}, status=500)
-
+from client.models import Meeting
 
 def freelancer_repositories(request):
     if request.user.is_authenticated:
@@ -4328,6 +4398,161 @@ def plans(request):
     plans = SubscriptionPlan.objects.all()
     
     for plan in plans:
-        plan.features_list = plan.features.split(',')  # Split the features by comma
+        # Create a structured features list for each plan
+        plan.freelancer_features = {
+            'events': {
+                'name': 'Participate in Events',
+                'enabled': plan.can_participate_events,
+                'icon': 'mdi-calendar-check'
+            },
+            'portfolio': {
+                'name': 'Create Portfolio',
+                'enabled': plan.can_create_portfolio,
+                'icon': 'mdi-account-card-details'
+            },
+            'skill_gap': {
+                'name': 'AI Skill Gap Analysis',
+                'enabled': plan.ai_skill_gap_analysis,
+                'icon': 'mdi-brain'
+            },
+            'recommendations': {
+                'name': 'AI Project Recommendations',
+                'enabled': plan.ai_project_recommendations,
+                'icon': 'mdi-lightbulb-on'
+            },
+            'team': {
+                'name': 'Team Creation',
+                'enabled': plan.team_creation,
+                'icon': 'mdi-account-group'
+            },
+            'proposals': {
+                'name': 'Max Proposals Limit',
+                'value': plan.max_proposals_limit,
+                'icon': 'mdi-file-document-multiple'
+            }
+        }
 
-    return render(request, 'freelancer/plans.html', {'plans': plans})
+    return render(request, 'freelancer/plans.html', {
+        'plans': plans,
+    })
+
+@login_required
+def schedule_meeting(request, project_id):
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'Method not allowed'}, status=405)
+
+    project = get_object_or_404(Project, id=project_id)
+
+    
+    try:
+        # Get form data
+        title = request.POST.get('title')
+        meeting_datetime_str = request.POST.get('datetime')
+        meeting_link = request.POST.get('meeting_link')
+        attendee_ids = request.POST.getlist('attendees[]')
+        meeting_datetime = request.POST.get('datetime')
+
+        # Validate required fields
+        if not all([title, meeting_datetime, meeting_link, attendee_ids]):
+            return JsonResponse({
+                'status': 'error',
+                'message': 'Please fill all required fields'
+            }, status=400)
+
+        meeting = Meeting.objects.create(
+            title=title,
+            datetime=meeting_datetime,
+            meeting_link=meeting_link,
+            project=project,
+            created_by=request.user
+        )
+
+        # Add attendees
+        meeting.attendees.add(*attendee_ids)
+
+        return JsonResponse({
+            'status': 'success',
+            'message': 'Meeting scheduled successfully',
+            'meeting': {
+                'id': meeting.id,
+                'title': meeting.title,
+                'datetime': meeting.datetime,
+                'status': meeting.status
+            }
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            'status': 'error',
+            'message': str(e)
+        }, status=500)
+
+@login_required
+def cancel_meeting(request, meeting_id):
+    meeting = get_object_or_404(Meeting, id=meeting_id)
+
+    # Check if user has permission to cancel
+    if request.user != meeting.created_by and request.user not in meeting.attendees.all():
+        return JsonResponse({
+            'status': 'error',
+            'message': 'You do not have permission to cancel this meeting'
+        }, status=403)
+
+    # Check if the meeting is already cancelled or completed or expired
+    if meeting.status in ['cancelled', 'completed', 'expired']:
+        return JsonResponse({
+            'status': 'error',
+            'message': f'Meeting is already {meeting.status}'
+        }, status=400)
+
+    # Cancel the meeting by updating its status
+    meeting.status = 'cancelled'
+    meeting.save()
+
+    return JsonResponse({
+        'status': 'success',
+        'message': 'Meeting cancelled successfully'
+    })
+
+@login_required
+def join_meeting(request, meeting_id):
+    meeting = get_object_or_404(Meeting, id=meeting_id)
+    
+    # Check if user is an attendee (this is critical)
+    if request.user not in meeting.attendees.all():
+        # Log this unauthorized attempt
+        print(f"Unauthorized join attempt: User {request.user.id} tried to join meeting {meeting_id}")
+        return JsonResponse({
+            'status': 'error',
+            'message': 'You are not listed as an attendee of this meeting'
+        }, status=403)
+    
+    # Check if meeting is scheduled (not cancelled or completed)
+    if meeting.status != 'scheduled':
+        return JsonResponse({
+            'status': 'error',
+            'message': f'Cannot join a meeting with status: {meeting.get_status_display()}'
+        }, status=400)
+    
+    # Check if meeting time is appropriate for joining
+    now = timezone.now()
+    early_window = meeting.datetime - timezone.timedelta(minutes=15)
+    late_window = meeting.datetime + timezone.timedelta(hours=2)
+    
+    if now < early_window:
+        return JsonResponse({
+            'status': 'warning',
+            'message': f'This meeting will start in {int((meeting.datetime - now).total_seconds() / 60)} minutes'
+        }, status=200)
+    
+    if now > late_window:
+        return JsonResponse({
+            'status': 'error',
+            'message': 'This meeting has ended'
+        }, status=400)
+    
+    # If all checks pass, return the meeting link
+    return JsonResponse({
+        'status': 'success',
+        'meeting_link': meeting.meeting_link
+    })

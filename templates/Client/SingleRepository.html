@@ -1,4 +1,3 @@
-
 {% extends 'client/base.html' %}
 {% block 'client_content' %}
 {% load static %}
@@ -15,6 +14,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
 <link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css">
 <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+<!-- SweetAlert2 -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 
 <style>
@@ -607,6 +608,460 @@ th,td{
 .file-card:hover .pdf-background i {
     transform: scale(1.1);
 }
+
+/* Meeting Section Styling */
+#meetings-section {
+    padding: 30px;
+    background-color: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 2px 15px rgba(0, 0, 0, 0.08);
+}
+
+#meetings-section h2 {
+    color: #2c3e50;
+    font-size: 24px;
+    font-weight: 600;
+    margin-bottom: 25px;
+    border-bottom: 2px solid #f0f2f5;
+    padding-bottom: 15px;
+}
+
+.meeting-list {
+    margin-top: 30px;
+}
+
+/* Attendee badges styling */
+.attendee-badge {
+    display: inline-block;
+    padding: 4px 8px;
+    background-color: #e9ecef;
+    border-radius: 15px;
+    font-size: 12px;
+    margin: 2px;
+    color: #495057;
+}
+
+/* Meeting table specific styling */
+#meetingsTable thead th {
+    background: linear-gradient(135deg, #4B49AC, #3F3D99);
+    color: white;
+    font-weight: 600;
+    font-size: 14px;
+    padding: 15px;
+}
+
+#meetingsTable tbody td {
+    vertical-align: middle;
+    padding: 12px 15px;
+}
+
+/* Join meeting button styling */
+.btn-join-meeting {
+    padding: 5px 10px;
+    font-size: 12px;
+    border-radius: 4px;
+    background-color: #4CAF50;
+    border-color: #4CAF50;
+    color: white;
+}
+
+.btn-join-meeting:hover {
+    background-color: #45a049;
+    border-color: #45a049;
+}
+
+/* Attendees select styling */
+.attendees-select {
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    padding: 10px;
+}
+
+.attendees-select .form-check {
+    margin-bottom: 8px;
+}
+
+.attendees-select .form-check:last-child {
+    margin-bottom: 0;
+}
+
+/* Meeting Modal Styling */
+#addMeetingModal .modal-content {
+    border: none;
+    border-radius: 12px;
+}
+
+#addMeetingModal .modal-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+    border-radius: 12px 12px 0 0;
+}
+
+#addMeetingModal .modal-title {
+    color: #2c3e50;
+    font-weight: 600;
+}
+
+#addMeetingModal .form-label {
+    color: #2c3e50;
+    font-weight: 500;
+    margin-bottom: 8px;
+}
+
+#addMeetingModal .form-control {
+    border-radius: 6px;
+    padding: 10px 12px;
+    border: 1px solid #dee2e6;
+    transition: all 0.3s ease;
+}
+
+#addMeetingModal .form-control:focus {
+    border-color: #4B49AC;
+    box-shadow: 0 0 0 0.2rem rgba(75, 73, 172, 0.25);
+}
+
+#addMeetingModal .input-group {
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+#addMeetingModal .dropdown-toggle {
+    border-color: #dee2e6;
+}
+
+#addMeetingModal .dropdown-menu {
+    padding: 8px;
+    border: none;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+}
+
+#addMeetingModal .dropdown-item {
+    padding: 8px 16px;
+    border-radius: 4px;
+    transition: all 0.3s ease;
+}
+
+#addMeetingModal .dropdown-item:hover {
+    background-color: #f8f9fa;
+}
+
+#addMeetingModal .dropdown-item i {
+    margin-right: 8px;
+    color: #4B49AC;
+}
+
+.attendees-select {
+    max-height: 200px;
+    overflow-y: auto;
+    padding: 12px;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+}
+
+.attendees-select .form-check {
+    margin-bottom: 10px;
+    padding: 8px;
+    border-radius: 4px;
+    transition: background-color 0.3s ease;
+}
+
+.attendees-select .form-check:hover {
+    background-color: #fff;
+}
+
+.attendees-select .form-check:last-child {
+    margin-bottom: 0;
+}
+
+.attendees-select .form-check-input:checked {
+    background-color: #4B49AC;
+    border-color: #4B49AC;
+}
+
+.form-text {
+    font-size: 12px;
+    margin-top: 4px;
+}
+
+/* Quick Links Dropdown Styling */
+.dropdown-menu {
+    padding: 8px;
+    border: none;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+}
+
+.dropdown-item {
+    padding: 8px 12px;
+    border-radius: 6px;
+    transition: all 0.3s ease;
+    color: #2c3e50;
+}
+
+.dropdown-item:hover {
+    background-color: #f8f9fa;
+    transform: translateX(3px);
+}
+
+.dropdown-item i {
+    width: 20px;
+    margin-right: 8px;
+}
+
+.dropdown-divider {
+    margin: 8px 0;
+}
+
+/* Platform-specific icon colors */
+.fa-google {
+    color: #DB4437;
+}
+
+.fa-microsoft {
+    color: #00A4EF;
+}
+
+.fa-video {
+    color: #2D8CFF; /* Zoom blue */
+    color: #2D8CFF;
+}
+
+.fa-paste {
+    color: #6c757d;
+}
+
+/* Meeting Modal Styles */
+.meeting-modal .modal-content {
+    border: none;
+    border-radius: 15px;
+    box-shadow: 0 0 20px rgba(0,0,0,0.1);
+}
+
+.meeting-modal .modal-header {
+    background: linear-gradient(135deg, #4B49AC, #3F3D99);
+    color: white;
+    border-radius: 15px 15px 0 0;
+    padding: 20px;
+}
+
+.meeting-modal .modal-title {
+    font-weight: 600;
+    font-size: 1.25rem;
+}
+
+.meeting-modal .modal-body {
+    padding: 25px;
+}
+
+.meeting-modal .form-label {
+    color: #2c3e50;
+    font-weight: 500;
+    margin-bottom: 8px;
+    font-size: 0.95rem;
+}
+
+.meeting-modal .form-control {
+    border: 2px solid #e9ecef;
+    border-radius: 8px;
+    padding: 12px;
+    transition: all 0.3s ease;
+}
+
+.meeting-modal .form-control:focus {
+    border-color: #4B49AC;
+    box-shadow: 0 0 0 0.2rem rgba(75, 73, 172, 0.25);
+}
+
+.meeting-modal .attendees-select {
+    max-height: 200px;
+    overflow-y: auto;
+    background-color: #f8f9fa;
+    border: 2px solid #e9ecef;
+    border-radius: 8px;
+    padding: 15px;
+}
+
+.meeting-modal .form-check {
+    margin-bottom: 10px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    transition: background-color 0.3s ease;
+}
+
+.meeting-modal .form-check:hover {
+    background-color: #fff;
+}
+
+.meeting-modal .form-check:last-child {
+    margin-bottom: 0;
+}
+
+.meeting-modal .form-check-input {
+    margin-top: 0.3rem;
+}
+
+.meeting-modal .form-check-input:checked {
+    background-color: #4B49AC;
+    border-color: #4B49AC;
+}
+
+.meeting-modal .form-check-label {
+    color: #2c3e50;
+    font-size: 0.95rem;
+    margin-left: 8px;
+}
+
+.meeting-modal .form-text {
+    color: #6c757d;
+    font-size: 0.85rem;
+    margin-top: 5px;
+}
+
+.meeting-modal .modal-footer {
+    border-top: 1px solid #e9ecef;
+    padding: 20px;
+}
+
+.meeting-modal .btn-secondary {
+    background-color: #e9ecef;
+    border: none;
+    color: #2c3e50;
+}
+
+.meeting-modal .btn-primary {
+    background: linear-gradient(135deg, #4B49AC, #3F3D99);
+    border: none;
+    padding: 10px 25px;
+    font-weight: 500;
+}
+
+.meeting-modal .btn-primary:hover {
+    background: linear-gradient(135deg, #3F3D99, #4B49AC);
+    transform: translateY(-1px);
+}
+
+/* Custom scrollbar for attendees select */
+.attendees-select::-webkit-scrollbar {
+    width: 8px;
+}
+
+.attendees-select::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+.attendees-select::-webkit-scrollbar-thumb {
+    background: #4B49AC;
+    border-radius: 4px;
+}
+
+.attendees-select::-webkit-scrollbar-thumb:hover {
+    background: #3F3D99;
+}
+
+.toggle-buttons .btn.active {
+    background-color: #4B49AC;
+    color: white;
+    border-color: #4B49AC;
+}
+
+#meetings-section {
+    background-color: #ffffff;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.attendee-badge {
+    display: inline-block;
+    padding: 4px 8px;
+    margin: 2px;
+    background-color: #e9ecef;
+    border-radius: 15px;
+    font-size: 12px;
+    color: #495057;
+}
+
+/* Table Styles */
+.table {
+    width: 100%;
+    margin: 20px 0;
+    border-collapse: collapse;
+}
+
+.table th, .table td {
+    padding: 12px;
+    text-align: left;
+    border: 1px solid #dee2e6;
+}
+
+.table th {
+    background-color: #4B49AC; /* Dark purple */
+    color: white;
+    font-weight: bold;
+}
+
+.table tbody tr:hover {
+    background-color: #f1f1f1; /* Light gray on hover */
+}
+
+.table-striped tbody tr:nth-of-type(odd) {
+    background-color: #f9f9f9; /* Light background for odd rows */
+}
+
+/* Attendee Badge Styles */
+.attendee-badge {
+    display: inline-block;
+    padding: 4px 8px;
+    margin: 2px;
+    background-color: #e9ecef; /* Light gray */
+    border-radius: 15px;
+    font-size: 12px;
+    color: #495057;
+}
+
+/* Button Styles */
+.btn {
+    margin-right: 5px; /* Space between buttons */
+}
+
+.btn-primary {
+    background-color: #007bff; /* Bootstrap primary color */
+    border-color: #007bff;
+}
+
+.btn-primary:hover {
+    background-color: #0056b3; /* Darker blue on hover */
+}
+
+.btn-danger {
+    background-color: #dc3545; /* Bootstrap danger color */
+    border-color: #dc3545;
+}
+
+.btn-danger:hover {
+    background-color: #c82333; /* Darker red on hover */
+}
+
+.btn-info {
+    background-color: #17a2b8; /* Bootstrap info color */
+    border-color: #17a2b8;
+}
+
+.btn-info:hover {
+    background-color: #138496; /* Darker teal on hover */
+}
+
+/* Responsive Styles */
+@media (max-width: 768px) {
+    .table {
+        font-size: 14px; /* Smaller font on mobile */
+    }
+}
 </style>
 
 <script>
@@ -1011,6 +1466,9 @@ th,td{
         <button class="btn btn-outline-secondary" id="toggle-docs">
             <i class="fas fa-document"></i> Documents
         </button>
+        <button class="btn btn-outline-secondary" id="toggle-meetings">
+            <i class="fas fa-calendar-alt"></i> Meetings
+        </button>
         
         {% if project.git_repo_link %}
         <a href="{{ project.git_repo_link }}" target="_blank" class="btn btn-outline-secondary">
@@ -1378,6 +1836,68 @@ th,td{
         </section>
     </div>
 
+    <div id="meetings-section" style="display: none;">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Meeting Schedules</h2>
+            <button class="btn btn-add-note" data-bs-toggle="modal" data-bs-target="#addMeetingModal">
+            <i class="fas fa-plus"></i> Schedule Meeting
+        </button>
+        </div>
+
+        <div class="meeting-list mt-4">
+            <table id="meetingsTable" class="display table table-hover table-bordered table-responsive-sm">
+                <thead>
+                    <tr>
+                        <th>Meeting Title</th>
+                        <th>Date & Time</th>
+                        <th>Meeting Link</th>
+                        <th>Attendees</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for meeting in meetings %}
+                    <tr>
+                        <td>{{ meeting.title }}</td>
+                        <td>{{ meeting.datetime|date:"F j, Y, g:i a" }}</td>
+                        <td>
+                            {% if meeting.meeting_link %}
+                            <a href="{{ meeting.meeting_link }}" target="_blank" class="btn btn-sm btn-primary">Join</a>
+                            {% else %}
+                            <span class="text-muted">Not available</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="attendees-list">
+                                {% for attendee in meeting.attendees.all %}
+                                {% with register=attendee.register %}
+                                <span class="attendee-badge">{{ register.first_name }} {{ register.last_name }}</span><br>
+                                {% endwith %}
+                                {% empty %}
+                                <span>No attendees</span>
+                                {% endfor %}
+                            </div>
+                        </td>
+                        <td>
+                            {% if meeting.status == 'scheduled' %}
+                            <button class="btn btn-danger btn-sm cancel-meeting-btn" data-meeting-id="{{ meeting.id }}">
+                                <i class="fas fa-times"></i> Cancel
+                            </button>
+                            {% else %}
+                            <span class="badge bg-secondary">{{ meeting.get_status_display }}</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="text-center">No meetings scheduled.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
 
 
 <!-- Add URL Modal -->
@@ -1495,46 +2015,178 @@ th,td{
 
 
 
+<div class="modal fade meeting-modal" id="addMeetingModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-calendar-plus me-2"></i>Schedule New Meeting
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form method="POST" action="{% url 'client:schedule_meeting' project.id %}" id="addMeetingForm">
+                    {% csrf_token %}
+                    <div class="mb-4">
+                        <label for="meeting_title" class="form-label">
+                            <i class="fas fa-heading me-2"></i>Meeting Title
+                        </label>
+                        <input type="text" class="form-control" id="meeting_title" name="title" required>
+                        <div class="invalid-feedback"></div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label for="meeting_datetime" class="form-label">
+                            <i class="fas fa-clock me-2"></i>Date & Time
+                        </label>
+                        <input type="datetime-local" class="form-control" id="meeting_datetime" 
+                               name="datetime" required>
+                        <div class="invalid-feedback"></div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label for="meeting_link" class="form-label">
+                            <i class="fas fa-link me-2"></i>Meeting Link
+                        </label>
+                            <input type="url" class="form-control" id="meeting_link" name="meeting_link" 
+                               placeholder="Enter meeting platform URL" required>
+                        <div class="invalid-feedback"></div>
+                        </div>
+                    
+                    <div class="mb-4">
+                        <label class="form-label">
+                            <i class="fas fa-users me-2"></i>Attendees
+                        </label>
+                        <div class="attendees-select">
+                            <!-- Client -->
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="attendees[]" 
+                                       value="{{ client.user.id }}" checked>
+                                <label class="form-check-label">
+                                    {{ profile2.first_name }} {{ profile2.last_name }} 
+                                    <span class="badge bg-primary">Client</span>
+                                </label>
+                            </div>
+
+                            {% if project.is_team_project %}
+                                {% for member in team_members %}
+                            <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="attendees[]" 
+                                           value="{{ member.id }}" >
+                                    <label class="form-check-label">
+                                        {{ member.name }}
+                                        <span class="badge bg-info">{{ member.position }}</span>
+                                </label>
+                            </div>
+                                {% endfor %}
+                            {% else %}
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="attendees[]" 
+                                           value="{{ freelancer.id }}" checked>
+                                    <label class="form-check-label">
+                                        {{ freelancer_name }}
+                                        <span class="badge bg-success">Freelancer</span>
+                                    </label>
+                        </div>
+                            {% endif %}
+                    </div>
+                    </div>
+                    
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <i class="fas fa-times me-2"></i>Cancel
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-calendar-check me-2"></i>Schedule Meeting
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+<div class="modal fade" id="viewMeetingModal-{{ meeting.id }}" tabindex="-1" aria-labelledby="viewMeetingModalLabel-{{ meeting.id }}" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="viewMeetingModalLabel-{{ meeting.id }}">Meeting Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p><strong>Title:</strong> {{ meeting.title }}</p>
+                <p><strong>Date & Time:</strong> {{ meeting.datetime|date:"F j, Y, g:i a" }}</p>
+                <p><strong>Meeting Link:</strong> <a href="{{ meeting.meeting_link }}" target="_blank">{{ meeting.meeting_link }}</a></p>
+                <p><strong>Attendees:</strong></p>
+                <div class="attendees-list">
+                    {% for attendee in meeting.attendees.all %}
+                    <span class="attendee-badge">{{ attendee.get_full_name }}</span>
+                    {% empty %}
+                    <span>No attendees</span>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
     $(document).ready(function() {
+        // Toggle functionality for all sections
         $('#toggle-tasks').click(function() {
             $('#tasks-section').show();
-            $('#activity-section').hide();
-            $('#notes-section').hide();
-            
-            $('#docs-section').hide();
+            $('#activity-section, #notes-section, #docs-section, #meetings-section').hide();
+            $('.toggle-buttons .btn').removeClass('active');
+            $(this).addClass('active');
         });
 
         $('#toggle-activities').click(function() {
-            $('#tasks-section').hide();
             $('#activity-section').show();
-            $('#notes-section').hide();
-            $('#docs-section').hide();
+            $('#tasks-section, #notes-section, #docs-section, #meetings-section').hide();
+            $('.toggle-buttons .btn').removeClass('active');
+            $(this).addClass('active');
         });
 
         $('#toggle-notes').click(function() {
-            $('#tasks-section').hide();
-            $('#activity-section').hide();
             $('#notes-section').show();
-            
-            $('#docs-section').hide();
+            $('#tasks-section, #activity-section, #docs-section, #meetings-section').hide();
+            $('.toggle-buttons .btn').removeClass('active');
+            $(this).addClass('active');
         });
+
         $('#toggle-docs').click(function() {
-            $('#tasks-section').hide();
-            $('#activity-section').hide();
-            $('#notes-section').hide();
             $('#docs-section').show();
+            $('#tasks-section, #activity-section, #notes-section, #meetings-section').hide();
+            $('.toggle-buttons .btn').removeClass('active');
+            $(this).addClass('active');
         });
 
-        $('#addNoteButton').click(function() {
-            $('#note-entry').toggle();
+        $('#toggle-meetings').click(function() {
+            $('#meetings-section').show();
+            $('#tasks-section, #activity-section, #notes-section, #docs-section').hide();
+            $('.toggle-buttons .btn').removeClass('active');
+            $(this).addClass('active');
+            
+            // Initialize DataTable if not already initialized
+            if (!$.fn.DataTable.isDataTable('#meetingsTable')) {
+                $('#meetingsTable').DataTable({
+                    responsive: true,
+                    order: [[1, 'desc']], // Sort by date column
+                    language: {
+                        search: "_INPUT_",
+                        searchPlaceholder: "Search meetings..."
+                    }
+                });
+            }
         });
 
-        
-
-        $('#clearNoteButton').click(function() {
-            $('#noteTextArea').val('');
-        });
+        // Rest of your meeting-related JavaScript...
+        // (Keep the form submission, cancel meeting, and other meeting-related code)
     });
 
     document.addEventListener('DOMContentLoaded', function() {
@@ -1629,6 +2281,170 @@ th,td{
         $('#project-details-toggle').click(function() {
             $('#project-details-container').toggleClass('expanded');
             $(this).find('i').toggleClass('fa-chevron-down fa-chevron-up');
+        });
+    });
+</script>
+
+<script>
+    $(document).ready(function() {
+        $('#toggle-meetings').click(function() {
+            $('#tasks-section').hide();
+            $('#activity-section').hide();
+            $('#notes-section').hide();
+            $('#docs-section').hide();
+            $('#meetings-section').show();
+        });
+
+        // Initialize DataTable for meetings
+        if (!$.fn.DataTable.isDataTable('#meetingsTable')) {
+            $('#meetingsTable').DataTable({
+                responsive: true,
+                order: [[1, 'desc']], // Sort by date column
+                language: {
+                    search: "_INPUT_",
+                    searchPlaceholder: "Search meetings..."
+                }
+            });
+        }
+
+        // Set minimum datetime to current time
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        const minDateTime = `${year}-${month}-${day}T${hours}:${minutes}`;
+        $('#meeting_datetime').attr('min', minDateTime);
+
+        // Form submission
+        $('#addMeetingForm').on('submit', function(e) {
+            e.preventDefault();
+            
+            // Clear previous errors
+            $('.is-invalid').removeClass('is-invalid');
+            $('.invalid-feedback').empty();
+
+            // Get form data
+            const formData = new FormData(this);
+
+            $.ajax({
+                url: $(this).attr('action'),
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function(response) {
+                    if (response.status === 'success') {
+                        // Use SweetAlert instead of toastr
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Meeting Scheduled!',
+                            text: 'Your meeting has been scheduled successfully.',
+                            confirmButtonColor: '#4B49AC'
+                        }).then((result) => {
+                            location.reload();
+                        });
+                    } else {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Something went wrong',
+                            text: response.message || 'Error scheduling meeting'
+                        });
+                    }
+                },
+                error: function(xhr) {
+                    // Handle validation errors
+                    if (xhr.status === 400 && xhr.responseJSON) {
+                        const errors = xhr.responseJSON.errors;
+                        for (const field in errors) {
+                            $(`#${field}`).addClass('is-invalid');
+                            $(`#${field}`).siblings('.invalid-feedback').text(errors[field]);
+                        }
+                        
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Validation Error',
+                            text: 'Please check the form for errors'
+                        });
+                    } else {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error',
+                            text: xhr.responseJSON?.message || 'Error scheduling meeting'
+                        });
+                    }
+                }
+            });
+        });
+
+        // Cancel Meeting
+        $(document).on('click', '.cancel-meeting-btn', function() {
+            const meetingId = $(this).data('meeting-id');
+            
+            // Show confirmation dialog with SweetAlert
+            Swal.fire({
+                title: 'Cancel Meeting?',
+                text: 'Are you sure you want to cancel this meeting? This action cannot be undone.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6',
+                confirmButtonText: 'Yes, cancel it!',
+                cancelButtonText: 'No, keep it'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    // User confirmed, proceed with cancellation
+                    $.ajax({
+                        url: `/client/meeting/${meetingId}/cancel/`,
+                        type: 'POST',
+                        data: {
+                            csrfmiddlewaretoken: $('input[name=csrfmiddlewaretoken]').val()
+                        },
+                        success: function(response) {
+                            if (response.status === 'success') {
+                                Swal.fire({
+                                    icon: 'success',
+                                    title: 'Meeting Cancelled',
+                                    text: response.message || 'Meeting has been cancelled successfully'
+                                }).then((result) => {
+                                    location.reload();
+                                });
+                            }
+                        },
+                        error: function(xhr) {
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'Error',
+                                text: xhr.responseJSON?.message || 'Error cancelling meeting'
+                            });
+                        }
+                    });
+                }
+            });
+        });
+
+        // Join Meeting
+        $('.join-meeting-btn').on('click', function(e) {
+            e.preventDefault();
+            const meetingId = $(this).data('meeting-id');
+            
+            $.ajax({
+                url: `/client/meeting/${meetingId}/join/`,
+                type: 'GET',
+                success: function(response) {
+                    if (response.status === 'success') {
+                        window.open(response.meeting_link, '_blank');
+                    }
+                },
+                error: function(xhr) {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: xhr.responseJSON?.message || 'Error joining meeting'
+                    });
+                }
+            });
         });
     });
 </script>

@@ -1,4 +1,3 @@
-import datetime
 import os
 from django.contrib import messages
 from django.shortcuts import redirect, render
@@ -6,7 +5,7 @@ import razorpay
 
 from client.models import ClientProfile, FreelanceContract, PaymentInstallment, Project, Review, SharedFile, SharedNote, SharedURL, Task, ChatRoom, Message,Complaint,JobInvitation  # Add Message here
 from core.decorators import nocache
-from core.models import CustomUser, Event, Notification, Register
+from core.models import CustomUser, Event, Notification, Register, UserSubscription
 
 
 from django.contrib.auth.decorators import login_required
@@ -32,6 +31,7 @@ from django.db.models import Case, When, Value, IntegerField
 from .models import JobInvitation
 from django.contrib.auth.models import User
 from django.urls import reverse 
+import datetime
 @login_required
 @nocache
 def client_view(request):
@@ -49,6 +49,13 @@ def client_view(request):
     
     client, created = ClientProfile.objects.get_or_create(user_id=logged_user.id)
     notifications = Notification.objects.filter(user=logged_user).order_by('-created_at')[:5]
+
+    # Get user's active subscription
+    active_subscription = UserSubscription.objects.filter(
+        user=logged_user,
+        is_active=True,
+        payment_status='Completed'
+    ).select_related('plan').first()
 
     for event in events:
         one_day_before = event.start_time.date() - datetime.timedelta(days=1)
@@ -128,7 +135,8 @@ def client_view(request):
             'profile1': profile1,
             'uid': logged_user.id,
             'notifications': notifications,
-            'events': events
+            'events': events,
+            'active_subscription': active_subscription
         })
 
     return render(request, 'Client/index.html', {
@@ -142,7 +150,8 @@ def client_view(request):
         'completed_projects': completed_projects,
         'not_completed_projects': not_completed_projects,
         'project_progress_data': project_progress_data,
-        'page_obj': page_obj
+        'page_obj': page_obj,
+        'active_subscription': active_subscription
     })
 
 
@@ -898,7 +907,78 @@ def add_new_project(request):
     profile1 = CustomUser.objects.get(id=uid)
     profile2 = Register.objects.get(user_id=uid)
     client = ClientProfile.objects.get(user_id=uid)
+
+    # Check completed projects first
+    completed_projects = Project.objects.filter(
+        user=request.user,
+        status='Completed'
+    ).count()
     
+    if completed_projects >= 3:
+        active_subscription = request.user.subscriptions.filter(is_active=True).select_related('plan').first()
+        if not active_subscription:
+            context = {
+                'show_subscription_alert': True,
+                'alert_data': {
+                    'title': 'Subscription Required',
+                    'message': 'You have completed 3 projects. Please subscribe to a plan to create more projects.',
+                    'redirect_url': reverse('client:plans')
+                }
+            }
+            return render(request, 'Client/NewProject.html', {**locals(), **context})
+
+    # Get active subscription
+    active_subscription = request.user.subscriptions.filter(is_active=True).select_related('plan').first()
+    
+    if not active_subscription:
+        total_projects = Project.objects.filter(user=request.user).count()
+        if total_projects >= 3:
+            context = {
+                'show_subscription_alert': True,
+                'alert_data': {
+                    'title': 'Project Limit Reached',
+                    'message': 'You have reached the limit of 3 projects. Please subscribe to continue.',
+                    'redirect_url': reverse('client:plans')
+                }
+            }
+            return render(request, 'Client/NewProject.html', {**locals(), **context})
+        
+        projects_remaining = 3 - total_projects
+        subscription_type = None
+        
+    else:
+        current_date = timezone.now().date()
+        if current_date > active_subscription.end_date.date():
+            context = {
+                'show_subscription_alert': True,
+                'alert_data': {
+                    'title': 'Subscription Expired',
+                    'message': f'Your subscription expired on {active_subscription.end_date}. Please renew to continue.',
+                    'redirect_url': reverse('freelancer:plans')
+                }
+            }
+            return render(request, 'Client/NewProject.html', {**locals(), **context})
+        
+        plan = active_subscription.plan
+        subscription_type = plan.name
+        
+        # Count projects created during subscription period
+        subscription_projects = Project.objects.filter(
+            user=request.user,
+            created_at__date__gte=active_subscription.start_date,
+            created_at__date__lte=active_subscription.end_date
+        ).count()
+        
+        if subscription_projects >= plan.project_creation_limit:
+            messages.warning(request, (
+                f'You have reached your {plan.name} plan\'s limit of {plan.project_creation_limit} projects. '
+                f'Your subscription is valid until {active_subscription.end_date}.'
+            ))
+            print(f"User {request.user.email} reached plan limit of {plan.project_creation_limit} projects")
+            return redirect('freelancer:plans')
+        
+        projects_remaining = plan.project_creation_limit - subscription_projects
+
     categories = [
         "Web Development", "Front-End Development", "Back-End Development", "Full-Stack Development", "Mobile Development",
         "Android Development", "iOS Development", "UI/UX Design",
@@ -1643,6 +1723,8 @@ def download_invoice(request, contract_id):
     })
         
 from core.models import CancellationRequest
+from freelancer.models import TeamMember  # Add TeamMember import
+
 @login_required
 @nocache
 def view_repository(request, repo_id):
@@ -1657,13 +1739,41 @@ def view_repository(request, repo_id):
     if profile1.permission:
         repository = get_object_or_404(Repository, id=repo_id)
         project = get_object_or_404(Project, id=repository.project_id)
+        
+        # Get meetings - only show non-cancelled meetings that haven't passed yet
+        meetings = Meeting.objects.filter(
+            project=project,
+            status='scheduled',
+            datetime__gte=timezone.now()
+        ).order_by('datetime')
+
+        freelancer = None
         freelancer_name = None
         freelancer_profile_picture = None
+        team_members = []
 
-        if project.freelancer_id:
-            freelancer_register = Register.objects.get(user_id=project.freelancer_id)
-            freelancer_name = f"{freelancer_register.first_name} {freelancer_register.last_name}"
-            freelancer_profile_picture = freelancer_register.profile_picture if freelancer_register.profile_picture else None
+        # Get team members if it's a team project
+        if project.team_id:
+            project.is_team_project = True
+            team_members = TeamMember.objects.filter(team=project.team_id).select_related('user')
+            team_members_data = []
+            for member in team_members:
+                if member.user:
+                    member_register = Register.objects.get(user_id=member.user.id)
+                    team_members_data.append({
+                        'id': member.user.id,
+                        'name': f"{member_register.first_name} {member_register.last_name}",
+                        'position': member.role,
+                        'user': member.user
+                    })
+        else:
+            project.is_team_project = False
+            # Get individual freelancer info
+            if project.freelancer_id:
+                freelancer = CustomUser.objects.get(id=project.freelancer_id)
+                freelancer_register = Register.objects.get(user_id=project.freelancer_id)
+                freelancer_name = f"{freelancer_register.first_name} {freelancer_register.last_name}"
+                freelancer_profile_picture = freelancer_register.profile_picture
 
         shared_files = SharedFile.objects.filter(repository=repository).values(
             'file', 'uploaded_at', 'uploaded_by', 'description'
@@ -1710,12 +1820,15 @@ def view_repository(request, repo_id):
             'items': items,
             'notes': notes,
             'tasks': tasks,
+            'freelancer': freelancer,
             'freelancer_name': freelancer_name,
             'freelancer_profile_picture': freelancer_profile_picture,
             'proposals': proposals,
             'contracts': contracts,
             'project': project,
-            'cancellation_details': cancellation_details,  # Pass cancellation details to the template
+            'cancellation_details': cancellation_details,
+            'team_members': team_members_data if project.is_team_project else [],  # Add team members to context
+            'meetings': meetings,
         })
         
     else:
@@ -3674,9 +3787,175 @@ def client_repositories(request):
     })
 
 from core.models import SubscriptionPlan
+@login_required
 def plans(request):
     plans = SubscriptionPlan.objects.all()
     
+    # Get user's active subscription
+    active_subscription = UserSubscription.objects.filter(
+        user=request.user,
+        is_active=True
+    ).select_related('plan').first()
+    
     for plan in plans:
-        plan.features_list = plan.features.split(',')  
-    return render(request, 'Client/plans.html', {'plans': plans})
+        # Create a structured features list for client features only
+        plan.features = {
+            'projects': {
+                'name': 'Project Creation Limit',
+                'value': plan.project_creation_limit,
+                'icon': 'mdi-briefcase-outline'
+            },
+            'hire_freelancer': {
+                'name': 'Hire Freelancers',
+                'enabled': plan.can_hire_freelancer,
+                'icon': 'mdi-account-tie'
+            },
+            'create_events': {
+                'name': 'Create Events',
+                'enabled': plan.can_create_events,
+                'icon': 'mdi-calendar-plus'
+            },
+            'ai_recommendations': {
+                'name': 'AI Freelancer Recommendations',
+                'enabled': plan.ai_freelancer_recommendations,
+                'icon': 'mdi-account-search'
+            }
+        }
+
+    return render(request, 'client/plans.html', {
+        'plans': plans,
+        'active_subscription': active_subscription,
+        'razorpay_key': settings.RAZORPAY_KEY_ID,
+    })
+
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib.auth.decorators import login_required
+from django.contrib import messages
+from django.http import JsonResponse
+from django.utils import timezone
+from django.utils.dateparse import parse_datetime
+from .models import Meeting,Project  # Update this import to where your Project model is located
+
+@login_required
+def schedule_meeting(request, project_id):
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'Method not allowed'}, status=405)
+
+    project = get_object_or_404(Project, id=project_id)
+
+    try:
+        # Get form data
+        title = request.POST.get('title')
+        meeting_datetime_str = request.POST.get('datetime')
+        meeting_link = request.POST.get('meeting_link')
+        attendee_ids = request.POST.getlist('attendees[]')
+        meeting_datetime = request.POST.get('datetime')
+
+        # Validate required fields
+        if not all([title, meeting_datetime, meeting_link, attendee_ids]):
+            return JsonResponse({
+                'status': 'error',
+                'message': 'Please fill all required fields'
+            }, status=400)
+
+        
+        meeting = Meeting.objects.create(
+            title=title,
+            datetime=meeting_datetime,
+            meeting_link=meeting_link,
+            project=project,
+            created_by=request.user
+        )
+
+        # Add attendees
+        meeting.attendees.add(*attendee_ids)
+
+        return JsonResponse({
+            'status': 'success',
+            'message': 'Meeting scheduled successfully',
+            'meeting': {
+                'id': meeting.id,
+                'title': meeting.title,
+                'datetime': meeting.datetime,
+                'status': meeting.status
+            }
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            'status': 'error',
+            'message': str(e)
+        }, status=500)
+
+@login_required
+def cancel_meeting(request, meeting_id):
+    meeting = get_object_or_404(Meeting, id=meeting_id)
+
+    # Check if user has permission to cancel
+    if request.user != meeting.created_by and request.user not in meeting.attendees.all():
+        return JsonResponse({
+            'status': 'error',
+            'message': 'You do not have permission to cancel this meeting'
+        }, status=403)
+
+    # Check if the meeting is already cancelled or completed or expired
+    if meeting.status in ['cancelled', 'completed', 'expired']:
+        return JsonResponse({
+            'status': 'error',
+            'message': f'Meeting is already {meeting.status}'
+        }, status=400)
+
+    # Cancel the meeting by updating its status
+    meeting.status = 'cancelled'
+    meeting.save()
+
+    return JsonResponse({
+        'status': 'success',
+        'message': 'Meeting cancelled successfully'
+    })
+
+@login_required
+def join_meeting(request, meeting_id):
+    meeting = get_object_or_404(Meeting, id=meeting_id)
+
+    # Check if user is an attendee
+    if request.user not in meeting.attendees.all():
+        return JsonResponse({
+            'status': 'error',
+            'message': 'You are not an attendee of this meeting'
+        }, status=403)
+
+    # Check if meeting can be joined
+    if meeting.can_be_joined:
+        return JsonResponse({
+            'status': 'success',
+            'meeting_link': meeting.meeting_link
+        })
+    else:
+        return JsonResponse({
+            'status': 'error',
+            'message': 'Meeting cannot be joined at this time'
+        }, status=400)
+
+@login_required
+def list_meetings(request):
+    meetings = Meeting.objects.filter(
+        attendees=request.user
+    ).select_related('project', 'created_by')
+
+    # Update status of all meetings
+    for meeting in meetings:
+        meeting.check_status()
+
+    # Separate meetings by status
+    upcoming_meetings = meetings.filter(status='scheduled', datetime__gte=timezone.now())
+    past_meetings = meetings.filter(status__in=['completed', 'expired'])
+    cancelled_meetings = meetings.filter(status='cancelled')
+
+    context = {
+        'upcoming_meetings': upcoming_meetings,
+        'past_meetings': past_meetings,
+        'cancelled_meetings': cancelled_meetings
+    }
+
+    return render(request, 'client/meetings.html', context)

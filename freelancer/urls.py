@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.shortcuts import render
 from django.urls import include, path
 
-from freelancer.views import  update_todo_status,update_complaint_status,update_solution,view_complaints_recieved,view_complaints,preview_template,my_portfolios,download_resume,process_resume,upload_resume,template_list,add_complaint,send_file,fetch_messages,send_message,chat_view,add_url,add_note,add_file, submit_user_review, tasks_list, update_freelancer_signature, upload_pdf, view_contract,view_repository,acc_deactivate, add_new_event, delete_event, edit_created_proposal, notification_mark_as_read, update_event, update_todo, view_created_proposals,proposal_detail1,proposal_detail2,download_proposal_pdf, generate_proposal,delete_todo,proposal_list,add_new_proposal,add_todo, calendar,AddProfileFreelancer, change_profile_image,freelancer_view,account_settings,change_password, single_project_view,update_profile,view_project,client_list,client_detail,todo, payments, download_invoice, edit_portfolio, my_teams, create_team, edit_team, delete_team, manage_team,join_team,send_team_invitation, check_team_name, decline_invitation, resend_invitation, save_team_salaries, create_chatroom, assign_task, pay_team_salaries, analyze_skill_gap, toggle_open_to_work, events_and_quizzes_view, register_event,quiz_view,submit_quiz, get_skill_analysis, freelancer_repositories, plans
+from freelancer.views import  update_todo_status,update_complaint_status,update_solution,view_complaints_recieved,view_complaints,preview_template,my_portfolios,download_resume,process_resume,upload_resume,template_list,add_complaint,send_file,fetch_messages,send_message,chat_view,add_url,add_note,add_file, submit_user_review, tasks_list, update_freelancer_signature, upload_pdf, view_contract,view_repository,acc_deactivate, add_new_event, delete_event, edit_created_proposal, notification_mark_as_read, update_event, update_todo, view_created_proposals,proposal_detail1,proposal_detail2,download_proposal_pdf, generate_proposal,delete_todo,proposal_list,add_new_proposal,add_todo, calendar,AddProfileFreelancer, change_profile_image,freelancer_view,account_settings,change_password, single_project_view,update_profile,view_project,client_list,client_detail,todo, payments, download_invoice, edit_portfolio, my_teams, create_team, edit_team, delete_team, manage_team,join_team,send_team_invitation, check_team_name, decline_invitation, resend_invitation, save_team_salaries, create_chatroom, assign_task, pay_team_salaries, analyze_skill_gap, toggle_open_to_work, events_and_quizzes_view, register_event,quiz_view,submit_quiz, get_skill_analysis, freelancer_repositories, plans, schedule_meeting, cancel_meeting, join_meeting
 
 urlpatterns = [
     path('freelancer_view/', freelancer_view,name="freelancer_view"),
@@ -122,4 +122,7 @@ urlpatterns = [
     path('get-skill-analysis/', get_skill_analysis, name='get_skill_analysis'),
     path('repositories/', freelancer_repositories, name='freelancer_repositories'),
     path('plans/', plans, name='plans'),
+    path('project/<int:project_id>/schedule-meeting/', schedule_meeting, name='schedule_meeting'),
+    path('meeting/<int:meeting_id>/cancel/', cancel_meeting, name='cancel_meeting'),
+    path('meeting/<int:meeting_id>/join/', join_meeting, name='join_meeting'),
 ]

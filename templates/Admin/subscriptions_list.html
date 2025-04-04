@@ -1,0 +1,1238 @@
+{% extends 'Admin/base.html' %}
+
+{% block 'admin_content' %}
+<div class="container-fluid" style="width: 930px;">
+    <!-- Page Heading -->
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">Subscription Plans</h1>
+        <button class="btn btn-primary" onclick="showPlanForm()">
+            <i class="fas fa-plus"></i> Create New Plan
+        </button>
+    </div>
+
+    <!-- Plans Table -->
+    <div class="card shadow mb-4">
+        
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-bordered" id="plansTable" width="100%" cellspacing="0">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Price</th>
+                            <th>Duration</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for plan in plans %}
+                        <tr>
+                            <td>{{ plan.name }}</td>
+                            <td>₹ {{ plan.price }}</td>
+                            <td>{{ plan.duration_days }} days</td>
+                            
+                            <td>
+                                <div class="custom-control custom-switch">
+                                    <input type="checkbox" class="custom-control-input" 
+                                           id="status_{{ plan.id }}" 
+                                           {% if plan.is_active %}checked{% endif %}
+                                           onclick="return false;">
+                                    <label class="custom-control-label" for="status_{{ plan.id }}" 
+                                           onclick="confirmToggleStatus('{{ plan.id }}', document.getElementById('status_{{ plan.id }}'))">
+                                        {% if plan.is_active %}Active{% else %}Inactive{% endif %}
+                                    </label>
+                                </div>
+                            </td>
+                            <td>
+                                <button class="btn btn-sm btn-primary" onclick="showPlanForm({{ plan.id }})">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="btn btn-sm btn-info" 
+                                        onclick="showFeatures(
+                                            '{{ plan.name }}',
+                                            {{ plan.price }},
+                                            {{ plan.duration_days }},
+                                            {{ plan.is_active|lower }},
+                                            {{ plan.can_hire_freelancer|lower }},
+                                            {{ plan.can_create_events|lower }},
+                                            {{ plan.project_creation_limit }},
+                                            {{ plan.ai_freelancer_recommendations|lower }},
+                                            {{ plan.can_participate_events|lower }},
+                                            {{ plan.can_create_portfolio|lower }},
+                                            {{ plan.max_proposals_limit }},
+                                            {{ plan.ai_skill_gap_analysis|lower }},
+                                            {{ plan.ai_project_recommendations|lower }},
+                                            {{ plan.team_creation|lower }}
+                                        )"><i class="fa fa-eye" aria-hidden="true"></i>
+                                    
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Features Modal -->
+<div class="modal fade" id="featuresModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Plan Features</h5>
+                <button type="button" class="close" data-dismiss="modal">
+                    <span>&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6 class="font-weight-bold">Client Features</h6>
+                        <ul class="list-unstyled" id="clientFeatures">
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <h6 class="font-weight-bold">Freelancer Features</h6>
+                        <ul class="list-unstyled" id="freelancerFeatures">
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add SweetAlert2 -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<script>
+async function confirmToggleStatus(planId, checkbox) {
+    const currentStatus = checkbox.checked;
+    const action = currentStatus ? 'deactivate' : 'activate';
+    
+    const result = await Swal.fire({
+        title: 'Are you sure?',
+        text: `Do you want to ${action} this subscription plan?`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#3085d6',
+        cancelButtonColor: '#d33',
+        confirmButtonText: `Yes, ${action} it!`,
+        cancelButtonText: 'Cancel'
+    });
+
+    if (result.isConfirmed) {
+        toggleStatus(planId, checkbox);
+    }
+}
+
+function toggleStatus(planId, checkbox) {
+    $.ajax({
+        url: `/administrator/subscription-plans/${planId}/toggle-status/`,
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}'
+        },
+        success: function(response) {
+            if (response.success) {
+                // Toggle the checkbox
+                checkbox.checked = !checkbox.checked;
+                
+                // Show success message
+                const status = checkbox.checked ? 'activated' : 'deactivated';
+                Swal.fire({
+                    title: 'Success!',
+                    text: `Plan has been ${status}`,
+                    icon: 'success',
+                    timer: 1500,
+                    showConfirmButton: false
+                });
+                
+                // Update the label text
+                const label = checkbox.nextElementSibling;
+                label.textContent = checkbox.checked ? 'Active' : 'Inactive';
+            }
+        },
+        error: function() {
+            Swal.fire({
+                title: 'Error!',
+                text: 'Failed to update plan status',
+                icon: 'error',
+                confirmButtonColor: '#3085d6'
+            });
+        }
+    });
+}
+
+function showFeatures(name, price, duration, isActive, canHireFreelancer, canCreateEvents, 
+                     projectLimit, aiFreelancer, canParticipateEvents, canCreatePortfolio, 
+                     proposalsLimit, aiSkillGap, aiProjectRecom, teamCreation) {
+    
+    let clientFeatures = [];
+    let freelancerFeatures = [];
+
+    // Add client features
+    if (canHireFreelancer) clientFeatures.push('Can Hire Freelancers');
+    if (canCreateEvents) clientFeatures.push('Can Create Events');
+    if (projectLimit > 0) clientFeatures.push(`Project Creation Limit: ${projectLimit}`);
+    if (aiFreelancer) clientFeatures.push('AI Freelancer Recommendations');
+
+    // Add freelancer features
+    if (canParticipateEvents) freelancerFeatures.push('Can Participate in Events');
+    if (canCreatePortfolio) freelancerFeatures.push('Can Create Portfolio');
+    if (proposalsLimit > 0) freelancerFeatures.push(`Proposal Limit: ${proposalsLimit}`);
+    if (aiSkillGap) freelancerFeatures.push('AI Skill Gap Analysis');
+    if (aiProjectRecom) freelancerFeatures.push('AI Project Recommendations');
+    if (teamCreation) freelancerFeatures.push('Team Creation');
+
+    const content = `
+        <div class="row">
+            <!-- Left Column - Plan Details -->
+            <div class="col-md-5 plan-details-col">
+                <div class="plan-info-card">
+                    <div class="plan-type">${name}</div>
+                    <div class="price-container">
+                        <span class="currency">₹</span>
+                        <span class="price-amount">${price}</span>
+                    </div>
+                    <div class="duration-badge">
+                        <i class="far fa-clock"></i> ${duration} Days
+                    </div>
+                    <div class="status-badge ${isActive ? 'active' : 'inactive'}">
+                        <i class="fas fa-${isActive ? 'check-circle' : 'times-circle'}"></i>
+                        ${isActive ? 'Active' : 'Inactive'}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column - Features -->
+            <div class="col-md-7 features-col">
+                <!-- Client Features -->
+                <div class="features-section">
+                    <h6 class="section-title">
+                        <i class="fas fa-user-tie"></i> Client Features
+                    </h6>
+                    <ul class="features-list">
+                        ${clientFeatures.length ? 
+                            clientFeatures.map(f => `
+                                <li>
+                                    <i class="fas fa-check"></i>
+                                    <span>${f}</span>
+                                </li>`).join('') : 
+                            '<li class="no-features">No client features available</li>'}
+                    </ul>
+                </div>
+
+                <!-- Freelancer Features -->
+                <div class="features-section">
+                    <h6 class="section-title">
+                        <i class="fas fa-user-ninja"></i> Freelancer Features
+                    </h6>
+                    <ul class="features-list">
+                        ${freelancerFeatures.length ? 
+                            freelancerFeatures.map(f => `
+                                <li>
+                                    <i class="fas fa-check"></i>
+                                    <span>${f}</span>
+                                </li>`).join('') : 
+                            '<li class="no-features">No freelancer features available</li>'}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    `;
+
+    Swal.fire({
+        html: content,
+        width: '800px',
+        showConfirmButton: false,
+        showCloseButton: true,
+        customClass: {
+            container: 'swal-features-modal',
+            popup: 'swal-features-popup',
+            htmlContainer: 'swal-features-content',
+            closeButton: 'swal-close-button'
+        }
+    });
+}
+
+function showPlanForm(planId = null) {
+    const isEdit = planId !== null;
+    const title = isEdit ? 'Edit Subscription Plan' : 'Create New Subscription Plan';
+    
+    // Store current plan ID for validation
+    window.currentPlanId = planId;
+
+    // If editing, fetch plan details first
+    if (isEdit) {
+        $.ajax({
+            url: `/administrator/subscription-plans/${planId}/details/`,
+            method: 'GET',
+            success: function(plan) {
+                showForm(title, plan, planId);
+            },
+            error: function() {
+                Swal.fire({
+                    title: 'Error',
+                    text: 'Failed to fetch plan details',
+                    icon: 'error'
+                });
+            }
+        });
+    } else {
+        showForm(title, null, null);
+    }
+}
+
+function showForm(title, planData, planId) {
+    Swal.fire({
+        title: `<div class="form-title">${title}</div>`,
+        html: `
+            <form id="planForm">
+                <div class="row">
+                    <!-- Left Column - Basic Details -->
+                    <div class="col-md-4 left-col">
+                        <div class="plan-card h-100">
+                            <div class="card-header">
+                                <i class="fas fa-crown"></i>
+                                <h6>Plan Details</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="form-group">
+                                    <label><i class="fas fa-tag"></i> Plan Name</label>
+                                    <input type="text" class="form-control" id="planName" placeholder="e.g., Basic, Premium" required>
+                                    <div id="planNameError" class="error-message"></div>
+                                </div>
+                                <div class="form-group">
+                                    <label>₹ Amount</label>
+                                    <div class="input-group">
+                                        <div class="input-group-prepend">
+                                            <span class="input-group-text">₹</span>
+                                        </div>
+                                        <input type="number" class="form-control" id="price" min="0" step="0.01" required>
+                                    </div>
+                                    <div id="priceError" class="error-message"></div>
+                                </div>
+                                <div class="form-group mb-0">
+                                    <label><i class="far fa-clock"></i> Duration</label>
+                                    <div class="input-group">
+                                        <input type="number" class="form-control" id="duration" min="1" required>
+                                        <div class="input-group-append">
+                                            <span class="input-group-text">Days</span>
+                                        </div>
+                                    </div>
+                                    <div id="durationError" class="error-message"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right Column - Features -->
+                    <div class="col-md-8 right-col">
+                        <div class="features-container">
+                            <!-- Client Features -->
+                            <div class="features-card mb-4">
+                                <div class="card-header client-header">
+                                    <i class="fas fa-user-tie"></i>
+                                    <h6>Client Features</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="feature-item">
+                                                <div class="custom-control custom-switch">
+                                                    <input type="checkbox" class="custom-control-input client-feature" id="canHireFreelancer">
+                                                    <label class="custom-control-label" for="canHireFreelancer">
+                                                        <span>Hire Freelancers</span>
+                                                    </label>
+                                                </div>
+                                            </div>
+                                            <div class="feature-item">
+                                                <div class="custom-control custom-switch">
+                                                    <input type="checkbox" class="custom-control-input client-feature" id="canCreateEvents">
+                                                    <label class="custom-control-label" for="canCreateEvents">
+                                                        <span>Create Events</span>
+                                                    </label>
+                                                </div>
+                                            </div>
+                                            <div class="feature-item">
+                                                <div class="custom-control custom-switch">
+                                                    <input type="checkbox" class="custom-control-input client-feature" id="aiFreelancerRecommendations">
+                                                    <label class="custom-control-label" for="aiFreelancerRecommendations">
+                                                        <span>AI Recommendations</span>
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="feature-item with-input">
+                                                <label>Project Creation Limit</label>
+                                                <input type="number" class="form-control" id="projectLimit" min="0" value="0">
+                                                <div id="projectCountError" class="error-message"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Freelancer Features -->
+                            <div class="features-card">
+                                <div class="card-header freelancer-header">
+                                    <i class="fas fa-user-ninja"></i>
+                                    <h6>Freelancer Features</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="feature-item">
+                                                <div class="custom-control custom-switch">
+                                                    <input type="checkbox" class="custom-control-input freelancer-feature" id="canParticipateEvents">
+                                                    <label class="custom-control-label" for="canParticipateEvents">
+                                                        <span>Participate in Events</span>
+                                                    </label>
+                                                </div>
+                                            </div>
+                                            <div class="feature-item">
+                                                <div class="custom-control custom-switch">
+                                                    <input type="checkbox" class="custom-control-input freelancer-feature" id="canCreatePortfolio">
+                                                    <label class="custom-control-label" for="canCreatePortfolio">
+                                                        <span>Create Portfolio</span>
+                                                    </label>
+                                                </div>
+                                            </div>
+                                            <div class="feature-item">
+                                                <div class="custom-control custom-switch">
+                                                    <input type="checkbox" class="custom-control-input freelancer-feature" id="aiSkillGap">
+                                                    <label class="custom-control-label" for="aiSkillGap">
+                                                        <span>AI Skill Gap Analysis</span>
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="feature-item">
+                                                <div class="custom-control custom-switch">
+                                                    <input type="checkbox" class="custom-control-input freelancer-feature" id="aiProjectRecommendations">
+                                                    <label class="custom-control-label" for="aiProjectRecommendations">
+                                                        <span>AI Project Recommendations</span>
+                                                    </label>
+                                                </div>
+                                            </div>
+                                            <div class="feature-item">
+                                                <div class="custom-control custom-switch">
+                                                    <input type="checkbox" class="custom-control-input freelancer-feature" id="teamCreation">
+                                                    <label class="custom-control-label" for="teamCreation">
+                                                        <span>Team Creation</span>
+                                                    </label>
+                                                </div>
+                                            </div>
+                                            <div class="feature-item with-input">
+                                                <label>Max Proposals Limit</label>
+                                                <input type="number" class="form-control" id="proposalsLimit" min="0" value="0">
+                                                <div id="proposalCountError" class="error-message"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="featuresError" class="error-message text-center mt-3"></div>
+                    </div>
+                </div>
+            </form>
+        `,
+        width: '1100px',
+        showCancelButton: true,
+        confirmButtonText: planId ? 'Update Plan' : 'Create Plan',
+        cancelButtonText: 'Cancel',
+        confirmButtonColor: '#2c3e50',
+        cancelButtonColor: '#95a5a6',
+        customClass: {
+            container: 'create-plan-modal',
+            popup: 'create-plan-popup',
+            content: 'create-plan-content',
+            confirmButton: 'create-plan-confirm',
+            cancelButton: 'create-plan-cancel'
+        },
+        didOpen: () => {
+            if (planData) {
+                // Fill form with existing data
+                $('#planName').val(planData.name);
+                $('#price').val(planData.price);
+                $('#duration').val(planData.duration_days);
+                
+                // Client Features
+                $('#canHireFreelancer').prop('checked', planData.can_hire_freelancer);
+                $('#canCreateEvents').prop('checked', planData.can_create_events);
+                $('#projectLimit').val(planData.project_creation_limit);
+                $('#aiFreelancerRecommendations').prop('checked', planData.ai_freelancer_recommendations);
+                
+                // Freelancer Features
+                $('#canParticipateEvents').prop('checked', planData.can_participate_events);
+                $('#canCreatePortfolio').prop('checked', planData.can_create_portfolio);
+                $('#proposalsLimit').val(planData.max_proposals_limit);
+                $('#aiSkillGap').prop('checked', planData.ai_skill_gap_analysis);
+                $('#aiProjectRecommendations').prop('checked', planData.ai_project_recommendations);
+                $('#teamCreation').prop('checked', planData.team_creation);
+            }
+            // Initialize validation
+            initializeValidation();
+        },
+        preConfirm: () => {
+            // Validate form
+            validatePlanName();
+            validatePrice();
+            validateDuration();
+            validateFeatures();
+            validateProjectCount();
+            validateProposalCount();
+
+            if (plan_name_error || price_error || duration_error || 
+                features_error || project_count_error || proposal_count_error) {
+                Swal.showValidationMessage("Please fix the errors before submitting.");
+                return false;
+            }
+
+            // Collect form data
+            const formData = {
+                name: $('#planName').val(),
+                price: $('#price').val(),
+                duration_days: $('#duration').val(),
+                
+                // Client Features
+                can_hire_freelancer: $('#canHireFreelancer').is(':checked'),
+                can_create_events: $('#canCreateEvents').is(':checked'),
+                project_creation_limit: $('#projectLimit').val(),
+                ai_freelancer_recommendations: $('#aiFreelancerRecommendations').is(':checked'),
+                
+                // Freelancer Features
+                can_participate_events: $('#canParticipateEvents').is(':checked'),
+                can_create_portfolio: $('#canCreatePortfolio').is(':checked'),
+                max_proposals_limit: $('#proposalsLimit').val(),
+                ai_skill_gap_analysis: $('#aiSkillGap').is(':checked'),
+                ai_project_recommendations: $('#aiProjectRecommendations').is(':checked'),
+                team_creation: $('#teamCreation').is(':checked')
+            };
+
+            // Send AJAX request
+            return $.ajax({
+                url: planId ? 
+                    `/administrator/subscription-plans/${planId}/update/` : 
+                    '/administrator/subscription-plans/create/',
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                data: formData,
+                error: function(xhr) {
+                    Swal.showValidationMessage(
+                        `Request failed: ${xhr.responseText || 'Unknown error'}`
+                    );
+                }
+            });
+        }
+    }).then((result) => {
+        if (result.isConfirmed) {
+            Swal.fire({
+                title: 'Success!',
+                text: planId ? 'Plan updated successfully' : 'Plan created successfully',
+                icon: 'success',
+                timer: 1500,
+                showConfirmButton: false
+            }).then(() => {
+                location.reload();
+            });
+        }
+    });
+}
+
+// Add validation functions
+function initializeValidation() {
+    // Error flags
+    window.plan_name_error = false;
+    window.price_error = false;
+    window.duration_error = false;
+    window.features_error = false;
+    window.project_count_error = false;
+    window.proposal_count_error = false;
+
+    // Add keyup/change event listeners
+    $("#planName").on("keyup", function() {
+        validatePlanName();
+        checkSubmit();
+    });
+
+    $("#price").on("keyup", function() {
+        validatePrice();
+        checkSubmit();
+    });
+
+    $("#duration").on("keyup", function() {
+        validateDuration();
+        checkSubmit();
+    });
+
+    $(".client-feature, .freelancer-feature").on("change", function() {
+        validateFeatures();
+        checkSubmit();
+    });
+
+    $("#projectLimit").on("keyup", function() {
+        validateProjectCount();
+        checkSubmit();
+    });
+
+    $("#proposalsLimit").on("keyup", function() {
+        validateProposalCount();
+        checkSubmit();
+    });
+
+    // Initial validation without showing errors
+    validatePlanName(true);
+    validatePrice(true);
+    validateDuration(true);
+    validateFeatures(true);
+    validateProjectCount(true);
+    validateProposalCount(true);
+    checkSubmit();
+}
+
+function validatePlanName(silent = false) {
+    var planName = $("#planName").val().trim();
+    var planNameRegex = /^[a-zA-Z]+(?:[-/][a-zA-Z]+)*(?:\s[a-zA-Z]+(?:[-/][a-zA-Z]+)*)*$/;
+
+    if (planNameRegex.test(planName) && planName !== "") {
+        // Check if plan name exists
+        $.ajax({
+            url: '/administrator/subscription-plans/check-name/',
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            data: {
+                name: planName,
+                current_id: window.currentPlanId || null
+            },
+            success: function(response) {
+                if (response.exists) {
+                    if (!silent) $("#planNameError").html("This plan name already exists").show();
+                    if (!silent) $("#planName").css("border", "2px solid red");
+                    window.plan_name_error = true;
+                } else {
+                    if (!silent) $("#planNameError").hide();
+                    if (!silent) $("#planName").css("border", "2px solid green");
+                    window.plan_name_error = false;
+                }
+                checkSubmit();
+            },
+            error: function() {
+                if (!silent) $("#planNameError").html("Error checking plan name").show();
+                if (!silent) $("#planName").css("border", "2px solid red");
+                window.plan_name_error = true;
+                checkSubmit();
+            }
+        });
+    } else {
+        if (!silent) $("#planNameError").html("Plan name can only contain letters, spaces, hyphens, and forward slashes").show();
+        if (!silent) $("#planName").css("border", "2px solid red");
+        window.plan_name_error = true;
+        checkSubmit();
+    }
+}
+
+function validatePrice(silent = false) {
+    var price = parseFloat($("#price").val());
+    
+    if (!isNaN(price) && price > 0) {
+        if (!silent) $("#priceError").hide();
+        if (!silent) $("#price").css("border", "2px solid green");
+        window.price_error = false;
+    } else {
+        if (!silent) $("#priceError").html("Price must be a positive number greater than zero").show();
+        if (!silent) $("#price").css("border", "2px solid red");
+        window.price_error = true;
+    }
+}
+
+function validateDuration(silent = false) {
+    var duration = parseInt($("#duration").val());
+    
+    if (!isNaN(duration) && duration > 0 && duration <= 365) {
+        if (!silent) $("#durationError").hide();
+        if (!silent) $("#duration").css("border", "2px solid green");
+        window.duration_error = false;
+    } else {
+        if (!silent) $("#durationError").html("Duration must be between 1 and 365 days").show();
+        if (!silent) $("#duration").css("border", "2px solid red");
+        window.duration_error = true;
+    }
+}
+
+function validateFeatures(silent = false) {
+    var hasClientFeature = $(".client-feature:checked").length > 0;
+    var hasFreelancerFeature = $(".freelancer-feature:checked").length > 0;
+    
+    if (hasClientFeature && hasFreelancerFeature) {
+        if (!silent) $("#featuresError").hide();
+        if (!silent) $(".features-container").css("border", "2px solid green");
+        window.features_error = false;
+    } else {
+        var errorMessage = "";
+        if (!hasClientFeature && !hasFreelancerFeature) {
+            errorMessage = "Select at least one feature from both client and freelancer sections";
+        } else if (!hasClientFeature) {
+            errorMessage = "Select at least one client feature";
+        } else if (!hasFreelancerFeature) {
+            errorMessage = "Select at least one freelancer feature";
+        }
+        
+        if (!silent) $("#featuresError").html(errorMessage).show();
+        if (!silent) $(".features-container").css("border", "2px solid red");
+        window.features_error = true;
+    }
+}
+
+function validateProjectCount(silent = false) {
+    var projectCount = parseInt($("#projectLimit").val());
+    
+    if (!isNaN(projectCount) && projectCount >= 0) {
+        if (!silent) $("#projectCountError").hide();
+        if (!silent) $("#projectLimit").css("border", "2px solid green");
+        window.project_count_error = false;
+    } else {
+        if (!silent) $("#projectCountError").html("Project count must be a non-negative number").show();
+        if (!silent) $("#projectLimit").css("border", "2px solid red");
+        window.project_count_error = true;
+    }
+}
+
+function validateProposalCount(silent = false) {
+    var proposalCount = parseInt($("#proposalsLimit").val());
+    
+    if (!isNaN(proposalCount) && proposalCount >= 0) {
+        if (!silent) $("#proposalCountError").hide();
+        if (!silent) $("#proposalsLimit").css("border", "2px solid green");
+        window.proposal_count_error = false;
+    } else {
+        if (!silent) $("#proposalCountError").html("Proposal count must be a non-negative number").show();
+        if (!silent) $("#proposalsLimit").css("border", "2px solid red");
+        window.proposal_count_error = true;
+    }
+}
+
+function checkSubmit() {
+    if (!window.plan_name_error && !window.price_error && !window.duration_error && 
+        !window.features_error && !window.project_count_error && !window.proposal_count_error) {
+        $(".swal2-confirm").prop("disabled", false).css("opacity", "1");
+    } else {
+        $(".swal2-confirm").prop("disabled", true).css("opacity", "0.5");
+    }
+}
+
+// Initialize DataTable
+$(document).ready(function() {
+    $('#plansTable').DataTable();
+});
+</script>
+
+<style>
+
+/* SweetAlert Custom Styles */
+.swal-features-popup {
+    border-radius: 20px !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.1) !important;
+}
+
+.swal-close-button {
+    position: absolute !important;
+    top: 15px !important;
+    right: 15px !important;
+    color: #6c757d !important;
+}
+
+/* Plan Details Column */
+.plan-details-col {
+    background: linear-gradient(145deg, #f8f9fa 0%, #e9ecef 100%);
+    padding: 2.5rem;
+    border-right: 1px solid rgba(0,0,0,0.08);
+    min-height: 400px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.plan-info-card {
+    text-align: center;
+    padding: 2rem;
+    background: white;
+    border-radius: 15px;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.05);
+    width: 100%;
+}
+
+.plan-type {
+    color: #2c3e50;
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: 1.5rem;
+    letter-spacing: -0.5px;
+}
+
+.price-container {
+    margin-bottom: 1.5rem;
+    color: #3498db;
+}
+
+.currency {
+    font-size: 2rem;
+    font-weight: 600;
+    vertical-align: top;
+    margin-right: 5px;
+}
+
+.price-amount {
+    font-size: 3.5rem;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.duration-badge {
+    background: #f8f9fa;
+    color: #6c757d;
+    padding: 0.75rem 1.5rem;
+    border-radius: 25px;
+    font-weight: 500;
+    margin-bottom: 1.5rem;
+    display: inline-block;
+}
+
+.duration-badge i {
+    margin-right: 8px;
+}
+
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.75rem 1.5rem;
+    border-radius: 25px;
+    font-weight: 500;
+    font-size: 0.95rem;
+}
+
+.status-badge i {
+    margin-right: 8px;
+}
+
+.status-badge.active {
+    background-color: #28a745;
+    color: white;
+}
+
+.status-badge.inactive {
+    background-color: #dc3545;
+    color: white;
+}
+
+/* Features Column */
+.features-col {
+    padding: 2.5rem;
+    background-color: white;
+}
+
+.features-section {
+    margin-bottom: 2.5rem;
+}
+
+.features-section:last-child {
+    margin-bottom: 0;
+}
+
+.section-title {
+    color: #2c3e50;
+    font-weight: 600;
+    font-size: 1.25rem;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid #f0f0f0;
+    display: flex;
+    align-items: center;
+}
+
+.section-title i {
+    margin-right: 10px;
+    color: #3498db;
+}
+
+.features-list {
+    list-style: none;
+    padding-left: 0;
+    margin-bottom: 0;
+}
+
+.features-list li {
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    color: #2c3e50;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    transition: background-color 0.2s;
+}
+
+.features-list li:hover {
+    background-color: #f8f9fa;
+}
+
+.features-list li i {
+    margin-right: 12px;
+    font-size: 0.9rem;
+    color: #28a745;
+    width: 20px;
+}
+
+.features-list li span {
+    font-size: 0.95rem;
+}
+
+.no-features {
+    color: #6c757d;
+    font-style: italic;
+    padding: 1rem;
+    background: #f8f9fa;
+    border-radius: 8px;
+    text-align: center;
+}
+
+/* Responsive Adjustments */
+@media (max-width: 768px) {
+    .plan-details-col {
+        border-right: none;
+        border-bottom: 1px solid rgba(0,0,0,0.08);
+        min-height: auto;
+        padding: 2rem;
+    }
+    
+    .features-col {
+        padding: 2rem;
+    }
+    
+    .swal-features-popup {
+        width: 95% !important;
+        margin: 0 auto;
+    }
+    
+    .price-amount {
+        font-size: 3rem;
+    }
+}
+
+/* Create Plan Form Styles */
+.create-plan-popup {
+    border-radius: 20px !important;
+    padding: 2rem !important;
+    background: #f8f9fa !important;
+}
+
+.form-title {
+    color: #2c3e50;
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+}
+
+/* Column Styles */
+.left-col {
+    padding-right: 1.5rem;
+}
+
+.right-col {
+    padding-left: 1.5rem;
+}
+
+/* Cards Styling */
+.plan-card, .features-card {
+    background: white;
+    border-radius: 15px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    overflow: hidden;
+}
+
+.card-header {
+    padding: 1rem 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: white;
+}
+
+.card-header i {
+    font-size: 1.2rem;
+}
+
+.card-header h6 {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.card-body {
+    padding: 1.5rem;
+}
+
+/* Form Controls */
+.form-group {
+    margin-bottom: 1.5rem;
+}
+
+.form-group label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #2c3e50;
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+}
+
+.form-group label i {
+    color: #3498db;
+}
+
+.form-control {
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+    padding: 0.75rem;
+    font-size: 0.65rem;
+    transition: all 0.2s;
+}
+
+.form-control:focus {
+    border-color: #3498db;
+    box-shadow: 0 0 0 0.2rem rgba(52, 152, 219, 0.15);
+}
+
+.input-group-text {
+    background-color: #f8f9fa;
+    border-color: #dee2e6;
+    color: #2c3e50;
+}
+
+/* Feature Items */
+.feature-item {
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    transition: background-color 0.2s;
+    margin-bottom: 0.5rem;
+}
+
+.feature-item:hover {
+    background-color: #f8f9fa;
+}
+
+.feature-item.with-input {
+    background: #f8f9fa;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+.feature-item.with-input label {
+    color: #2c3e50;
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+}
+
+/* Custom Switch Styling */
+.custom-switch {
+    padding-left: 3rem;
+}
+
+.custom-control-label {
+    display: flex;
+    align-items: center;
+    min-height: 27px;
+}
+
+.custom-control-label::before {
+    width: 2.5rem;
+    height: 1.25rem;
+    border-radius: 1rem;
+    left: -3rem;
+}
+
+.custom-control-label::after {
+    width: calc(1.25rem - 4px);
+    height: calc(1.25rem - 4px);
+    border-radius: 50%;
+    left: calc(-3rem + 2px);
+}
+
+.custom-control-input:checked ~ .custom-control-label::before {
+    background-color: #2ecc71;
+    border-color: #27ae60;
+}
+
+.custom-control-label span {
+    font-weight: 500;
+    color: #2c3e50;
+}
+
+/* Button Styling */
+.create-plan-confirm, .create-plan-cancel {
+    padding: 0.75rem 2rem !important;
+    font-weight: 500 !important;
+    border-radius: 8px !important;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .left-col, .right-col {
+        padding: 0;
+    }
+    
+    .features-container {
+        gap: 1rem;
+    }
+    
+    .create-plan-popup {
+        width: 95% !important;
+        padding: 1rem !important;
+    }
+}
+
+.features-container {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.card-header {
+    background: linear-gradient(145deg, #2c3e50, #34495e);
+}
+
+.table {
+    width: 100%;
+    margin-bottom: 1rem;
+    color: #212529;
+    border-collapse: collapse;
+}
+
+.table th,
+.table td {
+    padding: 0.75rem;
+    vertical-align: middle;
+    text-align: center;
+    border: 1px solid #e3e6f0;
+}
+
+.table thead th {
+    vertical-align: middle;
+    background-color: #f8f9fc;
+    border-bottom: 2px solid #e3e6f0;
+    font-weight: 600;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.table tbody tr:hover {
+    background-color: rgba(0, 0, 0, 0.02);
+}
+
+.table-bordered {
+    border: 1px solid #e3e6f0;
+}
+
+.table-bordered th,
+.table-bordered td {
+    border: 1px solid #e3e6f0;
+}
+
+#plansTable_wrapper .dataTables_length, 
+#plansTable_wrapper .dataTables_filter,
+#plansTable_wrapper .dataTables_info,
+#plansTable_wrapper .dataTables_paginate {
+    padding: 15px;
+}
+
+.custom-control {
+    display: flex;
+    justify-content: center;
+}
+
+.btn-sm {
+    margin: 0 3px;
+}
+
+.container-fluid {
+    width: 100%;
+    padding-right: 0;
+    padding-left: 0;
+    margin-right: auto;
+    margin-left: auto;
+}
+
+.card {
+    width: 100%;
+}
+
+.card-body {
+    padding: 1.25rem;
+    width: 100%;
+}
+
+.table-responsive {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.table {
+    width: 100% !important;
+    max-width: none !important;
+    margin-bottom: 1rem;
+    color: #212529;
+    border-collapse: collapse;
+}
+
+/* Ensure DataTables doesn't restrict width */
+.dataTables_wrapper {
+    width: 100% !important;
+}
+
+.dataTables_wrapper .row {
+    width: 100% !important;
+    margin: 0;
+}
+
+/* Add these styles */
+.error-message {
+    color: #dc3545;
+    font-size: 0.875rem;
+    margin-top: 0.25rem;
+    display: none;
+}
+
+.swal2-confirm:disabled {
+    cursor: not-allowed !important;
+    opacity: 0.5 !important;
+}
+
+input.error {
+    border-color: #dc3545 !important;
+}
+
+.features-container.error {
+    border: 2px solid #dc3545;
+    border-radius: 8px;
+}
+
+</style>
+{% endblock %}

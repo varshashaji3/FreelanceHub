@@ -5,9 +5,13 @@ register = template.Library()
 
 @register.filter
 def get_item(dictionary, key):
-    if dictionary is None:
-        return None
-    return dictionary.get(key)
+    """Get an item from a dictionary using string or integer key."""
+    if isinstance(dictionary, dict):
+        # Convert key to integer if it's a string number
+        if isinstance(key, str) and key.isdigit():
+            key = int(key)
+        return dictionary.get(key, 0)
+    return 0
 
 @register.filter
 def to_int(value):

@@ -67,8 +67,8 @@
   }
 </style>
 <div class="row" style="margin-bottom: 20px;">
-  <div class="col-md-8 col-sm-12">
-    <div class="row welcome-banner" style="background-color:white;padding:30px;border-radius:10px; position: relative; overflow: hidden;width: 100%;height: 150px;margin-left:2px;">
+  <div class="col-md-7 col-sm-12">
+    <div class="row welcome-banner" style="background-color:white;padding:30px;border-radius:10px; position: relative; overflow: hidden;width: 90%;height: 150px;margin-left:2px;">
       <div class="confetti-overlay" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-image: url('{% static 'img/confetti.gif' %}'); background-repeat: repeat; opacity: 0.6; pointer-events: none;"></div>
       <div class="col-md-12 grid-margin">
         <div class="row">
@@ -84,19 +84,235 @@
     </div>
   </div>
   
-  <div class="col-md-4 col-sm-12">
-    <div class="row">
-     
-
-      <a href="{% url 'freelancer:view_project' %}" class="col-md-6 col-sm-6 col-12 info-card">
-        <img src="{% static 'img/project.png' %}" alt="Projects">
-        <h5 class="card-title">View Projects</h5>
-       
-      </a>
+  <div class="col-md-5 col-sm-12" style="height: 120px;margin-left: -70px;">
+    <div class="subscription-status-card card" style="width: 480px;">
+      <div class="subscription-content">
+        <div class="plan-details" style="width: 45%;">
+          {% if active_subscription %}
+            <div class="plan-header">
+              <h4 class="plan-name">{{ active_subscription.plan.name }}</h4>
+              <p class="valid-until">Valid until: {{ active_subscription.end_date|date:"F d, Y" }}</p>
+            </div>
+            {% if active_subscription.days_remaining <= 1 %}
+              <div class="expiry-badge">
+                <i class="mdi mdi-alert-circle-outline"></i>
+                Expires {% if active_subscription.days_remaining == 0 %}today{% else %}tomorrow{% endif %}
+              </div>
+            {% elif active_subscription.days_remaining <= 7 %}
+              <div class="expiry-badge" style="background: rgba(255, 152, 0, 0.2);">
+                <i class="mdi mdi-alert-circle-outline"></i>
+                Expires in {{ active_subscription.days_remaining }} days
+              </div>
+            {% endif %}
+          {% else %}
+            <h4 class="plan-name">No Active Plan</h4>
+            <p class="valid-until">Subscribe to access premium features</p>
+          {% endif %}
+        </div>
+        
+        {% if active_subscription %}
+          <div class="countdown-section">
+            <div class="countdown-timer" id="subscriptionTimer" 
+                 data-end="{{ active_subscription.end_date|date:'Y-m-d H:i:s' }}">
+              <div class="time-block">
+                <span class="time-value" id="days">00</span>
+                <span class="time-label">days</span>
+              </div>
+              <div class="time-separator">:</div>
+              <div class="time-block">
+                <span class="time-value" id="hours">00</span>
+                <span class="time-label">hrs</span>
+              </div>
+              <div class="time-separator">:</div>
+              <div class="time-block">
+                <span class="time-value" id="minutes">00</span>
+                <span class="time-label">min</span>
+              </div>
+              <div class="time-separator">:</div>
+              <div class="time-block">
+                <span class="time-value" id="seconds">00</span>
+                <span class="time-label">sec</span>
+              </div>
+            </div>
+          </div>
+        {% endif %}
+      </div>
+      <div class="renew-button-container">
+        <a href="{% url 'freelancer:plans' %}" class="btn btn-light">
+          <i class="mdi mdi-refresh"></i>
+          {% if active_subscription %}Renew Plan{% else %}Get a Plan{% endif %}
+        </a>
+      </div>
     </div>
   </div>
 </div>
 
+<style>
+.subscription-status-card {
+  background: #9087d2;
+  border-radius: 16px;
+  padding: 1.2rem;
+  color: black;
+  height: 100%;
+  min-height: 120px;
+  position: relative;
+}
+
+.subscription-content {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  height: calc(100% - 40px);
+}
+
+.plan-details {
+  flex: 0 0 45%;
+  display: flex;
+  flex-direction: column;
+}
+
+.plan-header {
+  margin-bottom: 0.5rem;
+}
+
+.plan-name {
+  font-size: 1.3rem;
+  font-weight: 600;
+  margin: 0;
+  color: #fff;
+}
+
+.valid-until {
+  font-size: 0.9rem;
+  opacity: 0.9;
+  margin: 0.3rem 0;
+  color: #fff;
+}
+
+.expiry-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(255, 87, 87, 0.2);
+  padding: 0.4rem 0.8rem;
+  border-radius: 0.5rem;
+  font-size: 0.85rem;
+  color: #fff;
+}
+
+.countdown-section {
+  flex: 0 0 55%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-left: 1px solid rgba(255, 255, 255, 0.2);
+  padding-left: 1.5rem;
+}
+
+.countdown-timer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background: rgba(255, 255, 255, 0.15);
+  padding: 0.8rem;
+  border-radius: 12px;
+  margin-left: -20px;
+  margin-top: 35px;
+}
+
+.time-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 35px;
+}
+
+.time-value {
+  font-size: 1.4rem;
+  font-weight: bold;
+  line-height: 1;
+  color: #fff;
+}
+
+.time-label {
+  font-size: 0.7rem;
+  opacity: 0.9;
+  margin-top: 0.2rem;
+  color: #fff;
+}
+
+.time-separator {
+  font-size: 1.4rem;
+  font-weight: bold;
+  line-height: 1;
+  margin-top: -0.2rem;
+  color: #fff;
+}
+
+.renew-button-container {
+  position: absolute;
+  bottom: 1rem;
+  left: 1.2rem;
+  width: calc(45% - 1.2rem);
+}
+
+.btn-light {
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: #fff;
+  width: 100%;
+  padding: 0.5rem 1rem;
+  font-size: 0.85rem;
+  border-radius: 20px;
+  transition: all 0.3s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.btn-light:hover {
+  background: rgba(255, 255, 255, 0.3);
+  color: #fff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.btn-light:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.btn-light i {
+  font-size: 1rem;
+}
+
+@media (max-width: 768px) {
+  .subscription-content {
+    flex-direction: column;
+    gap: 1rem;
+  }
+  
+  .countdown-section {
+    border-left: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+    padding-left: 0;
+    padding-top: 1rem;
+  }
+  
+  .renew-button-container {
+    position: relative;
+    bottom: auto;
+    left: auto;
+    width: 100%;
+    margin-top: 1rem;
+  }
+}
+</style>
 
 <br>
 <!-- Replace the existing recommended projects table with this card layout -->
@@ -270,78 +486,177 @@
   margin-bottom: 0;
 }
 </style>
-
-<div class="row">
-  <div class="col-md-12 grid-margin stretch-card">
-    <div class="card position-relative">
-      <div class="card-body">
-        <h4 class="card-title">Recommended Projects</h4>
-        <div class="justify-content-end d-flex">
-          
-      
-        </div> <br>
-        <div class="recommended-projects-container">
-            {% if recommended_projects %}
-                {% for recommendation in recommended_projects %}
-                <div class="project-card">
-                    <div class="project-header">
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <h4 class="project-title">{{ recommendation.project.title }}</h4>
-                            <div class="project-category">
-                                {% if recommendation.client_profile_picture %}
-                                    <img src="{{ recommendation.client_profile_picture.url }}" alt="Client Profile" 
-                                         style="width: 30px; height: 30px; border-radius: 50%; object-fit: cover;">
-                                {% else %}
-                                    <img src="{% static 'img/default_profile.png' %}" alt="Default Profile" 
-                                         style="width: 30px; height: 30px; border-radius: 50%; object-fit: cover;">
-                                {% endif %}
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="project-details">
-                        
-                        
-                        {% if recommendation.reasons %}
-                        <div class="matching-skills">
-                            <h6>Matching :</h6>
-                            <ul>
-                                {% for reason in recommendation.reasons %}
-                                <li>{{ reason }}</li>
-                                {% endfor %}
-                            </ul>
-                        </div>
-                        {% endif %}
-                        
-                        {% if recommendation.missing_skills %}
-                        <div class="missing-skills">
-                            <h6>Skills to Develop:</h6>
-                            <ul class="list-unstyled">
-                                {% for skill in recommendation.missing_skills %}
-                                <span class="badge badge-warning m-1">{{ skill }}</span>
-                                {% endfor %}
-                            </ul>
-                        </div>
-                        {% endif %}
-                    </div>
-
-                    <div class="project-footer">
-                        <a href="{% url 'freelancer:single_project_view' recommendation.project.id %}" 
-                           class="btn btn-primary btn-sm">View Details</a>
-                    </div>
-                </div>
-                {% endfor %}
-            {% else %}
-                <div class="text-center py-4">
-                    <p>No recommended projects available at the moment.</p>
-                </div>
-            {% endif %}
+<div class="row g-4 mb-4">
+  <!-- Total Sales Card -->
+  <div class="col-md-3">
+    <div class="stat-card sales">
+      <div class="stat-content">
+        <h3>Total Sales</h3>
+        <div class="stat-value">570</div>
+        <div class="stat-curve">
+          <svg viewBox="0 0 100 25">
+            <path d="M0,15 Q25,5 50,15 T100,15" stroke="currentColor" fill="none"/>
+          </svg>
         </div>
       </div>
     </div>
   </div>
 
-  <br>
+  <!-- Transactions Card -->
+  <div class="col-md-3">
+    <div class="stat-card transactions">
+      <div class="stat-content">
+        <h3>Transactions</h3>
+        <div class="stat-value">484</div>
+        <div class="stat-curve">
+          <svg viewBox="0 0 100 25">
+            <path d="M0,15 Q25,25 50,15 T100,15" stroke="currentColor" fill="none"/>
+          </svg>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Completed Projects Card -->
+  <div class="col-md-3">
+    <div class="stat-card projects">
+      <div class="stat-content">
+        <h3>Completed Projects</h3>
+        <div class="stat-value">570</div>
+        <div class="stat-curve">
+          <svg viewBox="0 0 100 25">
+            <path d="M0,15 Q25,5 50,15 T100,15" stroke="currentColor" fill="none"/>
+          </svg>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Total Tasks Card -->
+  <div class="col-md-3">
+    <div class="stat-card tasks">
+      <div class="stat-content">
+        <h3>Total Tasks</h3>
+        <div class="stat-value">570</div>
+        <div class="stat-curve">
+          <svg viewBox="0 0 100 25">
+            <path d="M0,15 Q25,25 50,15 T100,15" stroke="currentColor" fill="none"/>
+          </svg>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="row">
+  <div class="col-md-12 grid-margin stretch-card">
+    <div class="card position-relative">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h4 class="card-title">Project Recommendations</h4>
+        </div>
+
+        {% if has_ai_recommendations %}
+          <div class="recommended-projects-container">
+            {% if recommended_projects %}
+              {% for recommendation in recommended_projects %}
+                <div class="project-card">
+                  <div class="project-header">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                      <h4 class="project-title">{{ recommendation.project.title }}</h4>
+                      <div class="project-category">
+                        {% if recommendation.client_profile_picture %}
+                          <img src="{{ recommendation.client_profile_picture.url }}" alt="Client Profile" 
+                               style="width: 30px; height: 30px; border-radius: 50%; object-fit: cover;">
+                        {% else %}
+                          <img src="{% static 'img/default_profile.png' %}" alt="Default Profile" 
+                               style="width: 30px; height: 30px; border-radius: 50%; object-fit: cover;">
+                        {% endif %}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div class="project-details">
+                    {% if recommendation.reasons %}
+                      <div class="matching-skills">
+                        <h6>Matching :</h6>
+                        <ul>
+                          {% for reason in recommendation.reasons %}
+                            <li>{{ reason }}</li>
+                          {% endfor %}
+                        </ul>
+                      </div>
+                    {% endif %}
+                    
+                    {% if recommendation.missing_skills %}
+                      <div class="missing-skills">
+                        <h6>Skills to Develop:</h6>
+                        <ul class="list-unstyled">
+                          {% for skill in recommendation.missing_skills %}
+                            <span class="badge badge-warning m-1">{{ skill }}</span>
+                          {% endfor %}
+                        </ul>
+                      </div>
+                    {% endif %}
+                  </div>
+
+                  <div class="project-footer">
+                    <a href="{% url 'freelancer:single_project_view' recommendation.project.id %}" 
+                       class="btn btn-primary btn-sm">View Details</a>
+                  </div>
+                </div>
+              {% endfor %}
+            {% else %}
+              <div class="text-center py-4">
+                <p>No recommended projects available at the moment.</p>
+              </div>
+            {% endif %}
+          </div>
+        {% else %}
+          <!-- Pastel colored subscription warning -->
+          <div class="text-center py-3">
+            <div class="subscription-warning" onclick="window.location.href='{% url 'freelancer:plans' %}'">
+              <div class="alert alert-custom" role="alert">
+                <i class="mdi mdi-alert-circle-outline"></i>
+                <span>Subscription required for personalized recommendations</span>
+              </div>
+            </div>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.subscription-warning {
+  cursor: pointer;
+}
+
+.alert-custom {
+  background-color: #FFE5E5;  /* Pastel red background */
+  color: #FF6B6B;            /* Darker red text */
+  border: 1px solid #FFD1D1; /* Slightly darker border */
+  border-radius: 4px;
+  padding: 8px 15px;
+  display: inline-block;
+  font-size: 0.9rem;
+  margin: 0;
+  transition: all 0.2s ease;
+}
+
+.alert-custom i {
+  margin-right: 5px;
+  font-size: 1rem;
+  vertical-align: middle;
+}
+
+.alert-custom:hover {
+  background-color: #FFD1D1;
+  border-color: #FFC7C7;
+}
+</style>
+
+<br>
 <div class="row">
   <div class="col-md-8 col-sm-12 grid-margin stretch-card">
     <div class="card position-relative">
@@ -522,7 +837,6 @@
               <tr>
                 <th>Project</th>
                 <th>Client</th>
-                <th>Budget</th>
                 <th>Status</th>
                 <th>Progress</th>
               </tr>
@@ -530,10 +844,10 @@
             <tbody>
               {% for project_data in project_progress_data %}
               <tr>
-                <td>{{ project_data.project.title }}</td>
+                <td>{{ project_data.project.title }} <br>
+                  Budget: <span class="badge badge-primary"style="font-size: 12px;margin-top: 10px;">{{ project_data.project.budget }}</span></td>
                 <td>{{ project_data.client_name}}</td>
 
-                <td class="font-weight-bold">{{ project_data.project.budget }}</td>
 
                 <td class="font-weight-medium">
                   <div class="badge 
@@ -551,8 +865,7 @@
                   </div>
                 </td>
                 <td>
-                  {{ project_data.progress_percentage|floatformat:2 }}% ({{ project_data.completed_tasks }}/{{
-                  project_data.total_tasks }} tasks completed)
+                  {{ project_data.progress_percentage|floatformat:2 }}%
                   <div class="progress">
                     <div class="progress-bar" role="progressbar" style="width: {{ project_data.progress_percentage }}%"
                       aria-valuenow="{{ project_data.progress_percentage }}" aria-valuemin="0" aria-valuemax="100">
@@ -577,9 +890,9 @@
 
 
 
-<div class="row">
-
-<div class="col-md-5 col-sm-12 grid-margin stretch-card">
+<div class="row" style="width: 100%;">
+  <!-- Top Clients Card -->
+  <div class="col-12 col-sm-12 col-md-6 col-lg-6 grid-margin stretch-card">
     <div class="card position-relative">
       <div class="card-body">
         <h4 class="card-title">Top Clients by Revenue</h4>
@@ -591,8 +904,59 @@
       </div>
     </div>
   </div>
-</div>
 
+  <!-- Upcoming Meetings Card -->
+  <div class="col-12 col-sm-12 col-md-6 col-lg-6 grid-margin stretch-card">
+    <div class="card">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h4 class="card-title mb-0">
+                <i class="fas fa-calendar-day text-primary me-2"></i>Upcoming Meetings
+            </h4>
+            
+        </div>
+        <div class="upcoming-meetings-list">
+            {% for meeting in upcoming_meetings %}
+                {% if meeting.status == 'scheduled' and meeting.datetime|date:'Y-m-d' >= now|date:'Y-m-d' %}
+                    <div class="upcoming-meeting-item">
+                        <div class="meeting-time-badge">
+                            <span class="date">{{ meeting.datetime|date:"d" }}</span>
+                            <span class="month">{{ meeting.datetime|date:"M" }}</span>
+                        </div>
+                        <div class="meeting-details">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <h6 class="meeting-title">{{ meeting.title }}</h6>
+                                    <p class="meeting-time mb-2">
+                                        <i class="far fa-clock me-1"></i>
+                                        {{ meeting.datetime|date:"g:i a" }}
+                                    </p>
+                                    <p class="meeting-project mb-0">
+                                        <i class="fas fa-project-diagram me-1"></i>
+                                        {{ meeting.project.title }}
+                                    </p>
+                                </div>
+                                {% if meeting.meeting_link %}
+                                    <a href="{{ meeting.meeting_link }}" target="_blank" class="btn btn-sm btn-join">
+                                        <i class="fas fa-video me-1"></i>Join
+                                    </a>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                {% endif %}
+            {% empty %}
+                <div class="text-center text-muted py-5">
+                    <i class="fas fa-calendar-times fa-3x mb-3"></i>
+                    <p class="mb-0">No upcoming meetings scheduled</p>
+                </div>
+            {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
 <!-- Add this where you want the chart to appear -->
 
 
@@ -653,10 +1017,6 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 });
 </script>
-
-
-
-
 
 <script src="https://cdn.jsdelivr.net/npm/decimal.js"></script> <!-- Ensure this is included if using decimal.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -797,11 +1157,230 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
+<!-- Upcoming Meetings Card -->
 
+<style>
+.upcoming-meetings-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.upcoming-meeting-item {
+    display: flex;
+    align-items: flex-start;
+    padding: 1rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+    background-color: white;
+}
+
+.upcoming-meeting-item:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.meeting-time-badge {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background-color: #4B49AC;
+    color: white;
+    padding: 0.5rem;
+    border-radius: 6px;
+    margin-right: 1rem;
+    min-width: 50px;
+    text-align: center;
+}
+
+.meeting-time-badge .date {
+    font-size: 1.25rem;
+    font-weight: bold;
+    line-height: 1;
+}
+
+.meeting-time-badge .month {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    margin-top: 0.25rem;
+}
+
+.meeting-details {
+    flex: 1;
+}
+
+.meeting-title {
+    color: #2d3748;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+    font-size: 0.95rem;
+}
+
+.meeting-time, .meeting-project {
+    color: #718096;
+    font-size: 0.85rem;
+}
+
+.btn-join {
+    background-color: #10B981;
+    color: white;
+    border: none;
+    padding: 0.25rem 0.75rem;
+    font-size: 0.75rem;
+    transition: all 0.3s ease;
+}
+
+.btn-join:hover {
+    background-color: #059669;
+    color: white !important;
+    transform: translateY(-1px);
+}
+
+.text-muted {
+    color: #718096;
+}
+
+.text-muted i {
+    color: #CBD5E1;
+}
+
+/* Custom scrollbar for the meetings list */
+.upcoming-meetings-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.upcoming-meetings-list::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+}
+
+.upcoming-meetings-list::-webkit-scrollbar-thumb {
+    background: #4B49AC;
+    border-radius: 10px;
+}
+
+.upcoming-meetings-list::-webkit-scrollbar-thumb:hover {
+    background: #3f3e91;
+}
+</style>
+
+<style>
+.stat-card {
+  background: white;
+  border-radius: 16px;
+  padding: 1rem;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+  transition: transform 0.3s ease;
+  height: 50px;
+  min-height: 160px;
+}
+
+.stat-card:hover {
+  transform: translateY(-5px);
+}
+
+.stat-content {
+  position: relative;
+  z-index: 1;
+}
+
+.stat-card h3 {
+  font-size: 1.1rem;
+  font-weight: 500;
+  margin-bottom: 1rem;
+  color: #4a5568;
+}
+
+.stat-value {
+  font-size: 2.5rem;
+  font-weight: bold;
+  margin: 0.5rem 0;
+}
+
+.stat-curve {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 25px;
+  opacity: 0.2;
+}
+
+/* Pastel Colors for Cards */
+.stat-card.sales {
+  background: #FFE5E5;  /* Pastel Pink */
+  color: #FF6B6B;
+}
+
+.stat-card.transactions {
+  background: #E5F3FF;  /* Pastel Blue */
+  color: #4B9FFF;
+}
+
+.stat-card.projects {
+  background: #FFF2E5;  /* Pastel Orange */
+  color: #FF9F6B;
+}
+
+.stat-card.tasks {
+  background: #E5FFF2;  /* Pastel Green */
+  color: #6BFF9F;
+}
+
+.stat-curve svg path {
+  stroke: currentColor;
+  stroke-width: 2;
+}
+
+@media (max-width: 768px) {
+  .stat-card {
+    margin-bottom: 1rem;
+  }
+}
+</style>
+
+<script>
+function updateTimer(endDate) {
+    const now = new Date().getTime();
+    const end = new Date(endDate).getTime();
+    const distance = end - now;
+
+    if (distance < 0) {
+        document.getElementById('days').textContent = '00';
+        document.getElementById('hours').textContent = '00';
+        document.getElementById('minutes').textContent = '00';
+        document.getElementById('seconds').textContent = '00';
+        return;
+    }
+
+    const days = Math.floor(distance / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+
+    document.getElementById('days').textContent = days.toString().padStart(2, '0');
+    document.getElementById('hours').textContent = hours.toString().padStart(2, '0');
+    document.getElementById('minutes').textContent = minutes.toString().padStart(2, '0');
+    document.getElementById('seconds').textContent = seconds.toString().padStart(2, '0');
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const timerElement = document.getElementById('subscriptionTimer');
+    if (timerElement) {
+        const endDate = timerElement.dataset.end;
+        updateTimer(endDate);
+        setInterval(() => updateTimer(endDate), 1000);
+    }
+});
+</script>
 
 {% endblock %}
-
-
 
 
 

@@ -532,5 +532,65 @@
     }
 </script>
 
+<div class="alert {% if completed_projects >= 2 %}alert-warning{% else %}alert-info{% endif %}">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <h6>Project Status</h6>
+            <p class="mb-1">Completed Projects: {{ completed_projects }} / 3</p>
+            {% if not subscription_type %}
+                {% if completed_projects >= 2 %}
+                    <p class="text-warning mb-0">
+                        {% if completed_projects == 2 %}
+                            You will need to subscribe after completing 1 more project!
+                        {% elif completed_projects >= 3 %}
+                            You have completed 3 projects. Please subscribe to continue.
+                        {% endif %}
+                    </p>
+                {% endif %}
+            {% else %}
+                <p class="mb-1">Current Plan: {{ subscription_type }}</p>
+                <p class="mb-1">Projects Available: {{ projects_remaining }}</p>
+            {% endif %}
+        </div>
+        {% if completed_projects >= 2 or subscription_type %}
+            <div>
+                <a href="{% url 'freelancer:plans' %}" class="btn btn-primary">
+                    {% if subscription_type %}
+                        Upgrade Plan
+                    {% else %}
+                        View Plans
+                    {% endif %}
+                </a>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    {% if show_subscription_alert %}
+        Swal.fire({
+            title: '{{ alert_data.title }}',
+            text: '{{ alert_data.message }}',
+            icon: 'info',
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+            showCancelButton: true,
+            confirmButtonColor: '#3085d6',
+            cancelButtonColor: '#d33',
+            confirmButtonText: 'View Plans',
+            cancelButtonText: 'Go Back'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                window.location.href = '{{ alert_data.redirect_url }}';
+            } else {
+                window.history.back();
+            }
+        });
+    {% endif %}
+});
+</script>
 
 {% endblock %}

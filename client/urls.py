@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.shortcuts import render
 from django.urls import include, path
 
-from client.views import  plans,mark_project_completed,download_invoice,view_invoice,payments,update_complaint_status,update_solution,view_complaints_recieved,view_complaints,add_complaint,send_file,fetch_messages,send_message,chat_view,add_github_link,edit_task, submit_review, update_task_status, verify_payment,payment_success,make_payment, submit_contract,add_task, add_url,add_note,add_file, create_repository,acc_deactivate,lock_proposal, notification_mark_as_read, toggle_project_status,edit_project,delete_event,update_event,add_event,update_proposal_status,freelancer_detail,calendar,AddProfileClient, client_view,account_settings,change_password, project_list, single_project_view,update_profile,change_profile_image,add_new_project,freelancer_list, update_task_progress, view_repository, hire_freelancer, accept_interview, reject_interview, track_hiring, submit_meeting, toggle_hiring_status, manage_event_quizzes, create_event, get_event_details,remove_event,manage_single_event,update_event_settings, send_event_link,create_prize_payment,verify_prize_payment, upload_certificate_template, generate_certificates,client_repositories
+from client.views import  plans,mark_project_completed,download_invoice,view_invoice,payments,update_complaint_status,update_solution,view_complaints_recieved,view_complaints,add_complaint,send_file,fetch_messages,send_message,chat_view,add_github_link,edit_task, submit_review, update_task_status, verify_payment,payment_success,make_payment, submit_contract,add_task, add_url,add_note,add_file, create_repository,acc_deactivate,lock_proposal, notification_mark_as_read, toggle_project_status,edit_project,delete_event,update_event,add_event,update_proposal_status,freelancer_detail,calendar,AddProfileClient, client_view,account_settings,change_password, project_list, single_project_view,update_profile,change_profile_image,add_new_project,freelancer_list, update_task_progress, view_repository, hire_freelancer, accept_interview, reject_interview, track_hiring, submit_meeting, toggle_hiring_status, manage_event_quizzes, create_event, get_event_details,remove_event,manage_single_event,update_event_settings, send_event_link,create_prize_payment,verify_prize_payment, upload_certificate_template, generate_certificates,client_repositories, schedule_meeting, cancel_meeting, join_meeting, list_meetings
 def welcome(request):
     return render(request,'welcome.html')
 urlpatterns = [
@@ -108,4 +108,8 @@ urlpatterns = [
     
     path('repositories/', client_repositories, name='client_repositories'),
     path('plans/', plans, name='plans'),
+    path('project/<int:project_id>/schedule-meeting/', schedule_meeting, name='schedule_meeting'),
+    path('meeting/<int:meeting_id>/cancel/', cancel_meeting, name='cancel_meeting'),
+    path('meeting/<int:meeting_id>/join/', join_meeting, name='join_meeting'),
+    path('meetings/', list_meetings, name='list_meetings'),
 ]

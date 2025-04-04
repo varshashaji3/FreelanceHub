@@ -26,6 +26,10 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <style>
+    body{
+      background-color: #f5f7ff;
+    }
+    
     /* Chatbot styles */
     #chatbox {
         position: fixed;
@@ -422,6 +426,131 @@
       display: none !important;
     }
   }
+
+#subscription-btn {
+    background: #8b5cf6 50%;
+    color: white;
+    border: none;
+    padding: 8px;
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+#subscription-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 6px rgba(0,0,0,0.15);
+    color: white;
+    background:  #7c3aed;
+}
+
+#subscription-icon {
+    color: #ffd700;
+    font-size: 1.2rem;
+    margin-right: 4px;
+}
+
+.plan-name {
+    font-weight: 500;
+    font-size: 0.9rem;
+    text-transform: capitalize;
+}
+
+.days-left {
+    font-size: 0.75rem;
+    opacity: 0.9;
+    background: rgba(255,255,255,0.2);
+    padding: 2px 8px;
+    border-radius: 12px;
+    margin-left: 4px;
+}
+
+#upgradeBtn {
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    color: white;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.3s ease;
+    font-weight: 500;
+}
+
+#upgradeBtn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 6px rgba(0,0,0,0.15);
+    color: white;
+    background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
+}
+
+#upgradeBtn i {
+    font-size: 1.2rem;
+}
+
+@media (max-width: 768px) {
+    .days-left {
+        display: none;
+    }
+    
+    #subscription-btn, #upgradeBtn {
+        padding: 6px 12px;
+    }
+}
+
+/* Custom Properties */
+:root {
+    --open-color: #22c55e;  /* Green */
+    --closed-color: #3b82f6; /* Blue */
+    --hover-shadow: 0 4px 6px rgba(0,0,0,0.15);
+}
+
+#openToWorkBtn {
+    background-color: var(--closed-color) !important;
+    color: white !important;
+    border: none !important;
+    padding: 8px 15px !important;
+    border-radius: 20px !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    transition: all 0.3s ease !important;
+    font-weight: 500 !important;
+    text-decoration: none !important;
+    margin-right: -20px !important;
+    height: auto !important;
+    line-height: normal !important;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+}
+
+#openToWorkBtn:hover {
+    transform: translateY(-1px) !important;
+    box-shadow: var(--hover-shadow) !important;
+    opacity: 0.9 !important;
+}
+
+#openToWorkBtn.btn-success {
+    background-color: var(--open-color) !important;
+}
+
+#openToWorkBtn i {
+    font-size: 1rem !important;
+    margin-right: 4px !important;
+}
+
+@media (max-width: 768px) {
+    #openToWorkBtn {
+        padding: 6px 12px !important;
+    }
+    
+    #openToWorkBtn i {
+        margin-right: 0 !important;
+    }
+}
 </style>
 
 <script>
@@ -482,15 +611,29 @@
         </ul>
         <ul class="navbar-nav navbar-nav-right">
           <!-- Upgrade button - hide on small screens -->
-          <li class="nav-item d-none d-sm-inline-block">
-            <a href="{% url 'freelancer:plans' %}" id="upgradeBtn" class="btn btn-warning" style="margin-right: -20px;">
-              Upgrade
-            </a>
-          </li>
+          {% if active_subscription %}
+            <li class="nav-item d-none d-sm-inline-block">
+                <a href="{% url 'freelancer:plans' %}" id="subscription-btn"class="btn subscription-btn" style="margin-right: -20px;">
+                    <i class="mdi mdi-crown subscription-icon"></i>
+                    <span class="plan-name">{{ active_subscription.plan.name }}</span>
+                  
+                </a>
+            </li>
+          {% else %}
+            <li class="nav-item d-none d-sm-inline-block">
+                <a href="{% url 'freelancer:plans' %}" id="upgradeBtn" class="btn btn-warning upgrade-btn" style="margin-right: -20px;">
+                    <i class="mdi mdi-crown-outline"></i>
+                    Upgrade
+                </a>
+            </li>
+          {% endif %}
           <!-- Open to Work button - responsive text -->
           <li class="nav-item">
-            <button id="openToWorkBtn" class="btn {% if freelancer.is_open_to_work %}btn-success{% else %}btn-primary{% endif %}" style="margin-right: -20px;">
-              <i class="fas fa-briefcase"></i> <span class="d-none d-md-inline">{% if freelancer.is_open_to_work %}Not Open to Work{% else %}Open to Work{% endif %}</span>
+            <button id="openToWorkBtn" class="{% if freelancer.is_open_to_work %}btn-success{% else %}btn-primary{% endif %}">
+              <i class="fas fa-briefcase"></i>
+              <span class="d-none d-md-inline">
+                  {% if freelancer.is_open_to_work %}Open to Work{% else %}Not Open to Work{% endif %}
+              </span>
             </button>
           </li>
           
@@ -501,31 +644,29 @@
                 <span style="margin-left:8px;color:white; font-size:10px;background-color:rgb(14, 14, 160);margin-top:-5px;height:16px;width:16px;" class="count">{{ unread_notifications.count }}</span>
             </a>
             <div class="dropdown-menu dropdown-menu-right navbar-dropdown preview-list" aria-labelledby="notificationDropdown">
-                <p class="mb-0 font-weight-normal float-left dropdown-header">Notifications</p>
-                {% for notification in unread_notifications %}
-                <a class="dropdown-item preview-item">
-                    <div class="d-flex align-items-center">
-                        <div class="preview-thumbnail">
-                            <div class="preview-icon bg-success">
-                                <i class="ti-info-alt mx-0"></i>
+                <p class="dropdown-header">Notifications</p>
+                <div class="notifications-scroll-area">
+                    {% if unread_notifications %}
+                        {% for notification in unread_notifications %}
+                        <div class="preview-item">
+                            <div class="preview-item-content">
+                                <h6 class="preview-subject">{{ notification.message }}</h6>
+                                <p class="small-text mb-0">
+                                    {{ notification.created_at|timesince }} ago
+                                </p>
                             </div>
+                            <form action="{% url 'freelancer:notification_mark_as_read' notification.id %}" method="post">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-success btn-sm">Mark as Read</button>
+                            </form>
                         </div>
-                        <div class="preview-item-content flex-grow-1">
-                            <h6 class="preview-subject font-weight-normal">{{ notification.message }}</h6>
-                            <p class="font-weight-light small-text mb-0 text-muted">
-                                {{ notification.created_at|timesince }} ago
-                            </p>
+                        {% endfor %}
+                    {% else %}
+                        <div class="preview-item">
+                            <p class="mb-0 text-muted">No unread notifications</p>
                         </div>
-                        <form action="{% url 'freelancer:notification_mark_as_read' notification.id %}" method="post">
-                          {% csrf_token %}
-                          <input type="submit" class="btn btn-success btn-sm" value="Mark as Read">
-                      </form>
-                    </div>
-                </a>
-                {% endfor %}
-                {% if not unread_notifications %}
-                <p class="font-weight-light small-text mb-0 text-muted">No unread notifications</p>
-                {% endif %}
+                    {% endif %}
+                </div>
             </div>
         </li>
 
@@ -1470,6 +1611,111 @@
         });
     });
   </script>
+
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    {% if show_subscription_alert %}
+        Swal.fire({
+            title: 'Subscription Required',
+            text: '{{ alert_data.message }}',
+            icon: 'info',
+            showCancelButton: true,
+            confirmButtonColor: '#3085d6',
+            cancelButtonColor: '#d33',
+            confirmButtonText: 'View Plans',
+            cancelButtonText: 'Stay Here'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                window.location.href = '{{ alert_data.redirect_url }}';
+            }else{
+              window.history.back();
+            }
+        });
+    {% endif %}
+});
+</script>
+
+<style>
+/* Notification Dropdown Container */
+.dropdown-menu.preview-list {
+    width: 350px !important;
+    max-width: 450px !important;
+    max-height:fit-content; /* Set maximum height */
+    overflow: auto;
+    flex-direction: column !important;
+    padding: 0 !important;
+    border-radius: 12px !important;
+    border: none !important;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1) !important;
+
+}
+
+/* Fixed Header */
+.dropdown-header {
+    padding: 12px 15px !important;
+    font-size: 1rem !important;
+    font-weight: 600 !important;
+    background: #fff !important;
+    border-bottom: 1px solid #eee !important;
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 1 !important;
+}
+
+/* Scrollable Content Area */
+.notifications-scroll-area {
+    overflow-y: auto !important;
+    flex-grow: 1 !important;
+    scrollbar-width: thin !important;
+    scrollbar-color: #cbd5e1 transparent !important;
+}
+
+/* Scrollbar Styling */
+.notifications-scroll-area::-webkit-scrollbar {
+    width: 6px !important;
+}
+
+.notifications-scroll-area::-webkit-scrollbar-track {
+    background: transparent !important;
+}
+
+.notifications-scroll-area::-webkit-scrollbar-thumb {
+    background-color: #cbd5e1 !important;
+    border-radius: 20px !important;
+}
+
+/* Individual Notification Items */
+.preview-item {
+    padding: 10px 12px !important;
+    min-height: 60px !important;
+    border-bottom: 1px solid #f1f5f9 !important;
+    display: flex !important;
+    align-items: flex-start !important;
+}
+
+.preview-item-content {
+    max-width: 250px !important;
+    flex-grow: 1 !important;
+}
+
+.preview-subject {
+    font-size: 0.8rem !important;
+    line-height: 1.4 !important;
+    color: #1f2937 !important;
+    margin-bottom: 4px !important;
+    display: -webkit-box !important;
+    -webkit-line-clamp: 2 !important;
+    -webkit-box-orient: vertical !important;
+    overflow: hidden !important;
+}
+
+.small-text {
+    font-size: 0.7rem !important;
+    color: #6b7280 !important;
+    white-space: nowrap !important;
+}
+</style>
 
 </body>
 

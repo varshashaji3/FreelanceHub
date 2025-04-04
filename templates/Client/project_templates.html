@@ -1,0 +1,292 @@
+{% extends 'client/base.html' %}
+{% block 'client_content' %}
+{% load static %}
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Project Templates</h3>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-4">
+                        <div class="col-md-12">
+                            <button class="btn btn-primary mb-3" onclick="showAddTemplateModal()">
+                                Create New Template
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-12">
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Template Name</th>
+                                            <th>Category</th>
+                                            <th>Default Budget</th>
+                                            <th>Duration (days)</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="template-list">
+                                        <!-- Templates will be loaded here -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Template Modal -->
+<div class="modal fade" id="addTemplateModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Create New Project Template</h5>
+                <button type="button" class="close" data-dismiss="modal">
+                    <span>&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="template-form">
+                    <div class="form-group">
+                        <label>Template Name</label>
+                        <input type="text" class="form-control" id="template-name" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Category</label>
+                        <select class="form-control" id="template-category" required>
+                            <option value="web_development">Web Development</option>
+                            <option value="mobile_app">Mobile App Development</option>
+                            <option value="ui_ux_design">UI/UX Design</option>
+                            <option value="content_writing">Content Writing</option>
+                            <option value="digital_marketing">Digital Marketing</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Description</label>
+                        <textarea class="form-control" id="template-description" rows="3" required></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Default Budget</label>
+                        <input type="number" class="form-control" id="template-budget" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Estimated Duration (days)</label>
+                        <input type="number" class="form-control" id="template-duration" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Default Milestones</label>
+                        <div id="milestone-list">
+                            <!-- Milestone inputs will be added here -->
+                        </div>
+                        <button type="button" class="btn btn-secondary btn-sm mt-2" onclick="addMilestoneInput()">
+                            Add Milestone
+                        </button>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" onclick="saveTemplate()">Save Template</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    loadTemplates();
+});
+
+function loadTemplates() {
+    fetch('/client/project-templates/')
+        .then(response => response.json())
+        .then(data => {
+            const templateList = document.getElementById('template-list');
+            templateList.innerHTML = '';
+            
+            data.templates.forEach(template => {
+                const row = createTemplateRow(template);
+                templateList.appendChild(row);
+            });
+        });
+}
+
+function createTemplateRow(template) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+        <td>${template.name}</td>
+        <td>${template.category}</td>
+        <td>$${template.default_budget}</td>
+        <td>${template.estimated_duration}</td>
+        <td>
+            <button class="btn btn-sm btn-primary" onclick="useTemplate(${template.id})">
+                Use Template
+            </button>
+            <button class="btn btn-sm btn-info" onclick="editTemplate(${template.id})">
+                Edit
+            </button>
+            <button class="btn btn-sm btn-danger" onclick="deleteTemplate(${template.id})">
+                Delete
+            </button>
+        </td>
+    `;
+    return tr;
+}
+
+function showAddTemplateModal() {
+    document.getElementById('template-form').reset();
+    document.getElementById('milestone-list').innerHTML = '';
+    $('#addTemplateModal').modal('show');
+}
+
+function addMilestoneInput() {
+    const milestoneList = document.getElementById('milestone-list');
+    const milestoneDiv = document.createElement('div');
+    milestoneDiv.className = 'milestone-input card mb-2';
+    milestoneDiv.innerHTML = `
+        <div class="card-body">
+            <div class="form-group">
+                <label>Milestone Title</label>
+                <input type="text" class="form-control milestone-title" required>
+            </div>
+            <div class="form-group">
+                <label>Description</label>
+                <textarea class="form-control milestone-description"></textarea>
+            </div>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label>Start Date (days from project start)</label>
+                        <input type="number" class="form-control milestone-start" required>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label>End Date (days from project start)</label>
+                        <input type="number" class="form-control milestone-end" required>
+                    </div>
+                </div>
+            </div>
+            <button type="button" class="btn btn-danger btn-sm" onclick="this.parentElement.parentElement.remove()">
+                Remove Milestone
+            </button>
+        </div>
+    `;
+    milestoneList.appendChild(milestoneDiv);
+}
+
+function saveTemplate() {
+    const milestones = [];
+    document.querySelectorAll('.milestone-input').forEach(input => {
+        milestones.push({
+            title: input.querySelector('.milestone-title').value,
+            description: input.querySelector('.milestone-description').value,
+            start_date: input.querySelector('.milestone-start').value,
+            end_date: input.querySelector('.milestone-end').value
+        });
+    });
+
+    const formData = {
+        name: document.getElementById('template-name').value,
+        category: document.getElementById('template-category').value,
+        description: document.getElementById('template-description').value,
+        default_budget: document.getElementById('template-budget').value,
+        estimated_duration: document.getElementById('template-duration').value,
+        default_milestones: milestones
+    };
+
+    fetch('/client/project-templates/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify(formData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        $('#addTemplateModal').modal('hide');
+        loadTemplates();
+    });
+}
+
+function useTemplate(templateId) {
+    const projectName = prompt('Enter project name:');
+    if (projectName) {
+        fetch('/client/create-project-from-template/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify({
+                template_id: templateId,
+                title: projectName
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            window.location.href = `/client/project/${data.id}/`;
+        });
+    }
+}
+
+function editTemplate(templateId) {
+    // Implement edit functionality
+}
+
+function deleteTemplate(templateId) {
+    if (confirm('Are you sure you want to delete this template?')) {
+        fetch(`/client/project-templates/${templateId}/`, {
+            method: 'DELETE',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken')
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            loadTemplates();
+        });
+    }
+}
+
+// Helper function to get CSRF token
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+</script>
+
+<style>
+.milestone-input {
+    border-left: 4px solid #28a745;
+    transition: all 0.3s ease;
+}
+
+.milestone-input:hover {
+    transform: translateX(5px);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+</style>
+
+{% endblock %} 
